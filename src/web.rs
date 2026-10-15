@@ -293,7 +293,7 @@ pub fn state(a: &Ax) -> Value {
     let st = a.set();
     json!({
         "t": now(), "fl": fls, "w": ws, "flow": fl, "acc": accs, "srv": srv, "cnt": cnt, "done": done, "bell": bell,
-        "usd": crate::prov::spent(a), "usd_day": st["usd_day"], "quest": a.db.kg("quest"), "owner": a.db.kg("owner"), "stop": a.lv.lock().unwrap().stop.get(&0).copied().unwrap_or(false),
+        "usd": crate::prov::spent(a), "usd_day": st["usd_day"], "set": {"lounge": st["lounge"], "lang": st["lang"]}, "quest": a.db.kg("quest"), "owner": a.db.kg("owner"), "stop": a.lv.lock().unwrap().stop.get(&0).copied().unwrap_or(false),
         "tn": a.db.all("select id from tk where st='done' and t1>? order by t1 desc limit 1", pa![now() - 10_000]),
     })
 }

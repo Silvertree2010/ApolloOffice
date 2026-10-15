@@ -2,7 +2,7 @@ use crate::cfg::Ax;
 use crate::db::now;
 use crate::pa;
 use crate::perm::{inside, netok, real, shok, Pm};
-use crate::sh::{cut, head, sh};
+use crate::sh::{head, sh};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

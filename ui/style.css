@@ -93,15 +93,15 @@ a{color:var(--ac)}
 #pg pre{white-space:pre-wrap;background:var(--in);border:1px solid var(--ln);border-radius:3px;padding:10px;max-height:60vh;overflow:auto}
 #pg .mt{color:var(--t3)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
-.wd{background:var(--pn);border:1px solid var(--ln);border-radius:4px;padding:12px;min-height:110px;position:relative;display:flex;flex-direction:column;gap:6px}
-.wd .h{color:var(--t2);display:flex;justify-content:space-between;gap:8px}
-.wd .h span:last-child{cursor:pointer;color:var(--t3)}
-.wd .v{font-size:30px;font-weight:700}
-.wd .ls{color:var(--t2);font-size:12px;overflow:hidden}
-.wd .ls div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wd .lp{width:14px;height:14px;border-radius:50%;display:inline-block;margin-right:6px;vertical-align:-2px}
-.wd canvas{width:100%;height:60px}
-.wd.add{align-items:center;justify-content:center;color:var(--t3);cursor:pointer;border-style:dashed}
+.wg{background:var(--pn);border:1px solid var(--ln);border-radius:4px;padding:12px;min-height:110px;position:relative;display:flex;flex-direction:column;gap:6px}
+.wg .h{color:var(--t2);display:flex;justify-content:space-between;gap:8px}
+.wg .h span:last-child{cursor:pointer;color:var(--t3)}
+.wg .v{font-size:30px;font-weight:700}
+.wg .ls{color:var(--t2);font-size:12px;overflow:hidden}
+.wg .ls div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wg .lp{width:14px;height:14px;border-radius:50%;display:inline-block;margin-right:6px;vertical-align:-2px}
+.wg canvas{width:100%;height:60px}
+.wg.add{align-items:center;justify-content:center;color:var(--t3);cursor:pointer;border-style:dashed}
 .house{display:flex;flex-direction:column;gap:3px;max-width:640px}
 .house div{display:flex;gap:12px;align-items:center;background:var(--pn);border:1px solid var(--ln);padding:7px 10px;border-radius:3px;cursor:pointer}
 .house div:hover{border-color:#3d434d}
@@ -126,3 +126,5 @@ a{color:var(--ac)}
   .bx{left:8px!important;right:8px;max-width:none;top:auto!important;bottom:calc(8px + env(safe-area-inset-bottom,0px));max-height:60vh}
   .bx.mid{transform:none}
 }
+input[type=checkbox],input[type=radio]{accent-color:var(--ac)}
+#pg a button{color:var(--t1)}

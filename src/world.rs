@@ -1,5 +1,5 @@
 use crate::cfg::Ax;
-use crate::db::{now, Db};
+use crate::db::Db;
 use crate::pa;
 use rand::seq::SliceRandom;
 use rand::Rng;

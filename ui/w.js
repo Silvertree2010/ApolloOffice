@@ -9,7 +9,19 @@ const sk = (c) => ({ body: c, dark: mix(c, "#000000", .28), light: mix(c, "#ffff
 const rnd = (a, b) => a + Math.random() * (b - a);
 Object.assign(A, { T, MW, MH, $, esc, mix, sk, rnd, L });
 
+const SHOT = /[?&]shot\b/.test(location.search);
 const api = async (p, b, m) => {
+  if (SHOT) {
+    const x = new XMLHttpRequest();
+    x.open(m || (b === undefined ? "GET" : "POST"), p, false);
+    x.setRequestHeader("x-ao", "1");
+    if (b !== undefined) x.setRequestHeader("content-type", "application/json");
+    x.send(b === undefined ? null : typeof b === "string" ? b : JSON.stringify(b));
+    let j = null;
+    try { j = JSON.parse(x.responseText); } catch { j = x.responseText; }
+    if (x.status >= 400) throw new Error((j && j.error) || String(x.status));
+    return j;
+  }
   const o = { method: m || (b === undefined ? "GET" : "POST"), headers: { "x-ao": "1" } };
   if (b !== undefined) { o.headers["content-type"] = "application/json"; o.body = typeof b === "string" ? b : JSON.stringify(b); }
   const r = await fetch(p, o);
@@ -347,13 +359,23 @@ const drawW = (e, t) => {
   let say = e.sy > 0 ? e.say : "";
   if (!say && e.mood === "err") say = "?";
   if (!say && lv.st === "wait" && e.st === "sit") say = "…";
-  if (say) {
-    const s2 = say.length > 30 ? say.slice(0, 29) + "…" : say, tw = K.textWidth(s2) + 6, bx = Math.max(1, Math.min(MW * T - tw - 1, Math.round(e.fx) + 8 - tw / 2)), by = Math.round(e.fy) - 22;
+  if (say) BUB.push({ e, say, p: e.sy + (A.sel === e ? 10 : 0) });
+  if (e.st === "lz") { const k = (t * .6 + e.x) % 1; w.globalAlpha = 1 - k; K.text(w, "z", Math.round(e.fx) + 12 + k * 4, Math.round(e.fy) - 10 - k * 6, "#e8e6df"); w.globalAlpha = 1; }
+  if (lv.st === "hold" && e.st === "sit") { px(Math.round(e.fx) + 13, Math.round(e.fy) - 12, "#d9594c", 2, 5); px(Math.round(e.fx) + 16, Math.round(e.fy) - 12, "#d9594c", 2, 5); }
+};
+
+let BUB = [];
+const bubbles = () => {
+  const done = [];
+  BUB.sort((a, b) => b.p - a.p);
+  for (const { e, say } of BUB) {
+    const s2 = say.length > 24 ? say.slice(0, 23) + "…" : say, tw = K.textWidth(s2) + 6, bx = Math.max(1, Math.min(MW * T - tw - 1, Math.round(e.fx) + 8 - tw / 2)), by = Math.max(1, Math.round(e.fy) - 22);
+    if (done.some((r) => bx < r[0] + r[2] + 2 && r[0] < bx + tw + 2 && by < r[1] + 11 && r[1] < by + 11)) continue;
+    done.push([bx, by, tw]);
     px(bx, by, "#f4f1e8", tw, 9); px(Math.round(e.fx) + 7, by + 9, "#f4f1e8", 3, 2);
     K.text(w, s2, bx + 3, by + 2, "#2a2723");
   }
-  if (e.st === "lz") { const k = (t * .6 + e.x) % 1; w.globalAlpha = 1 - k; K.text(w, "z", Math.round(e.fx) + 12 + k * 4, Math.round(e.fy) - 10 - k * 6, "#e8e6df"); w.globalAlpha = 1; }
-  if (lv.st === "hold" && e.st === "sit") { px(Math.round(e.fx) + 13, Math.round(e.fy) - 12, "#d9594c", 2, 5); px(Math.round(e.fx) + 16, Math.round(e.fy) - 12, "#d9594c", 2, 5); }
+  BUB = [];
 };
 
 const pia = (f) => {
@@ -381,6 +403,7 @@ A.draw = () => {
   if (!A.bld) Object.values(A.E).filter((e) => e.fl === f.id && e.st !== "lift").forEach((e) => items.push({ y: e.fy / T + .5, d: () => drawW(e, A.tm) }));
   if (f.k === "lobby" && !A.bld) { const c = (lay.fu || []).find((u) => u.k === "counter"); if (c) items.push({ y: c.y - .6, d: () => pia(fv) }); }
   items.sort((a, b) => a.y - b.y).forEach((i) => i.d());
+  bubbles();
   if (f.k === "keller") (lay.fu || []).filter((u) => u.k === "gen").forEach((u) => { const a = accOf(u.acc); const ls = a ? [a.nm.toUpperCase(), (a.k === "api" ? "API" : L("ABO")) + " " + Math.round((a.st && a.st.pct) || 0) + "%"] : [L("FREI")]; ls.forEach((s2, i) => K.text(w, s2.slice(0, 14), u.x * T + 16 - K.textWidth(s2.slice(0, 14)) / 2, u.y * T + 34 + i * 7, i ? "#6f747b" : "#c9ced4")); });
   if (f.k === "server") (lay.fu || []).filter((u) => u.k === "rack").forEach((u) => { const s = srvOf(u.srv); if (!s) return; const s2 = s.nm.toUpperCase().slice(0, 8); K.text(w, s2, u.x * T + 8 - K.textWidth(s2) / 2, u.y * T + 34, s.st && s.st.on ? "#c9ced4" : "#d9594c"); });
   if (f.k === "rohbau" && !A.bld) { const s = L("ROHBAU - KLICKEN ZUM AUSBAUEN"); K.text(w, s, MW * T / 2 - K.textWidth(s) / 2, MH * T / 2, "#5a5e65"); }
@@ -389,13 +412,13 @@ A.draw = () => {
   if (!A.bld) {
     const n = (f.nm || KN[f.k]).toUpperCase().slice(0, 28), ws = A.S.w.filter((x) => x.fl === f.id), act = ws.filter((x) => x.live && x.live.st === "work").length;
     const l2 = f.k === "office" ? `W ${ws.length}  ${L("AKTIV")} ${act}  ${L("FERTIG")} ${doneOn(f.id)}` : f.k === "keller" ? `${L("GENERATOREN")} ${A.S.acc.length}` : f.k === "server" ? `${L("ONLINE")} ${A.S.srv.filter((s) => s.fl === f.id && s.st && s.st.on).length}/${A.S.srv.filter((s) => s.fl === f.id).length}` : f.k === "lounge" ? `${L("PAUSE")} ${Object.values(A.E).filter((e) => e.fl === f.id && e.st === "lz").length}` : f.k === "buch" ? `${L("HEUTE")} ${(A.S.usd || 0).toFixed(2)} $` : f.k === "lobby" ? `${L("STOCKWERKE")} ${fls().length}` : "";
-    const bw = Math.max(K.textWidth(n), K.textWidth(l2)) + 16, bx = Math.round(MW * T / 2 - bw / 2);
+    const d = new Date(), hm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    const bw = Math.max(K.textWidth(n) + 32, K.textWidth(l2)) + 16, bx = Math.round(MW * T / 2 - bw / 2);
     px(bx, 6, "#111316", bw, l2 ? 20 : 13); px(bx, 6, "#2f333a", bw, 1);
     K.text(w, n, bx + 8, 9, "#c9ccd1"); if (l2) K.text(w, l2, bx + 8, 17, "#6f747b");
     px(bx + bw - 6, 9, A.S.stop ? "#d9594c" : "#62b86f", 2, 2);
+    K.text(w, hm, bx + bw - 10 - K.textWidth(hm), 9, "#6f747b");
     A.sign = [bx, 6, bw, l2 ? 20 : 13];
-    const d = new Date(), hm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
-    K.text(w, hm, MW * T - 34, 9, "#4a4e55");
   } else K.text(w, L("BAU-MODUS - WORKER AUSGEBLENDET"), 6, 4, "#e8e6df");
   let sc, ox, oy;
   const fe = A.fol && A.fol.fl === f.id ? A.fol : null;

@@ -18,6 +18,7 @@ const place = (el, at) => {
 let boxAt = null;
 const box = (html, at, cls) => {
   const b = $("bx");
+  if (!/[?&]shot\b/.test(location.search)) $("dlg").hidden = true;
   b.className = "bx" + (cls ? " " + cls : "");
   b.innerHTML = `<span class="ar" data-x>✕</span>` + html;
   b.hidden = false; b.onclick = null; b.onchange = null; b.oninput = null;
@@ -282,7 +283,7 @@ A.genBox = (u) => {
   const b = box(`<h3>${esc(a.nm)} <small>${esc(L(kname(a)))}</small></h3>
     <div class="rw"><span>${L("Status")}</span><span>${stName(a)}</span></div>
     ${s.err ? `<div class="er">${esc(s.err)}</div>` : ""}
-    <div class="rw"><span>${a.k === "api" ? L("Tageslimit") : L("Abo-Fenster")}</span><span>${pct} %</span></div><div class="bar"><i style="width:${pct}%;background:${pct >= 100 ? "#d9594c" : pct >= 80 ? "#e0675a" : "#62b86f"}"></i></div>
+    <div class="rw"><span>${a.k === "api" ? L("Tageslimit") : L("Abo-Fenster")}</span><span>${a.k === "api" && !(a.cfg && (a.cfg.tok_day || a.cfg.usd_day)) ? L("kein eigenes Limit") : pct + " %"}</span></div><div class="bar"><i style="width:${pct}%;background:${pct >= 100 ? "#d9594c" : pct >= 80 ? "#e0675a" : "#62b86f"}"></i></div>
     <div class="rw"><span>${L("Heute")}</span><span>${(a.today.tin || 0) + (a.today.tout || 0)} Tokens${a.today.usd ? " · " + a.today.usd.toFixed(2) + " $" : ""}</span></div>
     ${a.k === "api" ? `<div class="rw"><span>${L("Schlüssel")}</span><span>${esc(a.sec || "–")}</span></div><div class="rw"><span>${L("Adresse")}</span><span>${esc(a.base)}</span></div>` : `<div class="rw"><span>${L("Login")}</span><span>${a.dir ? L("eigener Ordner") : L("Standard-Login dieses Rechners")}</span></div>`}
     <details><summary>${L("Erweitert")}</summary>
@@ -538,7 +539,7 @@ A.setBld = (on) => {
     if (dirty) A.api(`/api/floor/${f.id}/lay`, { lay }).then(() => { toast(L("Gespeichert")); if (A.questOn() && A.quest.s === 1) A.questSet({ built: 1 }); A.poll(true); }).catch((x) => { fail(x); A.poll(true); });
     return;
   }
-  if (on && !A.bld) { close(); A.fol = null; A.bld = { lay: JSON.parse(JSON.stringify(f.lay)), tool: "desk", und: [] }; $("pal").hidden = false; pal(); }
+  if (on && !A.bld) { close(); A.fol = null; $("dlg").hidden = true; A.bld = { lay: JSON.parse(JSON.stringify(f.lay)), tool: "desk", und: [] }; $("pal").hidden = false; pal(); }
 };
 const pal = () => {
   const p = $("pal");
