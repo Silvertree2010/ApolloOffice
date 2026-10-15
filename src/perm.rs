@@ -13,20 +13,6 @@ pub struct Pm {
     pub push: bool,
 }
 
-pub fn norm(p: &Path) -> PathBuf {
-    let mut o = PathBuf::new();
-    for c in p.components() {
-        match c {
-            Component::ParentDir => {
-                o.pop();
-            }
-            Component::CurDir => {}
-            x => o.push(x.as_os_str()),
-        }
-    }
-    o
-}
-
 pub fn real(p: &Path) -> PathBuf {
     if let Ok(r) = dunce(p) {
         return r;

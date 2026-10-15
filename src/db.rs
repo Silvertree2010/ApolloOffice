@@ -53,6 +53,7 @@ impl Db {
         Ok(Db(Arc::new(Mutex::new(c))))
     }
 
+    #[cfg(test)]
     pub fn mem() -> Db {
         let c = Connection::open_in_memory().unwrap();
         c.execute_batch(SCH).unwrap();

@@ -24,7 +24,6 @@ pub struct Live {
     pub fl: Vec<Value>,
     pub pids: HashMap<i64, Vec<u32>>,
     pub runs: HashMap<String, Value>,
-    pub rl: HashMap<i64, Value>,
     pub stop: HashMap<i64, bool>,
 }
 
