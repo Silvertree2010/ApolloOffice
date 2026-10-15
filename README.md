@@ -64,7 +64,7 @@ from them, and drop results into the OUT tray.
 
 | Basement | Worker menu | Rights |
 | --- | --- | --- |
-| <img src="docs/images/keller.png" alt="Basement with three generators"> | <img src="docs/images/menu.png" alt="Worker menu next to a worker"> | <img src="docs/images/perm.png" alt="Worker settings with folders, commands and who it takes orders from"> |
+| <img src="docs/images/basement.png" alt="Basement with three generators"> | <img src="docs/images/menu.png" alt="Worker menu next to a worker"> | <img src="docs/images/perm.png" alt="Worker settings with folders, commands and who it takes orders from"> |
 
 | Lounge | Build mode | Phone |
 | --- | --- | --- |

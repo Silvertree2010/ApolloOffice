@@ -22,4 +22,4 @@ if cfg:
     p.stdin.close()
     p.wait()
 out({"type": "assistant", "message": {"content": [{"type": "text", "text": "arbeite"}]}})
-out({"type": "result", "subtype": "success", "is_error": False, "result": "Fertig: " + txt, "usage": {"input_tokens": 10, "output_tokens": 5}})
+out({"type": "result", "subtype": "success", "is_error": False, "result": "Done: " + txt, "usage": {"input_tokens": 10, "output_tokens": 5}})

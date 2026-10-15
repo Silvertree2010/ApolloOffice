@@ -534,12 +534,12 @@ A.setBld = (on) => {
   const f = A.flo(A.cur);
   if (on && (!f || f.k === "shell")) return toast("Build out first", 1);
   if (!on && A.bld) {
-    const lay = A.bld.lay, dirty = A.bld.und.length;
+    const lay = A.bld.lay, dirty = A.bld.udo.length;
     A.bld = null; $("pal").hidden = true;
     if (dirty) A.api(`/api/floor/${f.id}/lay`, { lay }).then(() => { toast("Saved"); if (A.questOn() && A.quest.s === 1) A.questSet({ built: 1 }); A.poll(true); }).catch((x) => { fail(x); A.poll(true); });
     return;
   }
-  if (on && !A.bld) { close(); A.fol = null; $("dlg").hidden = true; A.bld = { lay: JSON.parse(JSON.stringify(f.lay)), tool: "desk", und: [] }; $("pal").hidden = false; pal(); }
+  if (on && !A.bld) { close(); A.fol = null; $("dlg").hidden = true; A.bld = { lay: JSON.parse(JSON.stringify(f.lay)), tool: "desk", udo: [] }; $("pal").hidden = false; pal(); }
 };
 const pal = () => {
   const p = $("pal");
@@ -554,7 +554,7 @@ const pal = () => {
     else if ("u" in b.dataset) { c.fillStyle = "#a7a49c"; c.fillRect(10, 14, 14, 3); c.fillRect(10, 10, 3, 10); c.fillRect(13, 11, 2, 2); }
     else { c.fillStyle = "#62b86f"; for (let i = 0; i < 5; i++) c.fillRect(8 + i, 15 + i, 2, 2); for (let i = 0; i < 10; i++) c.fillRect(13 + i, 19 - i, 2, 2); }
   });
-  p.onclick = (e) => { const b = e.target.closest("button"); if (!b) return; if (b.dataset.t) { A.bld.tool = b.dataset.t; pal(); } if ("u" in b.dataset) { const f = A.bld.und.pop(); f ? f() : toast("Nothing to undo"); } if ("q" in b.dataset) A.setBld(false); };
+  p.onclick = (e) => { const b = e.target.closest("button"); if (!b) return; if (b.dataset.t) { A.bld.tool = b.dataset.t; pal(); } if ("u" in b.dataset) { const f = A.bld.udo.pop(); f ? f() : toast("Nothing to undo"); } if ("q" in b.dataset) A.setBld(false); };
 };
 A.bldPlace = (x, y) => {
   const B = A.bld, lay = B.lay, k = B.tool;
@@ -567,14 +567,14 @@ A.bldPlace = (x, y) => {
     const o = A.occ({ lay }, x, y);
     if (o) {
       if (o.k === "desk" && A.S.w.some((w) => w.fl === A.cur && w.desk === o.id)) return toast("Someone is sitting here. Move or dismiss them first.", 1);
-      lay.fu = lay.fu.filter((u) => u !== o); B.und.push(() => lay.fu.push(o));
-    } else { lay.t[y][x] = 1; B.und.push(() => (lay.t[y][x] = 2)); }
+      lay.fu = lay.fu.filter((u) => u !== o); B.udo.push(() => lay.fu.push(o));
+    } else { lay.t[y][x] = 1; B.udo.push(() => (lay.t[y][x] = 2)); }
     return;
   }
-  if (k === "wall") { lay.t[y][x] = 2; B.und.push(() => (lay.t[y][x] = 1)); return; }
-  if (k === "floor") { lay.t[y][x] = 1; B.und.push(() => (lay.t[y][x] = 2)); return; }
+  if (k === "wall") { lay.t[y][x] = 2; B.udo.push(() => (lay.t[y][x] = 1)); return; }
+  if (k === "floor") { lay.t[y][x] = 1; B.udo.push(() => (lay.t[y][x] = 2)); return; }
   const id = lay.nx || 100; lay.nx = id + 1;
-  const u = { id, k, x, y }; lay.fu.push(u); B.und.push(() => (lay.fu = lay.fu.filter((v) => v !== u)));
+  const u = { id, k, x, y }; lay.fu.push(u); B.udo.push(() => (lay.fu = lay.fu.filter((v) => v !== u)));
 };
 
 const cv = $("cv");
@@ -600,7 +600,7 @@ addEventListener("keydown", (e) => {
   if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
   if (e.key === "Escape") { if (!$("pg").hidden) return A.page(null); close(); A.fol = null; $("dd").hidden = true; if (A.bld) A.setBld(false); }
   if (e.key === "b" && $("pg").hidden && innerWidth > 720) A.setBld(!A.bld);
-  if ((e.metaKey || e.ctrlKey) && e.key === "z" && A.bld) { const f = A.bld.und.pop(); f && f(); }
+  if ((e.metaKey || e.ctrlKey) && e.key === "z" && A.bld) { const f = A.bld.udo.pop(); f && f(); }
   const fl = A.S ? A.S.fl : [], i = fl.findIndex((f) => f.id === A.cur);
   if (e.key === "PageUp" && i >= 0 && i < fl.length - 1) A.goFloor(fl[i + 1].id);
   if (e.key === "PageDown" && i > 0) A.goFloor(fl[i - 1].id);

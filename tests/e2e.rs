@@ -235,7 +235,7 @@ async fn claude_cli_through_mcp() {
     std::fs::write(&fake, include_str!("fake-claude.py")).unwrap();
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
-    let a = s.ok("/api/acc", json!({"k": "claude", "nm": "Fake Abo", "bin": fake.to_str().unwrap(), "ok": true})).await;
+    let a = s.ok("/api/acc", json!({"k": "claude", "nm": "Fake subscription", "bin": fake.to_str().unwrap(), "ok": true})).await;
     let st = s.get("/api/state").await;
     let fl = st["fl"].as_array().unwrap().iter().find(|f| f["k"] == "shell").unwrap()["id"].as_i64().unwrap();
     s.ok(&format!("/api/floor/{fl}/build"), json!({"k": "office"})).await;
