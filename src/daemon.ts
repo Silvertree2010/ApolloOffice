@@ -2,6 +2,7 @@ import { createServer } from "node:http"
 import { readFile } from "node:fs/promises"
 import { readdirSync, existsSync, writeFileSync, mkdirSync, statSync } from "node:fs"
 import { join, extname, resolve } from "node:path"
+import { homedir } from "node:os"
 import { Of } from "./office.ts"
 import { H, PORT, R, V, now, sl } from "./cfg.ts"
 
@@ -34,7 +35,7 @@ const mk = (b: any) => {
 const MT: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png" }
 const HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`])
 const body = (q: any) => new Promise<any>((r) => { let b = ""; q.on("data", (c: any) => { b += c; if (b.length > 1e6) q.destroy() }); q.on("end", () => { try { r(JSON.parse(b || "{}")) } catch { r({}) } }) })
-const list = () => [...O.values()].map((o) => ({ name: o.n, task: o.meta.task, dir: o.meta.dir, st: o.st, why: o.why, ceo: o.cb, open: o.db.one("select count(*) n from it where st not in ('done','drop')").n, done: o.db.one("select count(*) n from it where st='done'").n, tok: o.used(), url: `http://127.0.0.1:${PORT}/o/${o.n}/` }))
+const list = () => [...O.values()].map((o) => ({ name: o.n, task: o.meta.task, dir: o.meta.dir.startsWith(homedir()) ? "~" + o.meta.dir.slice(homedir().length) : o.meta.dir, st: o.st, why: o.why, ceo: o.cb, open: o.db.one("select count(*) n from it where st not in ('done','drop')").n, done: o.db.one("select count(*) n from it where st='done'").n, tok: o.used(), url: `http://127.0.0.1:${PORT}/o/${o.n}/` }))
 
 const act = (o: Of, b: any) => {
   switch (b.a) {

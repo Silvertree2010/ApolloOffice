@@ -1,6 +1,7 @@
 (() => {
   const K = window.K;
   const $ = (s) => document.getElementById(s);
+  const hp = (p) => S && S.hm && String(p).startsWith(S.hm) ? "~" + String(p).slice(S.hm.length) : String(p ?? "");
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   const NAME = location.pathname.split("/")[2];
   const API = "/api/o/" + NAME;
@@ -286,7 +287,7 @@
       const md = n === "ceo" ? "claude-opus" : n === "guard" ? "claude-haiku" : pw ? pw.model : "";
       const wk = n === "ceo" ? S.cb : w.busy > 0;
       t.querySelector(".md").textContent = mdn(md) + (pw && pw.n > 1 ? " ×" + pw.n : "");
-      t.querySelector(".sy").textContent = w.say || "…";
+      t.querySelector(".sy").textContent = (w.say || "…").replace(/[*`]/g, "");
       t.className = "tile" + (wk ? " work" : "") + (w.hold ? " hold" : "");
       t.querySelector(".stt").textContent = w.hold ? "paused" : wk ? "work" + (w.busy > 1 ? " ×" + w.busy : "") : "idle";
       t.querySelector(".ft").textContent = w.tk ? kt(w.tk) + " tok" : "";
@@ -302,7 +303,7 @@
     $("queue").innerHTML = S.q.length ? S.q.map((j) => irow(j, !j.lk)).join("") : `<div class="empty">${S.st === "run" ? "nothing waiting" : "no items yet"}</div>`;
     $("dnn").textContent = `${S.cnt.done || 0} done · ${S.cnt.drop || 0} dropped`;
     $("done").innerHTML = S.dn.length ? S.dn.map((j) => irow(j, false)).join("") : `<div class="empty">nothing finished yet</div>`;
-    $("log").innerHTML = S.ev.slice(0, 40).map((e) => `<div><span class="tm">${hm(e.t)}</span><span style="color:${LY.wk[e.w]?.sk.body || "inherit"}">${esc(LY.wk[e.w]?.nm || e.w)}</span><span title="${esc(e.m)}">${esc(e.m)}</span></div>`).join("");
+    $("log").innerHTML = S.ev.slice(0, 40).map((e) => `<div><span class="tm">${hm(e.t)}</span><span style="color:${LY.wk[e.w]?.sk.body || "inherit"}">${esc(LY.wk[e.w]?.nm || e.w)}</span><span title="${esc(e.m)}">${esc(e.m.replace(/\*\*|`/g, ""))}</span></div>`).join("");
     const kp = S.tiles || [];
     $("kpi").hidden = !kp.length;
     $("kp").innerHTML = kp.map((t) => {
@@ -340,7 +341,7 @@
   const permRows = (P, ok) => {
     const r = [];
     const has = (k, v) => ok && (k === "fs" ? ok.fs.includes(v) : k === "sh" ? (ok.sh === true || (Array.isArray(ok.sh) && ok.sh.includes(v))) : k === "net" ? ok.net.includes(v) : ok[k]);
-    for (const f of P.perm.fs) r.push(["fs", f, "read and write files in " + f, false]);
+    for (const f of P.perm.fs) r.push(["fs", f, "read and write files in " + hp(f), false]);
     if (P.perm.sh === true) r.push(["sh", true, "run ANY shell command in the work folder", true]);
     else if (Array.isArray(P.perm.sh)) for (const s of P.perm.sh) r.push(["sh", s, "run shell commands matching: " + s, false]);
     for (const d of P.perm.net) r.push(["net", d, "network access to " + d, d.startsWith("*")]);
@@ -376,10 +377,10 @@
       <h3>Permissions</h3>
       <p>Untick anything you do not want to allow. The office then works without it.</p>
       ${rows.map((r, i) => `<label class="perm${r.hot ? " hot" : ""}"><input type="checkbox" data-p="${i}" ${r.on ? "checked" : ""}> ${esc(r.lb)}</label>`).join("")}
-      <label class="perm"><input type="checkbox" checked disabled> write results into <small>${esc(S.od)}/out</small></label>
+      <label class="perm"><input type="checkbox" checked disabled> write results into <small>${esc(hp(S.od))}/out</small></label>
       <h3>Budget</h3>
       <p>at most ${kt(P.budget.tok)} tokens per day, ${P.budget.par} workers at once, models up to ${mdn("claude-" + P.budget.max)}</p>
-      <div class="acts"><button class="go" id="bStart">${S.st === "review" ? "Approve and continue" : "Start office"}</button><button id="bAsk">Ask the CEO for changes</button><span class="note">Work folder: ${esc(P.dir)}</span></div>`;
+      <div class="acts"><button class="go" id="bStart">${S.st === "review" ? "Approve and continue" : "Start office"}</button><button id="bAsk">Ask the CEO for changes</button><span class="note">Work folder: ${esc(hp(P.dir))}</span></div>`;
     el.querySelector("#bAsk").onclick = () => openChat(true);
     el.querySelector("#bStart").onclick = async () => {
       const on = [...el.querySelectorAll("input[data-p]")].filter((i) => i.checked).map((i) => rows[Number(i.dataset.p)]);

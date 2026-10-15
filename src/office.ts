@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync, rmSync } from "node:fs"
 import { join } from "node:path"
+import { homedir } from "node:os"
 import { mkdb, type DB, type It } from "./db.ts"
 import { valid, more, cut, shok, type Pl, type Pm, type Sg, type Wk } from "./plan.ts"
 import { ask, wrap, Lim } from "./ai.ts"
@@ -405,7 +406,7 @@ export class Of {
     for (const t of this.db.all("select w, tin+tout n from tok where day=?", day())) tk[t.w] = t.n
     const op = this.db.one("select count(*) n from it where st not in ('done','drop')").n
     return {
-      t: now(), n: this.n, task: this.meta.task, dir: this.meta.dir, od: this.od, st: this.st, why: this.why, rl: this.rl, cb: this.cb,
+      t: now(), hm: homedir(), n: this.n, task: this.meta.task, dir: this.meta.dir, od: this.od, st: this.st, why: this.why, rl: this.rl, cb: this.cb,
       fin: !!this.db.kg("fin"), plan: this.P, ok: this.ok, need: this.P ? more(this.db.kg("seen"), this.P.perm) : [],
       w: Object.fromEntries(Object.entries(this.W).map(([k, v]) => [k, { ...v, tk: tk[k] || 0 }])),
       fl: this.FL.filter((f) => now() - f.t < 8000),
