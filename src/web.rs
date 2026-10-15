@@ -247,7 +247,7 @@ fn hook(a: &Ax, s: &str, b: &Bytes) -> Response {
     let ti = v["title"].as_str().or(v["ti"].as_str()).map(String::from).unwrap_or_else(|| t.lines().next().unwrap_or("Webhook").chars().take(120).collect());
     let tx = v["text"].as_str().map(String::from).unwrap_or(t.clone());
     let fl = f["id"].as_i64().unwrap_or(0);
-    let wk = v["worker"].as_str().and_then(|n| crate::tools::wk_by_name(a, fl, n)).and_then(|w| w["id"].as_i64());
+    let wk = v["worker"].as_str().and_then(|n| crate::tools::wk_by_name(a, fl, n)).filter(|w| w["fl"].as_i64() == Some(fl)).and_then(|w| w["id"].as_i64());
     let id = a.db.run("insert into tk(ti,tx,src,wk,fl,st,mk,t0,t1) values(?,?,'hook',?,?,'wait',1,?,?)", pa![crate::tools::cut_s(&ti, 300), crate::tools::cut_s(&tx, 20000), wk, fl, now(), now()]);
     js(json!({"ok": true, "task": id}))
 }

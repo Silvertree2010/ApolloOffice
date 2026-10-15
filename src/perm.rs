@@ -31,23 +31,24 @@ pub fn real(p: &Path) -> PathBuf {
     if let Ok(r) = dunce(p) {
         return r;
     }
-    let p = &norm(p);
-    let mut a = p.to_path_buf();
-    let mut rest = vec![];
-    while !a.exists() {
-        match (a.file_name().map(|x| x.to_os_string()), a.parent().map(|x| x.to_path_buf())) {
-            (Some(n), Some(pp)) => {
-                rest.push(n);
-                a = pp;
+    let mut o = PathBuf::new();
+    for c in p.components() {
+        match c {
+            Component::ParentDir => {
+                o.pop();
             }
-            _ => return norm(p),
+            Component::CurDir => {}
+            x => {
+                o.push(x.as_os_str());
+                if std::fs::symlink_metadata(&o).is_ok() {
+                    if let Ok(r) = dunce(&o) {
+                        o = r;
+                    }
+                }
+            }
         }
     }
-    let mut r = dunce(&a).unwrap_or(a);
-    for n in rest.into_iter().rev() {
-        r.push(n);
-    }
-    norm(&r)
+    o
 }
 
 fn dunce(p: &Path) -> std::io::Result<PathBuf> {
@@ -125,7 +126,7 @@ fn ban() -> &'static Regex {
 
 fn glob(g: &str) -> Regex {
     let p: Vec<String> = g.split('*').map(regex::escape).collect();
-    Regex::new(&format!("^{}$", p.join(".*"))).unwrap()
+    Regex::new(&format!("^{}$", p.join(r"[^;&|<>`$()\n]*"))).unwrap()
 }
 
 pub fn shok(pm: &Pm, c: &str) -> Result<(), String> {
@@ -141,7 +142,7 @@ pub fn shok(pm: &Pm, c: &str) -> Result<(), String> {
         return Ok(());
     }
     static SUB: OnceLock<Regex> = OnceLock::new();
-    if SUB.get_or_init(|| Regex::new(r"`|\$\(|\n|<\(|>\(").unwrap()).is_match(c) {
+    if SUB.get_or_init(|| Regex::new(r"`|\$\(|\$\{|\n|\r|<\(|>\(|\(|\)").unwrap()).is_match(c) {
         return Err("Befehls-Ersetzung und mehrzeilige Befehle brauchen „beliebige Befehle“".into());
     }
     static RED: OnceLock<Regex> = OnceLock::new();
@@ -149,7 +150,9 @@ pub fn shok(pm: &Pm, c: &str) -> Result<(), String> {
     let red = RED.get_or_init(|| Regex::new(r"\s*(\d?>&\d|2>\s*/dev/null|2>\s*nul)\s*$").unwrap());
     let safe = SAFE.get_or_init(|| Regex::new(r"^(cd|echo|true|tail|head|wc|cat|ls|pwd|sort|uniq|grep)(\s|$)").unwrap());
     let gl: Vec<Regex> = al.iter().map(|g| glob(g)).collect();
-    for seg in Regex::new(r"&&|\|\||;|\|").unwrap().split(c) {
+    static RD: OnceLock<Regex> = OnceLock::new();
+    let c = RD.get_or_init(|| Regex::new(r"\s*\d?>&\d|\s*2>\s*(/dev/null|nul)\b").unwrap()).replace_all(c, "").to_string();
+    for seg in Regex::new(r"&&|\|\||;|\||&").unwrap().split(&c) {
         let g = red.replace(seg.trim(), "").trim().to_string();
         if g.contains('>') && !gl.iter().any(|r| r.is_match(&g)) {
             return Err(format!("„{}“ schreibt in eine Datei und ist nicht erlaubt", g.chars().take(80).collect::<String>()));
@@ -205,6 +208,10 @@ mod t {
         assert!(shok(&p, "git push").is_err());
         assert!(shok(&p, "cat ~/.ssh/id_ed25519").is_err());
         assert!(shok(&p, "echo x > /etc/passwd").is_err());
+        assert!(shok(&p, "git diff a & rm -rf x").is_err());
+        assert!(shok(&p, "git diff a$(id)").is_err());
+        assert!(shok(&p, "git diff > /tmp/x").is_err());
+        assert!(shok(&p, "git diff (x)").is_err());
         assert!(shok(&pm(json!(false)), "ls").is_err());
         let a = pm(json!(true));
         assert!(shok(&a, "make all && ./run.sh").is_ok());
@@ -226,6 +233,13 @@ mod t {
         let d = std::env::temp_dir().join("ao-perm-t");
         std::fs::create_dir_all(d.join("a")).unwrap();
         assert!(inside(&d.join("a/b/../c.txt"), &d));
+        #[cfg(unix)]
+        {
+            let _ = std::fs::remove_file(d.join("ln"));
+            std::os::unix::fs::symlink("/etc", d.join("ln")).unwrap();
+            assert!(!inside(&d.join("ln/../nope.txt"), &d));
+            assert!(!inside(&d.join("ln/new.txt"), &d));
+        }
         assert!(!inside(&d.join("../x"), &d));
         assert!(broad(Path::new("/")));
         if let Some(h) = dirs::home_dir() {

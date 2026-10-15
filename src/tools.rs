@@ -359,8 +359,12 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
             Ok(format!("eingestellt: Worker #{id}"))
         }
         "connect" => {
-            let w = wk_by_name(a, rc.fl, s(x, "worker")).ok_or("Worker nicht gefunden")?;
-            let f = wk_by_name(a, rc.fl, s(x, "from")).ok_or("Absender nicht gefunden")?;
+            let w = wk_by_name(a, rc.fl, s(x, "worker")).filter(|w| w["fl"].as_i64() == Some(rc.fl)).ok_or("Worker auf deiner Etage nicht gefunden")?;
+            let f = wk_by_name(a, rc.fl, s(x, "from")).filter(|w| w["fl"].as_i64() == Some(rc.fl)).ok_or("Absender auf deiner Etage nicht gefunden")?;
+            let wp = Pm::from(&w["cfg"], &rc.out);
+            if !rc.pm.sub(&wp) {
+                return Err(format!("{} hat mehr Rechte als du. Das darf nur der Besitzer verbinden.", s(&w, "nm")));
+            }
             let wid = w["id"].as_i64().unwrap_or(0);
             let mut c = w["cfg"].clone();
             if !c.is_object() {
