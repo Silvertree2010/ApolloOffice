@@ -584,8 +584,18 @@ cv.addEventListener("pointermove", (e) => {
   const [x, y] = A.toW(e); A.hov = [Math.floor(x / T), Math.floor(y / T)];
   if (down && ["wall", "floor", "erase"].includes(A.bld.tool) && (down[0] !== A.hov[0] || down[1] !== A.hov[1])) { down = A.hov; A.bldPlace(A.hov[0], A.hov[1]); }
 });
-cv.addEventListener("pointerdown", (e) => { if (A.bld) { const [x, y] = A.toW(e); down = [Math.floor(x / T), Math.floor(y / T)]; } A.click(e); });
-addEventListener("pointerup", () => (down = null));
+let drag = null;
+cv.addEventListener("pointerdown", (e) => {
+  if (A.bld) { const [x, y] = A.toW(e); down = [Math.floor(x / T), Math.floor(y / T)]; return A.click(e); }
+  drag = { x: e.clientX, y: e.clientY, px: A.pan.x, py: A.pan.y, mv: false };
+});
+cv.addEventListener("pointermove", (e) => {
+  if (!drag || innerWidth >= 720) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (Math.abs(dx) + Math.abs(dy) > 8) drag.mv = true;
+  if (drag.mv) { A.pan.x = drag.px + dx; A.pan.y = drag.py + dy; A.fol = null; }
+});
+addEventListener("pointerup", (e) => { down = null; if (drag && !drag.mv && e.target === cv) A.click(e); drag = null; });
 addEventListener("keydown", (e) => {
   if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
   if (e.key === "Escape") { if (!$("pg").hidden) return A.page(null); close(); A.fol = null; $("dd").hidden = true; if (A.bld) A.setBld(false); }

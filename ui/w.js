@@ -88,6 +88,7 @@ A.fol = null;
 A.bld = null;
 A.tm = 0;
 A.view = { sc: 3, ox: 0, oy: 0 };
+A.pan = { x: 0, y: 0 };
 A.usage = null;
 
 const lvlName = (l) => (l === 0 ? L("UG") : l === 1 ? L("EG") : l - 1 + ". " + L("OG"));
@@ -423,6 +424,12 @@ A.draw = () => {
   let sc, ox, oy;
   const fe = A.fol && A.fol.fl === f.id ? A.fol : null;
   if (fe) { sc = Math.max(3, Math.floor(Math.min(vw / (MW * T), vh / (MH * T))) + 1); ox = vw / 2 - (fe.fx + 8) * sc; oy = vh / 2 - (fe.fy + 8) * sc; ox = Math.min(0, Math.max(vw - MW * T * sc, ox)); oy = Math.min(0, Math.max(vh - MH * T * sc, oy)); if (MW * T * sc < vw) ox = (vw - MW * T * sc) / 2; if (MH * T * sc < vh) oy = (vh - MH * T * sc) / 2; }
+  else if (vw < 720) {
+    sc = Math.max(2, Math.floor(Math.min(vw / (MW * T), vh / (MH * T)) * 2) / 2);
+    const mx = Math.max(0, MW * T * sc - vw), my = Math.max(0, MH * T * sc - vh);
+    A.pan.x = Math.max(-mx / 2, Math.min(mx / 2, A.pan.x)); A.pan.y = Math.max(-my / 2, Math.min(my / 2, A.pan.y));
+    ox = Math.round((vw - MW * T * sc) / 2 + A.pan.x); oy = Math.round((vh - MH * T * sc) / 2 + A.pan.y);
+  }
   else { sc = Math.max(1, Math.floor(Math.min(vw / (MW * T), vh / (MH * T)) * 2) / 2); ox = Math.round((vw - MW * T * sc) / 2); oy = Math.round((vh - MH * T * sc) / 2); }
   cx.drawImage(wd, Math.round(ox), Math.round(oy), MW * T * sc, MH * T * sc);
   A.view = { sc, ox, oy };

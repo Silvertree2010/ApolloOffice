@@ -69,10 +69,14 @@ export default {
         let ru;
         try { ru = new URL(r); } catch { return page("Error", "<h1>Bad return address</h1>", 400); }
         if (!/^https?:$/.test(ru.protocol) || ru.pathname !== "/auth/back" || ru.search || ru.hash) return page("Error", "<h1>Bad return address</h1>", 400);
-        const okv = await hmac(env, "ok:" + i + ":" + n + ":" + ru.href);
-        if (!loopback(ru) && u.searchParams.get("ok") !== okv) {
-          const again = new URL(u); again.searchParams.set("ok", okv);
-          return page("Confirm", `<h1>Sign in to a remote installation?</h1><div class="w"><p>After the login you will be sent to <b>${esc(ru.origin)}</b>.</p><p>Only continue if this is <b>your own</b> ApolloOffice and you started this login there yourself. If someone sent you this link, close this page.</p></div><p><a class="b" href="${esc(again.href)}">Yes, it is mine. Continue</a></p>`);
+        if (!loopback(ru)) {
+          const cf = ((q.headers.get("cookie") || "").split(/;\s*/).find((x) => x.startsWith("ao_cf=")) || "").slice(6);
+          const okv = cf ? await hmac(env, "ok:" + cf + ":" + i + ":" + n + ":" + ru.href) : "";
+          if (!okv || u.searchParams.get("ok") !== okv) {
+            const nc = rnd(16);
+            const again = new URL(u); again.searchParams.set("ok", await hmac(env, "ok:" + nc + ":" + i + ":" + n + ":" + ru.href));
+            return page("Confirm", `<h1>Sign in to a remote installation?</h1><div class="w"><p>After the login you will be sent to <b>${esc(ru.origin)}</b>.</p><p>Only continue if this is <b>your own</b> ApolloOffice and you started this login there yourself. If someone sent you this link, close this page.</p></div><p><a class="b" href="${esc(again.href)}">Yes, it is mine. Continue</a></p>`, 200, { "set-cookie": `ao_cf=${nc}; Path=/start; HttpOnly; Secure; SameSite=Strict; Max-Age=600` });
+          }
         }
         const ver = rnd(), st = rnd(16);
         const ch = b64u(await crypto.subtle.digest("SHA-256", enc.encode(ver)));

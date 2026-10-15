@@ -121,7 +121,7 @@ a{color:var(--ac)}
 #login .f{color:var(--t3);font-size:11px;margin-top:18px}
 @media (max-width:720px){
   #top{gap:6px;padding:0 8px}
-  #top .hm,#top .me span{display:none}
+  #top .hm,#top .me span,#top .lg{display:none}
   #top .fl{font-size:12px}
   .bx{left:8px!important;right:8px;max-width:none;top:auto!important;bottom:calc(8px + env(safe-area-inset-bottom,0px));max-height:60vh}
   .bx.mid{transform:none}

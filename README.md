@@ -5,158 +5,166 @@
 <h1 align="center">ApolloOffice</h1>
 
 <p align="center">
-  A local office of Claude workers. Give the CEO a task: it hires the team,
-  builds the pipeline and the dashboard, and runs it on your own Claude account.
+  A pixel skyscraper full of AI workers that runs on your own computer.
+  Hire workers, give them folders and rules, hand out tasks, and watch them
+  walk to their desks and get it done.
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0"></a>
-  <img src="https://img.shields.io/badge/Claude%20Code-plugin-D97757?logo=claude&amp;logoColor=white" alt="Claude Code plugin">
-  <img src="https://img.shields.io/badge/Node.js-22.18%2B-5FA04E?logo=nodedotjs&amp;logoColor=white" alt="Node.js 22.18+">
-  <img src="https://img.shields.io/badge/dependencies-0-2EA44F" alt="No dependencies">
-  <img src="https://img.shields.io/badge/runs-locally-555555" alt="Runs locally">
+  <img src="https://img.shields.io/badge/Rust-single%20binary-B7410E?logo=rust&amp;logoColor=white" alt="Rust, single binary">
+  <img src="https://img.shields.io/badge/Windows-first-0078D4?logo=windows&amp;logoColor=white" alt="Windows first">
+  <img src="https://img.shields.io/badge/also-Linux%20%C2%B7%20macOS-555555" alt="Also Linux and macOS">
+  <img src="https://img.shields.io/badge/runs-locally-2EA44F" alt="Runs locally">
 </p>
 
-![A running office: Scout and Vet in the intake room, two Fixers in the workshop, the Reviewer, a test server and the CEO, with ready branches on the right](docs/images/hero.png)
+![The Bugfix floor: the CEO, Triage, Repro and a Fixer at their desks, the Reviewer off duty, results in the OUT tray](docs/images/hero.png)
 
-You describe a job, for example "fix the small bugs from our GitHub issues"
-or "collect the pricing pages of 30 note-taking apps". The CEO (Opus) reads
-the task and your folder, decides which workers it needs, writes their
-prompts, its own tools and checks, and lays out the office. You see the plan,
-untick what you don't want to allow, and press Start. Then you watch the
-office work in a small pixel building in your browser.
+Every account you connect is a generator in the basement. Every floor is a
+room you build yourself: offices, a lounge, a server room, accounting. Workers
+are little pixel people with a role, a model and rights you can see. They pick
+up tasks, use the tools you allowed, pass work to colleagues who accept orders
+from them, and drop results into the OUT tray.
 
 > [!NOTE]
-> This is an early release. Every office runs on your own Claude Code login,
-> so it uses your plan's limits. Nothing leaves your machine except the calls
-> Claude Code makes and the domains you approve.
-
-It grew out of a private office that fixes bugs in open-source repos.
-ApolloOffice is the general version: the CEO builds a new office for every
-task instead of running one fixed pipeline.
-
-If you like it, a star on GitHub helps other people find it.
+> This is an early release. Workers run on your own Claude, ChatGPT or Gemini
+> subscription, or on API keys you add. Nothing leaves your machine except the
+> calls the models make, the websites you allow, and the login.
 
 ## What's inside
 
-- **The CEO** designs the office, answers your questions in the chat and
-  checks on the office every hour. When something goes wrong it changes
-  prompts, checks or stages by itself.
-- **Workers** with their own role, model, prompt and tools. Haiku for
-  searching, sorting and checking, Sonnet for code and careful text, Opus only
-  where the CEO thinks it is worth it.
-- **Stages** that move work along: sources that find new items on a timer,
-  work stages for a worker, code stages that run a command like `npm test`
-  without a model.
-- **Checks** written as small scripts. A failed check sends the item back with
-  the reason, so the worker can fix it.
-- **Guard** screens text from outside (web pages, issues, mails) for prompt
-  injection before any worker sees it.
-- **Permissions you can see.** Every folder, command pattern and domain is a
-  checkbox. The office works with whatever you leave ticked.
-- **Budget.** A daily token limit, a limit on parallel workers and a highest
-  allowed model. When your Claude plan hits its limit, the office waits for the
-  reset.
-- **Dashboard** with live worker cards, the pixel office, queue, results, log
-  and progress tiles the CEO picks for the task. Light and dark.
+- **The building.** 11 to 18 floors, random at first, more whenever you want.
+  Unbuilt floors become an Office, Lounge, Server room or Accounting with one
+  click. A lift and stairs connect them.
+- **Workers.** Twelve types come with it (CEO, Scout, Triage, Repro, Fixer,
+  Reviewer, Tester, Writer, Researcher, Analyst, Ops, Reporter), and you can
+  build your own in the HR office. One click hires a whole team: Bugfix,
+  Research or Writing.
+- **Settings in the world.** No sidebar. Click a worker, a desk, a generator,
+  a rack or the tray and a small pixel menu opens right there.
+- **Rules instead of a flow editor.** "Takes orders from Repro" is a checkbox
+  on the Fixer. Orders never carry rights: the Fixer always works with its own
+  folders and commands.
+- **Accounts in the basement.** Claude Code (Claude subscription), Codex CLI
+  (ChatGPT subscription), Gemini CLI and API keys for Anthropic, OpenAI,
+  DeepSeek, Mistral, OpenRouter, Groq, Gemini, Ollama or LM Studio. Several
+  accounts per provider; workers can pick the one with the most room left.
+  A generator runs, stutters when nearly full and stops at its limit.
+- **Server room.** Add a Linux server with an address and one admin login.
+  ApolloOffice creates a restricted `apollo` user with its own key and only
+  uses that afterwards. Jobs run in Docker when it is there, plain otherwise.
+  Workers never get free SSH, only the commands you allow on that server.
+- **Build mode.** A grid, a palette of furniture, walls and floors, undo. All
+  workers are hidden while you build.
+- **Pages.** Control room with widgets (numbers, lists, charts, lamps from the
+  building, HTTP JSON, GitHub, uptime, RSS), a lab to try prompts, the house
+  overview, accounting and settings.
+- **Start quest.** Pia at the reception walks you through power, first office,
+  first worker, first task and first result. After that you are on your own.
 
-| Plan review | CEO chat | Light mode |
+| Basement | Worker menu | Rights |
 | --- | --- | --- |
-| <img src="docs/images/plan.png" alt="Office plan with workers, flow and a checkbox for each permission"> | <img src="docs/images/chat.png" alt="CEO chat explaining the office and answering a question"> | <img src="docs/images/light.png" alt="The same office in light mode"> |
+| <img src="docs/images/keller.png" alt="Basement with three generators"> | <img src="docs/images/menu.png" alt="Worker menu next to a worker"> | <img src="docs/images/perm.png" alt="Worker settings with folders, commands and who it takes orders from"> |
+
+| Lounge | Build mode | Phone |
+| --- | --- | --- |
+| <img src="docs/images/lounge.png" alt="Two workers asleep on the lounge couch"> | <img src="docs/images/build.png" alt="Build mode with grid and furniture palette"> | <img src="docs/images/mobile.png" alt="The office on a phone" width="200"> |
 
 ## Install
 
-You need [Claude Code](https://claude.com/claude-code) (logged in) and
-**Node.js 22.18** or newer. Tested on macOS.
+1. Download the binary for your system from the
+   [releases](https://github.com/Silvertree2010/ApolloOffice/releases).
+2. Start it in a terminal:
 
-**As a Claude Code plugin:**
+   ```
+   apollo-office
+   ```
+
+3. Open `http://127.0.0.1:47300` and sign in with GitHub, Google, GitLab or
+   Discord. The first login owns the installation.
+
+For subscriptions you need the matching CLI, logged in:
+[Claude Code](https://claude.com/claude-code), Codex CLI or Gemini CLI. On
+Windows workers run shell commands through Git Bash, so install
+[Git for Windows](https://git-scm.com) if you want them to run commands.
+
+Windows SmartScreen warns about the binary because it is not signed yet.
+
+To start ApolloOffice when you log in:
 
 ```
-/plugin marketplace add Silvertree2010/ApolloOffice
-/plugin install apollo-office@apollo-office
+apollo-office autostart on
 ```
-
-Then ask Claude for an office, or use the skill directly:
-
-```
-/office new docs-sweep "Find outdated install instructions in docs/ and rewrite them" --dir ~/code/my-app
-```
-
-**From source:**
-
-```sh
-git clone https://github.com/Silvertree2010/ApolloOffice.git
-cd ApolloOffice
-bin/office new research "Collect pricing pages of 30 note-taking apps and write out/pricing.md" --dir ~/notes
-```
-
-No build step and no dependencies: plain Node with type stripping.
-
-## How it works
-
-1. `office new` starts a small local daemon on `127.0.0.1:47300` and opens
-   the dashboard.
-2. The CEO reads your task and your work folder. It may ask questions in the
-   chat. Then it writes a plan: workers, stages, checks, custom tools, layout,
-   budget and the permissions it needs.
-3. You review the plan. Untick any permission you don't want.
-4. You press **Start office**. Workers pick up items stage by stage until they
-   are done or dropped.
-5. The CEO audits the office every hour. If a fix needs new permissions, the
-   office pauses until you approve them.
-
-Results go to `~/.apollo-office/<name>/out/` unless the task says otherwise.
-The plan format is in [prompts/plan.md](prompts/plan.md), and
-[examples/github-bugfix.json](examples/github-bugfix.json) is the complete
-plan of the office in the screenshots.
 
 ## Commands
 
 ```
-office new <name> "<task>" [--dir <folder>] [--no-open]
-office list | status [<name>] | open <name> | url <name>
-office chat <name> "<message>"
-office start <name>          approve everything requested and start (the dashboard is the better place)
-office pause <name> | resume <name> | rm <name>
-office daemon | quit
+apollo-office                     run (options: --port, --bind, --data, --quiet)
+apollo-office login-link          one-time login link, valid 10 minutes
+apollo-office reset-owner         release the owner, the next login binds again
+apollo-office autostart on|off
+apollo-office export <file>       everything except credentials
+apollo-office import <file>
+apollo-office status
 ```
+
+Data lives in `%APPDATA%\ApolloOffice` on Windows,
+`~/Library/Application Support/ApolloOffice` on macOS and
+`~/.local/share/apollo-office` on Linux. A backup of the database is made
+every day, the last seven are kept.
 
 ## Good to know
 
-**Security.** ApolloOffice lets a model write code that runs on your machine,
-so it is built around limits you can see:
+**Security.** ApolloOffice lets models act on your computer, so it is built
+around limits you can see and confirm:
 
-- Workers run as headless Claude Code sessions without your hooks, plugins,
-  CLAUDE.md or memory, and with no built-in tools. They only get the office
-  tools their role needs.
-- File tools only reach the folders you approved and the office `out/` folder.
-- Shell commands must match the approved patterns. Chained commands are checked
-  part by part, command substitution needs full shell access, and `sudo`,
-  credential stores, SSH keys and destructive `rm` are always blocked.
-  `git push` and `gh` need their own approval.
-- Network access only goes to approved domains.
-- Custom tools and checks run in a separate Node process with the Node
-  permission model, without direct network, child processes or native addons.
-- The dashboard only listens on 127.0.0.1 and rejects requests from other
-  origins.
+- Workers start fresh for every task, as headless CLI sessions without their
+  own tools, hooks, plugins or memory, or in ApolloOffice's own agent loop for
+  API keys. They only get the tools of their type.
+- File tools only reach the folders you gave that worker and its floor's tray.
+  Paths are resolved through symlinks before they are checked.
+- Shell commands must match the patterns you allowed. Chained commands are
+  checked part by part; `sudo`, credential stores, SSH keys, destructive `rm`
+  and `curl | sh` are always blocked. `git push` needs its own permission.
+- Web access only goes to domains you allowed. Answers from the web are marked
+  as untrusted for the model.
+- Text from outside (webhooks) is screened by Guard, a small model, before a
+  worker sees it. Guard lowers the risk of prompt injection but is not perfect.
+- Giving rights, adding servers and changing credentials always shows a
+  dialog that says in one sentence what can happen.
+- Credentials are encrypted with AES-256-GCM; the key sits in the system's
+  credential store. Keys are never shown again and never given to workers.
+- The web interface listens on `127.0.0.1` only. Logins, rights and
+  credentials end up in an audit log.
+- Custom tools are JavaScript in an embedded QuickJS sandbox without file,
+  network or process access except through `ctx`, with the worker's rights.
 
-What remains: with "any shell command" approved, a worker can do anything your
-user can do. Only approve that for folders and tasks where this is fine.
-Prompt-injection screening lowers the risk but isn't perfect, so be careful
-with offices that read untrusted text and can also write, run commands or push.
+What remains: a worker allowed to run "any command" can do anything your user
+can do, and Codex CLI and Gemini CLI keep some read access of their own.
+Only allow that where it is fine.
 
-**Cost.** The CEO estimates the tokens per day in the plan, and the daily
-limit stops the office when it is reached. ApolloOffice never switches to an
-API key on its own.
+**Login.** The login runs through `auth.apollonet.dev`, a small Cloudflare
+Worker without storage ([source](auth/)). It learns who signs in and nothing
+else, and hands your installation a short token signed with Ed25519 and bound
+to the installation's address. Everything else stays on your computer.
 
-**Privacy.** No telemetry, no accounts. Offices, logs and results live in
-`~/.apollo-office/`. Delete that folder to reset everything.
+**Cost.** Subscriptions are used within their limits. For API keys there is a
+hard daily stop across all keys (5 USD by default) and optional limits per
+account and per worker. Workers never switch to an API key on their own unless
+you tick "use API when the subscription is full".
 
-## Development
+**Privacy.** No telemetry.
+
+## Build from source
 
 ```sh
-npm test        # engine, permissions, sandbox and an end-to-end run against a fake Claude
-npm run daemon  # run the daemon in the foreground
+git clone https://github.com/Silvertree2010/ApolloOffice.git
+cd ApolloOffice
+cargo build --release
+```
+
+```sh
+cargo test      # unit tests and end-to-end runs against a fake model and a fake Claude CLI
 ```
 
 ## AI disclosure
@@ -165,8 +173,8 @@ npm run daemon  # run the daemon in the foreground
 <img src="https://img.shields.io/badge/Written%20with-Claude%20Opus%205.5-D97757?logo=claude&amp;logoColor=white" alt="Written with Claude Opus 5.5">
 
 The idea, the spec and the decisions are mine. The code was written by
-Claude (Opus 5.5) from that spec and tested against real offices before
-release. The pixel figures come from ClawdCrab by the same author.
+Claude (Opus 5.5) from that spec and tested before release. The pixel figures
+come from ClawdCrab by the same author.
 
 | Part | Done by |
 | --- | --- |
