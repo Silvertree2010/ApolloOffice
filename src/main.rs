@@ -13,6 +13,7 @@ mod ssh;
 mod stat;
 mod sys;
 mod tools;
+mod upd;
 mod vault;
 mod web;
 mod world;
@@ -131,18 +132,40 @@ async fn main() -> anyhow::Result<()> {
         me,
         authu: std::env::var("APOLLO_OFFICE_AUTH").ok().filter(|_| cfg!(debug_assertions)).unwrap_or(cfg::AUTH.to_string()),
         rate: Mutex::new(Default::default()),
+        quit: tokio::sync::Notify::new(),
+        restart: Mutex::new(false),
     });
+    upd::cleanup(&ax.me);
+    let uf = ax.db.kg("upd")["from"].as_str().map(String::from);
+    if let Some(f) = uf {
+        if f != cfg::V {
+            ax.aud("Updated", &format!("{f} -> {}", cfg::V));
+            ax.db.ks("updated", &serde_json::json!({"from": f, "to": cfg::V, "t": db::now()}));
+        }
+        let mut u = ax.db.kg("upd");
+        u["from"] = serde_json::Value::Null;
+        u["ready"] = serde_json::Value::Null;
+        ax.db.ks("upd", &u);
+    }
     world::sync_gens(&ax);
     world::sync_racks(&ax);
     let lo = a.bind == "127.0.0.1" || a.bind == "localhost" || a.bind == "::1";
-    let l = match tokio::net::TcpListener::bind((a.bind.as_str(), a.port)).await {
-        Ok(l) => l,
-        Err(e) => {
-            eprintln!("Port {} is taken or not usable ({e}). Is ApolloOffice already running? Otherwise pick --port.", a.port);
-            std::process::exit(1);
+    let mut tries = 0;
+    let l = loop {
+        match tokio::net::TcpListener::bind((a.bind.as_str(), a.port)).await {
+            Ok(l) => break l,
+            Err(e) => {
+                tries += 1;
+                if tries > 20 {
+                    eprintln!("Port {} is taken or not usable ({e}). Is ApolloOffice already running? Otherwise pick --port.", a.port);
+                    std::process::exit(1);
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
         }
     };
     eng::spawn(ax.clone());
+    upd::spawn(ax.clone());
     let u = format!("http://{}:{}", if lo { "127.0.0.1" } else { &a.bind }, a.port);
     if !a.quiet {
         println!("\n  ApolloOffice {}\n\n  Open {u}\n\n  Data: {}", cfg::V, dd.display());
@@ -152,13 +175,23 @@ async fn main() -> anyhow::Result<()> {
         println!("  Stop with Ctrl+C\n");
     }
     let app = axum::Router::new().fallback(web::h).with_state(ax.clone());
-    let sv = axum::serve(l, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).with_graceful_shutdown(async {
-        let _ = tokio::signal::ctrl_c().await;
+    let ax2 = ax.clone();
+    let sv = axum::serve(l, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).with_graceful_shutdown(async move {
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {}
+            _ = ax2.quit.notified() => {}
+        }
     });
     sv.await?;
     let ps: Vec<u32> = ax.lv.lock().unwrap().pids.values().flatten().cloned().collect();
     for p in ps {
         sh::kill(p);
+    }
+    if *ax.restart.lock().unwrap() {
+        match upd::install(&ax.me, &ax.dd) {
+            Ok(()) => upd::relaunch(&ax.me),
+            Err(e) => eprintln!("update failed: {e}"),
+        }
     }
     Ok(())
 }

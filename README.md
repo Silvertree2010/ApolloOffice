@@ -157,7 +157,10 @@ hard daily stop across all keys (5 USD by default) and optional limits per
 account and per worker. Workers never switch to an API key on their own unless
 you tick "use API when the subscription is full".
 
-**Privacy.** No telemetry.
+**Updates.** ApolloOffice checks GitHub for a new release every 6 hours,
+verifies it against a signature built into the binary, and installs it when no
+task is running. Then it restarts by itself. This is on by default; turn it off
+in the settings. Apart from that check there is no telemetry.
 
 ## Build from source
 

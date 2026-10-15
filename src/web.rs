@@ -293,7 +293,7 @@ pub fn state(a: &Ax) -> Value {
     let st = a.set();
     json!({
         "t": now(), "fl": fls, "w": ws, "flow": fl, "acc": accs, "srv": srv, "cnt": cnt, "done": done, "bell": bell,
-        "usd": crate::prov::spent(a), "usd_day": st["usd_day"], "set": {"lounge": st["lounge"]}, "quest": a.db.kg("quest"), "owner": a.db.kg("owner"), "stop": a.lv.lock().unwrap().stop.get(&0).copied().unwrap_or(false),
+        "usd": crate::prov::spent(a), "usd_day": st["usd_day"], "set": {"lounge": st["lounge"]}, "upd": {"ready": crate::upd::ready(a), "v": a.db.kg("upd")["ready"], "on": crate::upd::on(a)}, "updated": a.db.kg("updated"), "quest": a.db.kg("quest"), "owner": a.db.kg("owner"), "stop": a.lv.lock().unwrap().stop.get(&0).copied().unwrap_or(false),
         "tn": a.db.all("select id from tk where st='done' and t1>? order by t1 desc limit 1", pa![now() - 10_000]),
     })
 }
@@ -767,6 +767,8 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             st["data"] = json!(a.dd.display().to_string());
             st["v"] = json!(crate::cfg::V);
             st["height"] = json!(a.db.n("select count(*) from fl", pa![]));
+            st["upd"] = a.db.kg("upd");
+            st["upd_ready"] = json!(crate::upd::ready(a));
             Ok(js(st))
         }
         ("set", _, true) => {
@@ -774,7 +776,7 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             if !st.is_object() {
                 st = json!({});
             }
-            for k in ["usd_day", "hosts", "api_fallback", "lounge"] {
+            for k in ["usd_day", "hosts", "api_fallback", "lounge", "updates"] {
                 if !b[k].is_null() {
                     if k == "hosts" {
                         let hs: Vec<String> = b[k].as_array().cloned().unwrap_or_default().iter().filter_map(|h| h.as_str()).map(|h| h.trim().to_lowercase()).filter(|h| crate::perm::hostok(h) && h.contains(':')).collect();
@@ -835,6 +837,23 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
                 "day": a.db.all("select day, sum(tin+tout) tok, round(sum(usd),4) usd from us where day>=? group by day order by day", pa![from]),
                 "usd_day": a.set()["usd_day"], "today": crate::prov::spent(a),
             })))
+        }
+        ("update", _, true) => {
+            if s(b, "a") == "now" {
+                if !crate::upd::ready(a) {
+                    return Err("no update downloaded yet".into());
+                }
+                if a.db.n("select count(*) from tk where st='run'", pa![]) > 0 && b["ok"].as_bool() != Some(true) {
+                    return Err("tasks are running; they will be restarted after the update".into());
+                }
+                crate::upd::apply_soon(a);
+                return ok();
+            }
+            if s(b, "a") == "seen" {
+                a.db.kd("updated");
+                return ok();
+            }
+            Ok(js(crate::upd::check(a).await?))
         }
         ("quest", _, true) => {
             a.db.ks("quest", b);

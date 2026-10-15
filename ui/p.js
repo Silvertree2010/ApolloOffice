@@ -25,11 +25,20 @@ const top = () => {
   $("tBn").hidden = !bell; $("tBn").textContent = bell;
   const o = S.owner || {};
   $("tMe").innerHTML = (o.av ? `<img src="${esc(o.av)}" alt="">` : "<i></i>") + `<span>${esc(o.nm || "")}</span>`;
+  const up = S.upd || {};
+  $("tUp").hidden = !up.ready;
+  if (up.ready) $("tUp").textContent = "Update " + (up.v || "");
+  if (S.updated && S.updated.to && !A.updSeen) { A.updSeen = 1; A.toast("Updated to " + S.updated.to); A.api("/api/update", { a: "seen" }).catch(() => {}); }
   const q = A.quest;
   $("tQ").hidden = !A.questOn();
   if (A.questOn()) $("tQ").innerHTML = `${"Starter quest"} <b>${Math.min(q.s, 5)}/5</b>`;
 };
 
+$("tUp").onclick = async () => {
+  const run = (A.S.cnt || []).filter((c) => c.st === "run").reduce((a, b) => a + b.n, 0);
+  if (!(await A.confirmBox("Install update", ["ApolloOffice installs version " + ((A.S.upd || {}).v || "") + " and restarts. This takes a few seconds.", run ? run + " running task(s) stop and start again after the restart." : "No task is running right now."], "Install now"))) return;
+  try { await A.api("/api/update", { a: "now", ok: true }); A.toast("Restarting …"); setTimeout(() => location.reload(), 8000); } catch (x) { A.fail(x); }
+};
 $("tLg").onclick = () => { A.page(null); const l = A.S.fl.find((f) => f.k === "lobby"); if (l) A.goFloor(l.id); };
 $("tFl").onclick = (e) => A.page("house");
 $("tUs").onclick = (e) => {
@@ -268,6 +277,7 @@ PG.settings = async () => {
     <div class="row" style="margin-top:10px"><button class="p" id="sSv">${"Save"}</button></div></div>
     <h2>${"Program"}</h2><div class="card"><div class="row"><span>ApolloOffice ${esc(s.v)}</span><span class="mt">${"Address"} ${esc(s.bind)}:${s.port}</span><span class="mt">${"Data"}: ${esc(s.data)}</span></div>
     <div class="row" style="margin-top:10px"><label><input type="checkbox" id="sAu"${s.autostart ? " checked" : ""}> ${"Start when logging in to the computer"}</label><button id="sStop">${A.S.stop ? "Keep working" : "Pause everything"}</button></div></div>
+    <h2>${"Updates"}</h2><div class="card"><div class="row"><label><input type="checkbox" id="sUp"${s.updates !== "off" ? " checked" : ""}> ${"Install updates automatically"}</label><span class="mt">${s.upd && s.upd.t ? "Last check " + new Date(s.upd.t).toLocaleString() + (s.upd.latest ? ", latest " + esc(s.upd.latest) : "") : "Not checked yet"}${s.upd && s.upd.err ? " · " + esc(s.upd.err) : ""}</span><button id="sUc">${"Check now"}</button>${s.upd_ready ? `<button class="p" id="sUi">${"Install"} ${esc((s.upd || {}).ready || "")}</button>` : ""}</div><p class="mt">${"Updates are checked every 6 hours on GitHub, verified with a signature and installed when no task is running. ApolloOffice then restarts by itself."}</p></div>
     <h2>${"Account"}</h2><div class="card"><div class="row"><span>${"Owner"}: ${o.nm ? esc(o.nm) + " (" + esc(o.p || "") + ")" : "nobody yet, the next login binds"}</span><span class="mt">${"Only this account gets in. To rebind: apollo-office reset-owner in the terminal. Emergency login: apollo-office login-link."}</span></div></div>
     <h2>${"Sessions"}</h2><div class="tw"><table><tr><th>${"Device"}</th><th>IP</th><th>${"Last"}</th><th></th></tr>${ses.map((x) => `<tr><td>${esc(x.ua.slice(0, 80))}${x.me ? ` <span class="mt">(${"this"})</span>` : ""}</td><td>${esc(x.ip)}</td><td>${new Date(x.t1).toLocaleString()}</td><td>${x.me ? "" : `<button class="d" data-ses="${esc(x.id)}">${"Log out"}</button>`}</td></tr>`).join("")}</table></div>
     <h2>${"Save"}</h2><div class="card"><div class="row"><a href="/api/export" download><button>${"Export (without credentials)"}</button></a><label><button id="sImB">${"Import …"}</button><input type="file" id="sIm" accept=".json" hidden></label><span class="mt">${"Automatic daily backup of the database, 7 copies, in the data folder under backup."}</span></div></div>
@@ -278,6 +288,9 @@ PG.settings = async () => {
       A.toast("saved");
     } catch (x) { A.fail(x); }
   };
+  $("sUp").onchange = async (e) => { try { await A.api("/api/set", { updates: e.target.checked ? "auto" : "off" }); A.toast(e.target.checked ? "Automatic updates on" : "Automatic updates off"); } catch (x) { A.fail(x); } };
+  $("sUc").onclick = async () => { $("sUc").textContent = "checking …"; try { const r = await A.api("/api/update", { a: "check" }); A.toast(r.new ? "Update " + r.latest + " downloaded" : "Up to date (" + r.latest + ")"); } catch (x) { A.fail(x); } PG.settings(); };
+  if ($("sUi")) $("sUi").onclick = () => $("tUp").click();
   $("sAu").onchange = async (e) => { try { const r = await A.api("/api/autostart", { on: e.target.checked }); A.toast(r.msg); } catch (x) { A.fail(x); e.target.checked = !e.target.checked; } };
   $("sStop").onclick = async () => { await A.api("/api/stop", { on: !A.S.stop }); await A.poll(); PG.settings(); };
   $("sImB").onclick = () => $("sIm").click();

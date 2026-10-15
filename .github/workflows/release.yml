@@ -39,3 +39,23 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: ${{ matrix.name }}
+
+  sign:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_KEY: ${{ secrets.RELEASE_KEY }}
+        run: |
+          mkdir dist && cd dist
+          gh release download "${GITHUB_REF_NAME}" -R "${GITHUB_REPOSITORY}" -p 'apollo-office-*'
+          python3 - <<'PY'
+          import hashlib, json, os
+          f = {n: hashlib.sha256(open(n, "rb").read()).hexdigest() for n in sorted(os.listdir(".")) if n.startswith("apollo-office-")}
+          open("latest.json", "w").write(json.dumps({"v": os.environ["GITHUB_REF_NAME"].lstrip("v"), "files": f}))
+          PY
+          printf '%s\n' "$RELEASE_KEY" > ../k.pem
+          openssl pkeyutl -sign -inkey ../k.pem -rawin -in latest.json | base64 -w0 > latest.json.sig
+          rm ../k.pem
+          gh release upload "${GITHUB_REF_NAME}" -R "${GITHUB_REPOSITORY}" latest.json latest.json.sig --clobber
