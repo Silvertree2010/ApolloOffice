@@ -1,42 +1,46 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ApolloOffice</title>
+<link rel="icon" href="icon.png">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <a class="home" href="/" title="all offices">ApolloOffice</a>
-  <h1 id="nm">…</h1>
-  <span class="chip" id="cSt">…</span>
-  <span class="chip" id="cCeo" hidden>CEO is thinking</span>
-  <span class="chip mt" id="cTok"></span>
+<div id="login" hidden>
+  <div class="c">
+    <canvas id="lcv" width="160" height="120"></canvas>
+    <h1>ApolloOffice</h1>
+    <p id="lp"></p>
+    <div class="b" id="lb"></div>
+    <p class="e" id="le" hidden></p>
+    <p class="f" id="lf"></p>
+  </div>
+</div>
+<div id="top" hidden>
+  <span class="lg" id="tLg">ApolloOffice</span>
+  <span class="fl" id="tFl"></span>
   <span class="sp"></span>
-  <button id="bChat">CEO chat</button>
-  <button id="bPause" hidden>Pause</button>
-</header>
-<div class="tiles" id="tiles"></div>
-<main>
-  <div class="stage" id="stage">
-    <canvas id="cv" width="400" height="258"></canvas>
-    <div class="plan" id="plan" hidden></div>
-  </div>
-  <div class="side">
-    <div class="card" id="kpi" hidden><h2>Progress</h2><div class="kp" id="kp"></div></div>
-    <div class="card"><h2>Queue <span id="qn"></span></h2><div class="bd" id="queue"></div></div>
-    <div class="card"><h2>Finished <span id="dnn"></span></h2><div class="bd" id="done"></div></div>
-    <div class="card"><h2>Log</h2><div class="bd log" id="log"></div></div>
-  </div>
-  <aside class="chat itm" id="itm" hidden><h2 id="ih"></h2><div class="msgs" id="ib"></div></aside>
-  <aside class="chat" id="chat" hidden>
-    <h2>CEO <span id="chs"></span><button class="x" id="bClose" title="close">✕</button></h2>
-    <div class="msgs" id="msgs"></div>
-    <form id="cf"><textarea id="ci" rows="2" placeholder="Write to the CEO… (Enter sends, Shift+Enter new line)"></textarea><button>Send</button></form>
-  </aside>
-</main>
+  <span class="q" id="tQ" hidden></span>
+  <span class="us" id="tUs"></span>
+  <button class="tb" id="tBell" title="Meldungen">!<span class="n" id="tBn" hidden></span></button>
+  <button class="tb" id="tPlus">+</button>
+  <button class="tb" id="tPg"><span class="hm">Seiten</span><span>≡</span></button>
+  <span class="me" id="tMe"></span>
+</div>
+<canvas id="cv" hidden></canvas>
+<div class="bx" id="bx" hidden></div>
+<div class="dd" id="dd" hidden></div>
+<div id="pg" hidden><div class="in" id="pgi"></div></div>
+<div id="dlg" hidden><canvas id="pc" width="22" height="22"></canvas><span class="sk" id="dSk"></span><div class="nm" id="dN"></div><div id="dT"></div><div class="nx" id="dX"></div></div>
+<div id="pal" hidden></div>
+<div id="tst" hidden></div>
 <script src="body.js"></script>
-<script src="office.js"></script>
+<script src="en.js"></script>
+<script src="i18n.js"></script>
+<script src="w.js"></script>
+<script src="m.js"></script>
+<script src="p.js"></script>
 </body>
 </html>
