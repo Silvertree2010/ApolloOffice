@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "apollo-office",
+  "description": "ApolloOffice: a local office of Claude workers that a CEO builds for your task.",
+  "owner": { "name": "Netter", "url": "https://github.com/Silvertree2010" },
+  "plugins": [
+    {
+      "name": "apollo-office",
+      "description": "Give the CEO a task, it builds the team, the pipeline and a live pixel dashboard, then runs it locally on your own Claude account.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "task": "Fix small, clearly reproducible bugs from the GitHub issues of this repository and prepare one branch per fix with a regression test.",
+  "dir": "/path/to/your/repo",
+  "est": "About 1-3M tokens per day with 2 fixers. Haiku triages, Sonnet fixes, tests decide.",
+  "budget": { "tok": 3000000, "par": 3, "max": "sonnet" },
+  "perm": {
+    "fs": ["."],
+    "sh": ["npm test*", "npm run lint*", "git status*", "git diff*", "git checkout -b *", "git switch *", "git add *", "git commit *", "git log*"],
+    "net": ["api.github.com"],
+    "push": false,
+    "gh": false
+  },
+  "guard": true,
+  "audit": 60,
+  "workers": [
+    {
+      "id": "scout", "name": "Scout", "model": "haiku", "tools": ["fetch"], "turns": 10, "min": 10, "color": "#3fb6a8", "acc": "antenna",
+      "prompt": "Fetch open issues with GET https://api.github.com/repos/OWNER/REPO/issues?state=open&per_page=50 . Keep only bug reports with clear steps to reproduce. Skip feature requests, questions, issues that already have a linked pull request, and anything you cannot test locally. For each kept issue create an item with ti = '#<number> <title>' and d = { number, url, body } (body cut to 4000 chars)."
+    },
+    {
+      "id": "vet", "name": "Vet", "model": "haiku", "tools": ["read", "grep", "ls"], "turns": 15, "min": 10, "color": "#9c7ae0", "acc": "glasses",
+      "prompt": "Decide if the bug is small and local enough for one focused fix. Find the files involved. Set data.files (list of paths) and data.plan (2-4 sentences). Use next=fix if it is a good candidate, drop otherwise with the reason in say."
+    },
+    {
+      "id": "fixer", "name": "Fixer", "model": "sonnet", "tools": ["read", "write", "edit", "grep", "ls", "sh"], "n": 2, "turns": 80, "min": 45, "color": "#d97757", "acc": "apron",
+      "prompt": "Create a branch fix/<number>. First add a regression test that fails on the current code and run it to prove it fails. Then fix the bug with the smallest change that follows the style of the repo. Run the test again and the full test suite. Commit with a clear message that says 'Fixes #<number>'. Set data.branch, data.test (test name) and data.summary. If FEEDBACK is present, the tests failed after your last attempt: fix that."
+    },
+    {
+      "id": "reviewer", "name": "Reviewer", "model": "haiku", "tools": ["sh", "read"], "turns": 15, "min": 10, "color": "#d0649f", "acc": "pen",
+      "prompt": "Review the diff of data.branch against the main branch (git diff main...<branch>). Check: the test really covers the bug, the change is minimal, no unrelated edits, no debug output. next=done if good, otherwise next=fix with concrete feedback in data.review."
+    }
+  ],
+  "stages": [
+    { "id": "find", "kind": "source", "worker": "scout", "task": "Find new fixable bug reports.", "spawn": "vet", "every": 1800, "max": 10, "untrusted": true },
+    { "id": "vet", "kind": "work", "worker": "vet", "task": "Triage the issue.", "to": ["fix", "drop"] },
+    { "id": "fix", "kind": "work", "worker": "fixer", "task": "Reproduce with a failing test, fix, commit on a branch.", "to": ["test", "drop"], "retry": 2 },
+    { "id": "test", "kind": "code", "run": { "sh": "npm test", "min": 20 }, "to": ["review"], "fail": "fix", "retry": 2 },
+    { "id": "review", "kind": "work", "worker": "reviewer", "task": "Review the branch.", "to": ["done", "fix"] }
+  ],
+  "layout": {
+    "rooms": [
+      { "name": "Intake", "ws": ["scout", "vet"] },
+      { "name": "Workshop", "ws": ["fixer"] },
+      { "name": "Review", "ws": ["reviewer"] }
+    ],
+    "tiles": [
+      { "kind": "count", "label": "Branches ready", "st": "done" },
+      { "kind": "count", "label": "In repair", "st": "fix" },
+      { "kind": "list", "label": "Ready branches", "st": "done", "field": "branch" },
+      { "kind": "chart", "label": "Fixes per day", "st": "done" }
+    ]
+  }
+}

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ApolloOffice</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <a class="home" href="/" title="all offices">ApolloOffice</a>
+  <h1 id="nm">…</h1>
+  <span class="chip" id="cSt">…</span>
+  <span class="chip" id="cCeo" hidden>CEO is thinking</span>
+  <span class="chip mt" id="cTok"></span>
+  <span class="sp"></span>
+  <button id="bChat">CEO chat</button>
+  <button id="bPause" hidden>Pause</button>
+</header>
+<div class="tiles" id="tiles"></div>
+<main>
+  <div class="stage" id="stage">
+    <canvas id="cv" width="400" height="258"></canvas>
+    <div class="plan" id="plan" hidden></div>
+  </div>
+  <div class="side">
+    <div class="card" id="kpi" hidden><h2>Progress</h2><div class="kp" id="kp"></div></div>
+    <div class="card"><h2>Queue <span id="qn"></span></h2><div class="bd" id="queue"></div></div>
+    <div class="card"><h2>Finished <span id="dnn"></span></h2><div class="bd" id="done"></div></div>
+    <div class="card"><h2>Log</h2><div class="bd log" id="log"></div></div>
+  </div>
+  <aside class="chat" id="chat" hidden>
+    <h2>CEO <span id="chs"></span><button class="x" id="bClose" title="close">✕</button></h2>
+    <div class="msgs" id="msgs"></div>
+    <form id="cf"><textarea id="ci" rows="2" placeholder="Write to the CEO… (Enter sends, Shift+Enter new line)"></textarea><button>Send</button></form>
+  </aside>
+</main>
+<script src="body.js"></script>
+<script src="office.js"></script>
+</body>
+</html>
