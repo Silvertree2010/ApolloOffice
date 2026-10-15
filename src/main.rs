@@ -188,7 +188,8 @@ async fn main() -> anyhow::Result<()> {
         sh::kill(p);
     }
     if *ax.restart.lock().unwrap() {
-        match upd::install(&ax.me, &ax.dd) {
+        let sha = ax.db.kg("upd")["sha"].as_str().unwrap_or("").to_string();
+        match upd::install(&ax.me, &ax.dd, &sha) {
             Ok(()) => upd::relaunch(&ax.me),
             Err(e) => eprintln!("update failed: {e}"),
         }

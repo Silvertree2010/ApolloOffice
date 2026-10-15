@@ -82,7 +82,10 @@ pub async fn check(a: &Ax) -> Result<Value, String> {
         use std::os::unix::fs::PermissionsExt;
         let _ = std::fs::set_permissions(&f, std::fs::Permissions::from_mode(0o755));
     }
-    st(a, |x| x["ready"] = json!(v));
+    st(a, |x| {
+        x["ready"] = json!(v);
+        x["sha"] = json!(want);
+    });
     Ok(json!({"latest": v, "new": true}))
 }
 
@@ -128,8 +131,15 @@ pub fn apply_soon(a: &Ax) {
     a.quit.notify_waiters();
 }
 
-pub fn install(me: &Path, dd: &Path) -> std::io::Result<()> {
-    let f = dd.join(if cfg!(windows) { "update.exe" } else { "update.bin" });
+pub fn install(me: &Path, dd: &Path, sha: &str) -> std::io::Result<()> {
+    let f0 = dd.join(if cfg!(windows) { "update.exe" } else { "update.bin" });
+    let bin = std::fs::read(&f0)?;
+    let _ = std::fs::remove_file(&f0);
+    if sha.len() != 64 || hex::encode(Sha256::digest(&bin)) != sha {
+        return Err(std::io::Error::other("staged update does not match the signed checksum"));
+    }
+    let f = me.with_extension(if cfg!(windows) { "upd.exe" } else { "upd" });
+    std::fs::write(&f, &bin)?;
     if cfg!(windows) {
         let old = me.with_extension("old.exe");
         let _ = std::fs::remove_file(&old);
@@ -140,15 +150,12 @@ pub fn install(me: &Path, dd: &Path) -> std::io::Result<()> {
         }
         let _ = std::fs::remove_file(&f);
     } else {
-        let tmp = me.with_extension("new");
-        std::fs::copy(&f, &tmp)?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755))?;
+            std::fs::set_permissions(&f, std::fs::Permissions::from_mode(0o755))?;
         }
-        std::fs::rename(&tmp, me)?;
-        let _ = std::fs::remove_file(&f);
+        std::fs::rename(&f, me)?;
     }
     Ok(())
 }
