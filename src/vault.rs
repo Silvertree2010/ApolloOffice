@@ -8,7 +8,9 @@ const B: base64::engine::GeneralPurpose = base64::engine::general_purpose::STAND
 
 pub fn key(dd: &Path, inst: &str) -> [u8; 32] {
     let f = dd.join("vault.key");
+    let _ = inst;
     let nofile = std::env::var("APOLLO_OFFICE_VAULT").map(|v| v == "file").unwrap_or(false);
+    #[cfg(any(windows, target_os = "macos"))]
     if !nofile && !f.exists() {
         if let Ok(e) = keyring::Entry::new("ApolloOffice", inst) {
             if let Ok(s) = e.get_password() {
