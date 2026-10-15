@@ -75,6 +75,7 @@ export class Of {
     for (const w of this.P!.workers) this.ws(w.id)
     for (const g of this.P!.stages) if (g.kind === "code") this.ws(g.id)
     if (this.P!.guard) this.ws("guard")
+    for (const [k, x] of Object.entries(this.W)) if (!x.say) { const r = this.db.one("select m,t from ev where w=? order by id desc limit 1", k); if (r) { x.say = r.m; x.t = r.t } }
     const m = more(this.db.kg("seen"), this.P!.perm)
     if (this.st === "new") this.st = "draft"
     else if (this.st === "run" && m.length) { this.st = "review"; this.note("The CEO changed the office and needs your approval for: " + m.join("; ")) }
@@ -94,6 +95,8 @@ export class Of {
       this.db.ks("seeded", 1)
     }
     this.db.ks("fin", 0)
+    const no = more(a, w)
+    this.db.run("insert into ch(t,who,m) values(?,?,?)", now(), "user", no.length ? "(started the office without: " + no.join("; ") + ")" : "(approved all requested permissions and started the office)")
     this.st = "run"
     this.say("ceo", "office started")
   }
@@ -367,7 +370,7 @@ export class Of {
         this.db.run("insert into ch(t,who,m) values(?,?,?)", now(), "ceo", s.slice(0, 8000))
         if (js?.ask) this.hook(`[${this.n}] CEO asks: ${s.slice(0, 300)}`)
       }
-      if (s) this.say("ceo", s)
+      if (s && this.ws("ceo").say !== s.replace(/\s+/g, " ").trim().slice(0, 240)) this.say("ceo", s)
       this.load()
       this.mood("ceo", "ok")
     }).catch((e) => {

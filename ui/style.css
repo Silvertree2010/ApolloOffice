@@ -47,7 +47,7 @@ button.go { background: var(--t1); color: var(--g); border-color: var(--t1); }
 button.go:hover { opacity: .85; }
 button:disabled { opacity: .5; cursor: default; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 6px; }
-.tile { background: var(--p); border: 1px solid var(--l); border-radius: var(--r); padding: 7px 9px; height: 70px; cursor: pointer; position: relative; overflow: hidden; min-width: 0; }
+.tile { background: var(--p); border: 1px solid var(--l); border-radius: var(--r); padding: 7px 9px; height: 80px; cursor: pointer; position: relative; overflow: hidden; min-width: 0; }
 .tile:hover { border-color: var(--t3); }
 .tile .hd { display: flex; align-items: center; gap: 6px; font: 600 11px/1 var(--m); text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
 .tile .dot { width: 8px; height: 8px; border-radius: 2px; flex: none; }
@@ -125,3 +125,9 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
 .wait { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 10px; color: var(--t2); text-align: center; }
 @media (max-width: 1000px) { body { overflow: auto; height: auto; } html { height: auto; } main { grid-template-columns: 1fr; } .stage { min-height: 320px; } .side .card { min-height: 220px; } .side #kpi { min-height: 0; } .chat { position: fixed; inset: 10px; width: auto; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+.itm { z-index: 4; }
+.itm pre { margin: 0; font: 11px/1.45 var(--m); white-space: pre-wrap; word-break: break-word; color: var(--t2); background: var(--g); border: 1px solid var(--h); border-radius: 6px; padding: 8px; }
+.itm .lb { font: 600 10px/1 var(--m); text-transform: uppercase; letter-spacing: .1em; color: var(--t3); margin-top: 6px; }
+.ti .a[data-i] { cursor: pointer; }
+.msg code, .itm code { font: 12px var(--m); background: var(--f); padding: 0 3px; border-radius: 3px; }
+.msg ul { margin: 2px 0; padding-left: 18px; }

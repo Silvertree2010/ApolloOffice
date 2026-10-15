@@ -65,11 +65,12 @@ const srv = createServer(async (q, s) => {
     if (p === "/api/wait") { await sl(Math.min(Number(u.searchParams.get("ms")) || 0, 15000)); s.writeHead(200, { "content-type": "image/gif" }); return s.end(Buffer.from("R0lGODlhAQABAAAAACw=", "base64")) }
     if (p === "/api/new" && q.method === "POST") { const o = mk(await body(q)); return js({ ok: true, name: o.n, url: `http://127.0.0.1:${PORT}/o/${o.n}/` }) }
     if (p === "/api/quit" && q.method === "POST") { js({ ok: true }); setTimeout(() => quit(), 100); return }
-    let m = p.match(/^\/api\/o\/([a-z0-9-]+)\/(state|act)$/)
+    let m = p.match(/^\/api\/o\/([a-z0-9-]+)\/(state|act|item)$/)
     if (m) {
       const o = O.get(m[1])
       if (!o) return js({ error: "no office " + m[1] }, 404)
       if (m[2] === "state") return js(o.state())
+      if (m[2] === "item") { const i = o.db.ig(Number(u.searchParams.get("id"))); return i ? js({ ...i, ev: o.db.all("select t,w,m from ev where i=? order by id desc limit 40", i.id) }) : js({ error: "no such item" }, 404) }
       if (q.method !== "POST") return js({ error: "POST only" }, 405)
       return js(act(o, await body(q)))
     }

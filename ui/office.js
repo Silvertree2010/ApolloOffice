@@ -295,7 +295,7 @@
   };
 
   const STC = { done: "ok", drop: "bad" };
-  const irow = (j, x) => `<div class="row"><span class="pill ${j.lk ? "work" : STC[j.st] || ""}" title="${esc(j.st)}">${esc(j.st.replace(/^guard:.*/, "guard"))}</span><div class="ti"><span class="a" title="${esc(j.ti)}">${esc(j.ti)}</span><div class="w" title="${esc(j.why || "")}">${esc(j.why || "")}</div></div><span class="rp">#${j.id}${x ? ` <button class="x" data-d="${j.id}" title="drop this item">✕</button>` : " " + ago(j.t1)}</span></div>`;
+  const irow = (j, x) => `<div class="row"><span class="pill ${j.lk ? "work" : STC[j.st] || ""}" title="${esc(j.st)}">${esc(j.st.replace(/^guard:.*/, "guard"))}</span><div class="ti"><span class="a" data-i="${j.id}" title="${esc(j.ti)}">${esc(j.ti)}</span><div class="w" title="${esc(j.why || "")}">${esc(j.why || "")}</div></div><span class="rp">#${j.id}${x ? ` <button class="x" data-d="${j.id}" title="drop this item">✕</button>` : " " + ago(j.t1)}</span></div>`;
 
   const lists = () => {
     $("qn").textContent = S.q.length ? S.q.length + (S.op > S.q.length ? " of " + S.op : "") : "";
@@ -396,7 +396,7 @@
     if (S.ch.length !== cn) {
       cn = S.ch.length;
       const m = $("msgs");
-      m.innerHTML = S.ch.map((x) => `<div class="msg ${x.who === "ceo" ? "ceo" : "user"}"><span class="tm">${x.who === "ceo" ? "CEO" : "You"} · ${hm(x.t)}</span>${esc(x.m)}</div>`).join("") || `<div class="empty">no messages yet</div>`;
+      m.innerHTML = S.ch.map((x) => `<div class="msg ${x.who === "ceo" ? "ceo" : "user"}"><span class="tm">${x.who === "ceo" ? "CEO" : "You"} · ${hm(x.t)}</span>${md(x.m)}</div>`).join("") || `<div class="empty">no messages yet</div>`;
       m.scrollTop = m.scrollHeight;
       const lc = S.ch.filter((x) => x.who === "ceo").pop();
       if (lc && lc.t > seenCeo && seenCeo) openChat(false);
@@ -421,13 +421,24 @@
     if (t.dataset.w === "ceo") return openChat(true);
     apply(await post({ a: "hold", w: t.dataset.w, on: !S.w[t.dataset.w]?.hold }));
   };
+  const md = (t) => esc(t).replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>").replace(/`([^`\n]+)`/g, "<code>$1</code>").replace(/(^|\n)- /g, "$1• ");
+  const item = async (id) => {
+    const r = await (await fetch(API + "/item?id=" + id, { cache: "no-store" })).json();
+    if (r.error) return;
+    $("ih").innerHTML = `#${r.id} <span>${esc(r.st)}</span><button class="x" id="bIc" title="close">✕</button>`;
+    $("ib").innerHTML = `<div class="msg ceo" style="max-width:100%"><b>${esc(r.ti)}</b>${r.why ? "\n" + esc(r.why) : ""}</div><div class="lb">data</div><pre>${esc(JSON.stringify(r.d, null, 2))}</pre><div class="lb">history</div><pre>${r.ev.map((e) => esc(hm(e.t) + " " + (LY.wk[e.w]?.nm || e.w) + ": " + e.m)).join("\n") || "–"}</pre>`;
+    $("itm").hidden = false;
+    $("bIc").onclick = () => { $("itm").hidden = true; };
+  };
   document.addEventListener("click", async (e) => {
+    const i = e.target.closest("[data-i]");
+    if (i) return item(Number(i.dataset.i));
     const d = e.target.closest("[data-d]");
     if (d) apply(await post({ a: "drop", id: Number(d.dataset.d) }));
   });
   let rz = 0;
   addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (S) LY = build(); }, 150); });
-  addEventListener("keydown", (e) => { if (e.key === "Escape") $("chat").hidden = true; });
+  addEventListener("keydown", (e) => { if (e.key === "Escape") { if (!$("itm").hidden) $("itm").hidden = true; else $("chat").hidden = true; } });
 
   const apply = (s) => {
     if (!s || s.error) return;
