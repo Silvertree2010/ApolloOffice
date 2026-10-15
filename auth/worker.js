@@ -69,8 +69,9 @@ export default {
         let ru;
         try { ru = new URL(r); } catch { return page("Error", "<h1>Bad return address</h1>", 400); }
         if (!/^https?:$/.test(ru.protocol) || ru.pathname !== "/auth/back" || ru.search || ru.hash) return page("Error", "<h1>Bad return address</h1>", 400);
-        if (!loopback(ru) && u.searchParams.get("ok") !== "1") {
-          const again = new URL(u); again.searchParams.set("ok", "1");
+        const okv = await hmac(env, "ok:" + i + ":" + n + ":" + ru.href);
+        if (!loopback(ru) && u.searchParams.get("ok") !== okv) {
+          const again = new URL(u); again.searchParams.set("ok", okv);
           return page("Confirm", `<h1>Sign in to a remote installation?</h1><div class="w"><p>After the login you will be sent to <b>${esc(ru.origin)}</b>.</p><p>Only continue if this is <b>your own</b> ApolloOffice and you started this login there yourself. If someone sent you this link, close this page.</p></div><p><a class="b" href="${esc(again.href)}">Yes, it is mine. Continue</a></p>`);
         }
         const ver = rnd(), st = rnd(16);
@@ -101,7 +102,7 @@ export default {
         const tj = await tr.json();
         if (!tj.access_token) return page("Error", "<h1>Login failed</h1><p>The provider did not accept the login.</p>", 400);
         const us = await pv.user(tj.access_token);
-        const tok = await sign(env, { p, sub: us.sub, nm: us.nm || "", em: us.em || "", av: us.av || "", i: s.i, n: s.n, exp: Math.floor(Date.now() / 1000) + 120 });
+        const tok = await sign(env, { p, sub: us.sub, nm: us.nm || "", em: us.em || "", av: us.av || "", i: s.i, n: s.n, aud: back.origin, exp: Math.floor(Date.now() / 1000) + 120 });
         back.searchParams.set("t", tok);
         return new Response(null, { status: 302, headers: { location: back.href, "set-cookie": `ao_st=; Path=/cb/${p}; HttpOnly; Secure; SameSite=Lax; Max-Age=0`, "cache-control": "no-store", "referrer-policy": "no-referrer" } });
       }

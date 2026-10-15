@@ -33,7 +33,7 @@ pub fn nonce(db: &Db, pre: &str) -> String {
     n
 }
 
-pub fn verify(pk: &str, db: &Db, inst: &str, tok: &str, pre: &str) -> Result<Value, String> {
+pub fn verify(pk: &str, db: &Db, inst: &str, tok: &str, pre: &str, origin: &str) -> Result<Value, String> {
     let (a, b) = tok.split_once('.').ok_or("Token kaputt")?;
     let body = U.decode(a).map_err(|_| "Token kaputt")?;
     let sig = U.decode(b).map_err(|_| "Signatur kaputt")?;
@@ -44,6 +44,9 @@ pub fn verify(pk: &str, db: &Db, inst: &str, tok: &str, pre: &str) -> Result<Val
     let p: Value = serde_json::from_slice(&body).map_err(|_| "Token kaputt")?;
     if p["i"].as_str() != Some(inst) {
         return Err("Token gehört zu einer anderen Installation".into());
+    }
+    if p["aud"].as_str() != Some(origin) {
+        return Err("Token ist für eine andere Adresse ausgestellt".into());
     }
     if p["exp"].as_i64().unwrap_or(0) * 1000 < now() {
         return Err("Token abgelaufen, bitte nochmal anmelden".into());
@@ -116,6 +119,8 @@ mod t {
     use super::*;
     use ed25519_dalek::{Signer, SigningKey};
 
+    const O: &str = "http://127.0.0.1:47300";
+
     #[test]
     fn flow() {
         let db = Db::mem();
@@ -124,26 +129,28 @@ mod t {
         let i = inst(&db);
         let n = nonce(&db, "pre1");
         let mk = |i: &str, n: &str, sub: &str, exp: i64| {
-            let b = serde_json::to_vec(&json!({"p": "github", "sub": sub, "nm": "netter", "i": i, "n": n, "exp": exp})).unwrap();
+            let b = serde_json::to_vec(&json!({"p": "github", "sub": sub, "nm": "netter", "i": i, "n": n, "aud": "http://127.0.0.1:47300", "exp": exp})).unwrap();
             format!("{}.{}", U.encode(&b), U.encode(sk.sign(&b).to_bytes()))
         };
         let e = now() / 1000 + 60;
-        assert!(verify(&pk, &db, &i, &mk("other", &n, "1", e), "pre1").is_err());
+        assert!(verify(&pk, &db, &i, &mk("other", &n, "1", e), "pre1", O).is_err());
         let n = nonce(&db, "pre1");
-        assert!(verify(&pk, &db, &i, &mk(&i, &n, "1", e), "pre2").is_err());
+        assert!(verify(&pk, &db, &i, &mk(&i, &n, "1", e), "pre2", O).is_err());
         let n = nonce(&db, "pre1");
         let t = mk(&i, &n, "1", e);
-        let p = verify(&pk, &db, &i, &t, "pre1").unwrap();
-        assert!(verify(&pk, &db, &i, &t, "pre1").is_err());
+        let n2 = nonce(&db, "pre1");
+        assert!(verify(&pk, &db, &i, &mk(&i, &n2, "1", e), "pre1", "https://evil.example").is_err());
+        let p = verify(&pk, &db, &i, &t, "pre1", O).unwrap();
+        assert!(verify(&pk, &db, &i, &t, "pre1", O).is_err());
         bind(&db, &p).unwrap();
         let n = nonce(&db, "pre1");
-        let p2 = verify(&pk, &db, &i, &mk(&i, &n, "2", e), "pre1").unwrap();
+        let p2 = verify(&pk, &db, &i, &mk(&i, &n, "2", e), "pre1", O).unwrap();
         assert!(bind(&db, &p2).is_err());
         let n = nonce(&db, "pre1");
-        assert!(verify(&pk, &db, &i, &mk(&i, &n, "1", e - 120), "pre1").is_err());
+        assert!(verify(&pk, &db, &i, &mk(&i, &n, "1", e - 120), "pre1", O).is_err());
         let mut bad = mk(&i, &nonce(&db, "pre1"), "1", e);
         bad.replace_range(3..4, if &bad[3..4] == "A" { "B" } else { "A" });
-        assert!(verify(&pk, &db, &i, &bad, "pre1").is_err());
+        assert!(verify(&pk, &db, &i, &bad, "pre1", O).is_err());
         let s = ses_new(&db, "ua", "127.0.0.1");
         assert!(ses_ok(&db, &s).is_some());
         assert!(ses_ok(&db, "x").is_none());
