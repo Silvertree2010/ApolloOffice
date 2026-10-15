@@ -40,9 +40,11 @@ pub fn real(p: &Path) -> PathBuf {
             Component::CurDir => {}
             x => {
                 o.push(x.as_os_str());
-                if std::fs::symlink_metadata(&o).is_ok() {
-                    if let Ok(r) = dunce(&o) {
-                        o = r;
+                if let Ok(m) = std::fs::symlink_metadata(&o) {
+                    match dunce(&o) {
+                        Ok(r) => o = r,
+                        Err(_) if m.file_type().is_symlink() => return PathBuf::from("\0dangling-symlink"),
+                        Err(_) => {}
                     }
                 }
             }
@@ -148,7 +150,7 @@ pub fn shok(pm: &Pm, c: &str) -> Result<(), String> {
     static RED: OnceLock<Regex> = OnceLock::new();
     static SAFE: OnceLock<Regex> = OnceLock::new();
     let red = RED.get_or_init(|| Regex::new(r"\s*(\d?>&\d|2>\s*/dev/null|2>\s*nul)\s*$").unwrap());
-    let safe = SAFE.get_or_init(|| Regex::new(r"^(cd|echo|true|tail|head|wc|cat|ls|pwd|sort|uniq|grep)(\s|$)").unwrap());
+    let safe = SAFE.get_or_init(|| Regex::new(r"^(echo|true|pwd)(\s|$)|^cd(\s+[\w./-]*)?$").unwrap());
     let gl: Vec<Regex> = al.iter().map(|g| glob(g)).collect();
     static RD: OnceLock<Regex> = OnceLock::new();
     let c = RD.get_or_init(|| Regex::new(r"\s*\d?>&\d|\s*2>\s*(/dev/null|nul)\b").unwrap()).replace_all(c, "").to_string();
@@ -157,7 +159,7 @@ pub fn shok(pm: &Pm, c: &str) -> Result<(), String> {
         if g.contains('>') && !gl.iter().any(|r| r.is_match(&g)) {
             return Err(format!("„{}“ schreibt in eine Datei und ist nicht erlaubt", g.chars().take(80).collect::<String>()));
         }
-        if g.is_empty() || safe.is_match(&g) {
+        if g.is_empty() || safe.is_match(&g) && !g.split_whitespace().any(|w| w.starts_with('/') || w.starts_with('~') || w.split('/').any(|p| p == "..")) {
             continue;
         }
         if !gl.iter().any(|r| r.is_match(&g)) {
@@ -212,6 +214,10 @@ mod t {
         assert!(shok(&p, "git diff a$(id)").is_err());
         assert!(shok(&p, "git diff > /tmp/x").is_err());
         assert!(shok(&p, "git diff (x)").is_err());
+        assert!(shok(&p, "cat /etc/passwd").is_err());
+        assert!(shok(&p, "cd /etc && npm test").is_err());
+        assert!(shok(&p, "cd ../x && npm test").is_err());
+        assert!(shok(&p, "cd sub && npm test").is_ok());
         assert!(shok(&pm(json!(false)), "ls").is_err());
         let a = pm(json!(true));
         assert!(shok(&a, "make all && ./run.sh").is_ok());
@@ -239,6 +245,9 @@ mod t {
             std::os::unix::fs::symlink("/etc", d.join("ln")).unwrap();
             assert!(!inside(&d.join("ln/../nope.txt"), &d));
             assert!(!inside(&d.join("ln/new.txt"), &d));
+            let _ = std::fs::remove_file(d.join("dg"));
+            std::os::unix::fs::symlink("/tmp/ao-nowhere-xyz/f", d.join("dg")).unwrap();
+            assert!(!inside(&d.join("dg"), &d));
         }
         assert!(!inside(&d.join("../x"), &d));
         assert!(broad(Path::new("/")));

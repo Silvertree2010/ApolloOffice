@@ -362,7 +362,11 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
             let w = wk_by_name(a, rc.fl, s(x, "worker")).filter(|w| w["fl"].as_i64() == Some(rc.fl)).ok_or("Worker auf deiner Etage nicht gefunden")?;
             let f = wk_by_name(a, rc.fl, s(x, "from")).filter(|w| w["fl"].as_i64() == Some(rc.fl)).ok_or("Absender auf deiner Etage nicht gefunden")?;
             let wp = Pm::from(&w["cfg"], &rc.out);
-            if !rc.pm.sub(&wp) {
+            let ids = |v: &Value| -> Vec<i64> { v["srv"].as_array().map(|x| x.iter().filter_map(|y| y.as_i64()).collect()).unwrap_or_default() };
+            let (mine, theirs) = (ids(&rc.wc), ids(&w["cfg"]));
+            let flag = |v: &Value, k: &str| v[k].as_bool() == Some(true);
+            let more = theirs.iter().any(|x| !mine.contains(x)) || ["ceo_hire", "ceo_conn", "fb"].iter().any(|k| flag(&w["cfg"], k) && !flag(&rc.wc, k)) || w["cfg"]["tools"].as_array().map(|t| t.iter().any(|x| x.as_str().map(|s| s.starts_with("x:") && !rc.tools.iter().any(|m| m == s)).unwrap_or(false))).unwrap_or(false);
+            if !rc.pm.sub(&wp) || more {
                 return Err(format!("{} hat mehr Rechte als du. Das darf nur der Besitzer verbinden.", s(&w, "nm")));
             }
             let wid = w["id"].as_i64().unwrap_or(0);
