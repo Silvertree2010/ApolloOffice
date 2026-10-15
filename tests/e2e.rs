@@ -43,11 +43,11 @@ async fn fake_model() -> u16 {
             call("sh", json!({"cmd": c}))
         } else if last["role"] == "user" && user.contains("ORDER:") && tools.contains(&"order".to_string()) {
             let t = user.split("ORDER:").nth(1).unwrap_or("").split_whitespace().next().unwrap_or("");
-            call("order", json!({"to": t, "title": "Teilaufgabe", "text": "bitte erledigen"}))
+            call("order", json!({"to": t, "title": "Subtask", "text": "please do this"}))
         } else if last["role"] == "user" && user.contains("WRITE:") && tools.contains(&"write".to_string()) {
-            call("write", json!({"path": "out/notiz.txt", "text": "geschrieben"}))
+            call("write", json!({"path": "out/notiz.txt", "text": "written"}))
         } else {
-            json!({"role": "assistant", "content": format!("Erledigt.\nTOOL: {}", last["content"].as_str().unwrap_or(""))})
+            json!({"role": "assistant", "content": format!("Done.\nTOOL: {}", last["content"].as_str().unwrap_or(""))})
         };
         Json(json!({"choices": [{"message": m}], "usage": {"prompt_tokens": 100, "completion_tokens": 20}}))
     }
@@ -143,48 +143,48 @@ async fn whole_building() {
     let a = s.ok("/api/acc", json!({"k": "api", "pre": "custom", "nm": "Fake", "base": format!("http://127.0.0.1:{m}/v1"), "md": "fake", "key": "sk-test-123456", "ok": true})).await;
     let aid = a["id"].as_i64().unwrap();
     let t = s.ok(&format!("/api/acc/{aid}/test"), json!({})).await;
-    assert!(t["msg"].as_str().unwrap().contains("Erledigt"));
+    assert!(t["msg"].as_str().unwrap().contains("Done"));
     let st = s.get("/api/state").await;
     assert_eq!(st["acc"][0]["sec"], "…3456");
     let raw = std::fs::read(s.dd.join("office.db")).unwrap();
     assert!(!raw.windows(14).any(|w| w == b"sk-test-123456"));
 
-    let fl = st["fl"].as_array().unwrap().iter().find(|f| f["k"] == "rohbau").unwrap()["id"].as_i64().unwrap();
+    let fl = st["fl"].as_array().unwrap().iter().find(|f| f["k"] == "shell").unwrap()["id"].as_i64().unwrap();
     s.ok(&format!("/api/floor/{fl}/build"), json!({"k": "office", "nm": "Test"})).await;
     let w1 = s.ok("/api/hire", json!({"ty": "writer", "fl": fl, "nm": "Ana"})).await["id"].as_i64().unwrap();
     let w2 = s.ok("/api/hire", json!({"ty": "fixer", "fl": fl, "nm": "Bo"})).await["id"].as_i64().unwrap();
 
     let work = s.dd.join("work");
     std::fs::create_dir_all(&work).unwrap();
-    std::fs::write(work.join("a.txt"), "inhalt-123").unwrap();
+    std::fs::write(work.join("a.txt"), "content-123").unwrap();
     let outside = s.dd.join("secret.txt");
-    std::fs::write(&outside, "geheim").unwrap();
+    std::fs::write(&outside, "topsecret-42").unwrap();
     let (c, v) = s.post(&format!("/api/worker/{w1}"), json!({"cfg": {"fsw": [work.to_str().unwrap()]}})).await;
     assert_eq!(c, 400, "{v}");
     s.ok(&format!("/api/worker/{w1}"), json!({"cfg": {"fsw": [work.to_str().unwrap()], "tools": ["read", "write", "ls", "order"]}, "ok": true})).await;
 
-    let id = s.ok("/api/task", json!({"wk": w1, "ti": "Lesen", "tx": format!("READ: {}", work.join("a.txt").display())})).await["id"].as_i64().unwrap();
+    let id = s.ok("/api/task", json!({"wk": w1, "ti": "Read", "tx": format!("READ: {}", work.join("a.txt").display())})).await["id"].as_i64().unwrap();
     let t = s.wait(id, &["done", "fail"]).await;
     assert_eq!(t["st"], "done", "{t}");
-    assert!(t["res"].as_str().unwrap().contains("inhalt-123"));
-    assert!(s.dd.join("floors").join(fl.to_string()).join("out").join(format!("{id}-lesen.md")).exists());
+    assert!(t["res"].as_str().unwrap().contains("content-123"));
+    assert!(s.dd.join("floors").join(fl.to_string()).join("out").join(format!("{id}-read.md")).exists());
 
-    let id = s.ok("/api/task", json!({"wk": w1, "ti": "Geheim", "tx": format!("READ: {}", outside.display())})).await["id"].as_i64().unwrap();
+    let id = s.ok("/api/task", json!({"wk": w1, "ti": "Secret", "tx": format!("READ: {}", outside.display())})).await["id"].as_i64().unwrap();
     let t = s.wait(id, &["done", "fail"]).await;
-    assert!(t["res"].as_str().unwrap().contains("ausserhalb"), "{t}");
-    assert!(!t["res"].as_str().unwrap().contains("geheim"));
+    assert!(t["res"].as_str().unwrap().contains("outside"), "{t}");
+    assert!(!t["res"].as_str().unwrap().contains("topsecret-42"));
 
-    let id = s.ok("/api/task", json!({"wk": w1, "ti": "Befehl", "tx": "SH: echo hi"})).await["id"].as_i64().unwrap();
+    let id = s.ok("/api/task", json!({"wk": w1, "ti": "Command", "tx": "SH: echo hi"})).await["id"].as_i64().unwrap();
     let t = s.wait(id, &["done", "fail"]).await;
     assert!(!t["res"].as_str().unwrap().contains("[exit 0]"), "writer has no sh tool: {t}");
 
-    let id = s.ok("/api/task", json!({"wk": w1, "ti": "Weiter", "tx": "ORDER: Bo"})).await["id"].as_i64().unwrap();
+    let id = s.ok("/api/task", json!({"wk": w1, "ti": "Resumed", "tx": "ORDER: Bo"})).await["id"].as_i64().unwrap();
     let t = s.wait(id, &["done", "fail"]).await;
-    assert!(t["res"].as_str().unwrap().contains("nimmt keine Aufträge"), "{t}");
+    assert!(t["res"].as_str().unwrap().contains("does not take orders"), "{t}");
     s.ok(&format!("/api/worker/{w2}"), json!({"cfg": {"from": [{"w": w1}]}, "ok": true})).await;
-    let id = s.ok("/api/task", json!({"wk": w1, "ti": "Weiter2", "tx": "ORDER: Bo"})).await["id"].as_i64().unwrap();
+    let id = s.ok("/api/task", json!({"wk": w1, "ti": "Pass on 2", "tx": "ORDER: Bo"})).await["id"].as_i64().unwrap();
     let t = s.wait(id, &["done", "fail"]).await;
-    assert!(t["res"].as_str().unwrap().contains("übergeben"), "{t}");
+    assert!(t["res"].as_str().unwrap().contains("handed to"), "{t}");
     let ts = s.get(&format!("/api/tasks?wk={w2}")).await;
     let sub = ts.as_array().unwrap().iter().find(|x| x["src"] == format!("w:{w1}")).expect("subtask").clone();
     s.wait(sub["id"].as_i64().unwrap(), &["done"]).await;
@@ -195,18 +195,18 @@ async fn whole_building() {
     let hid = r.json::<Value>().await.unwrap()["task"].as_i64().unwrap();
     let t = s.wait(hid, &["rej", "done", "fail"]).await;
     assert_eq!(t["st"], "rej", "{t}");
-    let r = s.c.post(s.u(&format!("/hook/{hook}"))).body(json!({"title": "Issue 2", "text": "Bitte Datei zusammenfassen", "worker": "Ana"}).to_string()).send().await.unwrap();
+    let r = s.c.post(s.u(&format!("/hook/{hook}"))).body(json!({"title": "Issue 2", "text": "Please summarize the file", "worker": "Ana"}).to_string()).send().await.unwrap();
     let hid = r.json::<Value>().await.unwrap()["task"].as_i64().unwrap();
     let t = s.wait(hid, &["rej", "done", "fail"]).await;
     assert_eq!(t["st"], "done", "{t}");
     let r = s.c.post(s.u("/hook/0000000000000000")).body("x").send().await.unwrap();
     assert_eq!(r.status(), 404);
 
-    let id = s.ok("/api/task", json!({"wk": w1, "ti": "Schreiben", "tx": "WRITE: now"})).await["id"].as_i64().unwrap();
+    let id = s.ok("/api/task", json!({"wk": w1, "ti": "Write", "tx": "WRITE: now"})).await["id"].as_i64().unwrap();
     let t = s.wait(id, &["done", "fail"]).await;
     assert!(t["files"].as_array().unwrap().iter().any(|f| f == "notiz.txt"), "{t}");
     let f = s.c.get(s.u(&format!("/api/file?fl={fl}&n=notiz.txt"))).send().await.unwrap().text().await.unwrap();
-    assert_eq!(f, "geschrieben");
+    assert_eq!(f, "written");
     let r = s.c.get(s.u(&format!("/api/file?fl={fl}&n=..%2Fx"))).send().await.unwrap();
     assert_eq!(r.status(), 400);
 
@@ -222,7 +222,7 @@ async fn whole_building() {
     let e = s.get("/api/export").await;
     assert!(!e.to_string().contains("sk-test"));
     let aud = s.get("/api/aud").await;
-    assert!(aud.as_array().unwrap().iter().any(|r| r["what"] == "Rechte geändert"));
+    assert!(aud.as_array().unwrap().iter().any(|r| r["what"] == "Permissions changed"));
     let _ = std::fs::remove_dir_all(&s.dd);
 }
 
@@ -237,10 +237,10 @@ async fn claude_cli_through_mcp() {
     std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
     let a = s.ok("/api/acc", json!({"k": "claude", "nm": "Fake Abo", "bin": fake.to_str().unwrap(), "ok": true})).await;
     let st = s.get("/api/state").await;
-    let fl = st["fl"].as_array().unwrap().iter().find(|f| f["k"] == "rohbau").unwrap()["id"].as_i64().unwrap();
+    let fl = st["fl"].as_array().unwrap().iter().find(|f| f["k"] == "shell").unwrap()["id"].as_i64().unwrap();
     s.ok(&format!("/api/floor/{fl}/build"), json!({"k": "office"})).await;
     let w = s.ok("/api/hire", json!({"ty": "writer", "fl": fl, "nm": "Cli"})).await["id"].as_i64().unwrap();
-    let id = s.ok("/api/task", json!({"wk": w, "ti": "Via MCP", "tx": "bitte"})).await["id"].as_i64().unwrap();
+    let id = s.ok("/api/task", json!({"wk": w, "ti": "Via MCP", "tx": "please"})).await["id"].as_i64().unwrap();
     let t = s.wait(id, &["done", "fail"]).await;
     assert_eq!(t["st"], "done", "{t}");
     assert!(t["res"].as_str().unwrap().contains("deliver ok"), "{t}");

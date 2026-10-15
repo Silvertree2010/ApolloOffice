@@ -18,7 +18,7 @@ if cfg:
     names = [t["name"] for t in rpc(2, "tools/list", {})["result"]["tools"]]
     r = rpc(3, "tools/call", {"name": "deliver", "arguments": {"name": "mcp.txt", "text": "via mcp"}})
     bad = rpc(4, "tools/call", {"name": "sh", "arguments": {"cmd": "id"}})
-    txt = ("deliver ok" if "Ablage" in r["result"]["content"][0]["text"] else "deliver failed") + " tools=" + ",".join(names) + " sh=" + str(bad["result"].get("isError"))
+    txt = ("deliver ok" if "tray" in r["result"]["content"][0]["text"] else "deliver failed") + " tools=" + ",".join(names) + " sh=" + str(bad["result"].get("isError"))
     p.stdin.close()
     p.wait()
 out({"type": "assistant", "message": {"content": [{"type": "text", "text": "arbeite"}]}})

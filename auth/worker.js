@@ -100,7 +100,7 @@ export default {
         const s = await open(env, ck && ck.slice(6));
         if (!s || s.p !== p || s.st !== u.searchParams.get("state")) return page("Error", "<h1>Login expired</h1><p>Please start again from your ApolloOffice.</p>", 400);
         const back = new URL(s.r);
-        if (u.searchParams.get("error")) { back.searchParams.set("e", "Login abgebrochen"); return Response.redirect(back.href, 302); }
+        if (u.searchParams.get("error")) { back.searchParams.set("e", "Login cancelled"); return Response.redirect(back.href, 302); }
         const body = new URLSearchParams({ client_id: env[p.toUpperCase() + "_ID"], client_secret: env[p.toUpperCase() + "_SECRET"], code: u.searchParams.get("code") || "", redirect_uri: `${u.origin}/cb/${p}`, grant_type: "authorization_code", code_verifier: s.ver });
         const tr = await fetch(pv.token, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" }, body });
         const tj = await tr.json();

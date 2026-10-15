@@ -76,15 +76,15 @@ async fn main() -> anyhow::Result<()> {
             let d = open(&dd)?;
             let c = auth::link_new(&d);
             let p = d.kg("port").as_u64().unwrap_or(a.port as u64);
-            println!("Einmaliger Login-Link (10 Minuten gültig):\nhttp://127.0.0.1:{p}/auth/link?c={c}");
+            println!("One-time login link (valid 10 minutes):\nhttp://127.0.0.1:{p}/auth/link?c={c}");
             return Ok(());
         }
         Some(C::ResetOwner) => {
             let d = open(&dd)?;
             d.kd("owner");
             d.run("delete from ses", pa![]);
-            d.run("insert into aud(t,who,what,det) values(?,?,?,?)", pa![db::now(), "cli".to_string(), "Besitzer gelöst".to_string(), "".to_string()]);
-            println!("Besitzer gelöst. Der nächste Login bindet die Installation neu.");
+            d.run("insert into aud(t,who,what,det) values(?,?,?,?)", pa![db::now(), "cli".to_string(), "Owner released".to_string(), "".to_string()]);
+            println!("Owner released. The next login binds the installation again.");
             return Ok(());
         }
         Some(C::Autostart { on }) => {
@@ -94,7 +94,7 @@ async fn main() -> anyhow::Result<()> {
         Some(C::Export { file }) => {
             let d = open(&dd)?;
             std::fs::write(&file, serde_json::to_string_pretty(&sys::export(&d))?)?;
-            println!("exportiert nach {}", file.display());
+            println!("exported to {}", file.display());
             return Ok(());
         }
         Some(C::Import { file }) => {
@@ -106,10 +106,10 @@ async fn main() -> anyhow::Result<()> {
         Some(C::Status) => {
             let d = open(&dd)?;
             let o = d.kg("owner");
-            println!("ApolloOffice {}  Daten: {}", cfg::V, dd.display());
-            println!("Besitzer: {}", o["nm"].as_str().map(|n| format!("{n} ({})", o["p"].as_str().unwrap_or(""))).unwrap_or("noch keiner".into()));
-            println!("Stockwerke: {}  Worker: {}  Konten: {}  Server: {}", d.n("select count(*) from fl", pa![]), d.n("select count(*) from wk", pa![]), d.n("select count(*) from acc", pa![]), d.n("select count(*) from srv", pa![]));
-            println!("Aufgaben: {} wartend, {} laufend, {} fertig", d.n("select count(*) from tk where st='wait'", pa![]), d.n("select count(*) from tk where st='run'", pa![]), d.n("select count(*) from tk where st='done'", pa![]));
+            println!("ApolloOffice {}  Data: {}", cfg::V, dd.display());
+            println!("Owner: {}", o["nm"].as_str().map(|n| format!("{n} ({})", o["p"].as_str().unwrap_or(""))).unwrap_or("nobody yet".into()));
+            println!("Floors: {}  Workers: {}  Accounts: {}  Servers: {}", d.n("select count(*) from fl", pa![]), d.n("select count(*) from wk", pa![]), d.n("select count(*) from acc", pa![]), d.n("select count(*) from srv", pa![]));
+            println!("Tasks: {} waiting, {} running, {} done", d.n("select count(*) from tk where st='wait'", pa![]), d.n("select count(*) from tk where st='run'", pa![]), d.n("select count(*) from tk where st='done'", pa![]));
             return Ok(());
         }
         _ => {}
@@ -138,18 +138,18 @@ async fn main() -> anyhow::Result<()> {
     let l = match tokio::net::TcpListener::bind((a.bind.as_str(), a.port)).await {
         Ok(l) => l,
         Err(e) => {
-            eprintln!("Port {} ist belegt oder nicht nutzbar ({e}). Läuft ApolloOffice schon? Sonst --port wählen.", a.port);
+            eprintln!("Port {} is taken or not usable ({e}). Is ApolloOffice already running? Otherwise pick --port.", a.port);
             std::process::exit(1);
         }
     };
     eng::spawn(ax.clone());
     let u = format!("http://{}:{}", if lo { "127.0.0.1" } else { &a.bind }, a.port);
     if !a.quiet {
-        println!("\n  ApolloOffice {}\n\n  Öffne {u}\n\n  Daten: {}", cfg::V, dd.display());
+        println!("\n  ApolloOffice {}\n\n  Open {u}\n\n  Data: {}", cfg::V, dd.display());
         if !lo {
-            println!("\n  ACHTUNG: erreichbar unter {}. Nur hinter HTTPS (Reverse Proxy) oder in einem privaten Netz nutzen.", a.bind);
+            println!("\n  WARNING: reachable at {}. Only use it behind HTTPS (reverse proxy) or in a private network.", a.bind);
         }
-        println!("  Beenden mit Ctrl+C\n");
+        println!("  Stop with Ctrl+C\n");
     }
     let app = axum::Router::new().fallback(web::h).with_state(ax.clone());
     let sv = axum::serve(l, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).with_graceful_shutdown(async {

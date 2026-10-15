@@ -51,7 +51,7 @@ pub async fn go(a: &Ax, j: Job) -> Result<Res, Er> {
     match k.as_str() {
         "claude" | "codex" | "gemini" => cli(a, j, &k).await,
         "api" => crate::api::run(a, j).await,
-        _ => Err(Er::E("unbekannte Konto-Art".into())),
+        _ => Err(Er::E("unknown account kind".into())),
     }
 }
 
@@ -89,7 +89,7 @@ fn untoken(a: &Ax, t: &Option<String>) {
 }
 
 pub async fn cli(a: &Ax, j: Job, k: &str) -> Result<Res, Er> {
-    let b = j.acc["cfg"]["bin"].as_str().filter(|s| !s.is_empty()).map(PathBuf::from).or_else(|| which(crate::prov::bin(k))).ok_or_else(|| Er::E(format!("{} ist nicht installiert", crate::prov::bin(k))))?;
+    let b = j.acc["cfg"]["bin"].as_str().filter(|s| !s.is_empty()).map(PathBuf::from).or_else(|| which(crate::prov::bin(k))).ok_or_else(|| Er::E(format!("{} is not installed", crate::prov::bin(k))))?;
     let rd = rundir(a);
     let me = a.me.display().to_string();
     let tk = token(a, &j.rc);
@@ -176,7 +176,7 @@ pub async fn cli(a: &Ax, j: Job, k: &str) -> Result<Res, Er> {
     c.current_dir(&rd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
     env(&mut c, &x);
     grp(&mut c);
-    let mut ch = c.spawn().map_err(|e| Er::E(format!("{} startet nicht: {e}", b.display())))?;
+    let mut ch = c.spawn().map_err(|e| Er::E(format!("{} does not start: {e}", b.display())))?;
     let pid = ch.id().unwrap_or(0);
     crate::tools::pid(a, j.who, pid, true);
     if let Some(mut si) = ch.stdin.take() {
@@ -280,14 +280,14 @@ pub async fn cli(a: &Ax, j: Job, k: &str) -> Result<Res, Er> {
     }
     let _ = std::fs::remove_dir_all(&rd);
     if to.is_err() {
-        return Err(Er::E(format!("Zeitlimit nach {} min", j.min)));
+        return Err(Er::E(format!("timeout after {} min", j.min)));
     }
     let all = format!("{errs} {er}");
     if limtxt(&all) && (txt.is_empty() || !errs.trim().is_empty()) {
         return Err(Er::Lim(None, all.trim().chars().take(200).collect()));
     }
     if txt.trim().is_empty() || (!done && k != "gemini") {
-        return Err(Er::E(format!("{} lieferte kein Ergebnis: {}", crate::prov::bin(k), all.trim().chars().rev().take(400).collect::<String>().chars().rev().collect::<String>())));
+        return Err(Er::E(format!("{} returned no result: {}", crate::prov::bin(k), all.trim().chars().rev().take(400).collect::<String>().chars().rev().collect::<String>())));
     }
     if !errs.trim().is_empty() && k == "claude" && !done {
         return Err(Er::E(errs));
@@ -296,14 +296,14 @@ pub async fn cli(a: &Ax, j: Job, k: &str) -> Result<Res, Er> {
 }
 
 pub async fn test(a: &Ax, acc: &Value) -> Result<String, String> {
-    let md = crate::prov::tier(acc, "klein");
-    let j = Job { acc: acc.clone(), md: md.clone(), ef: "niedrig".into(), sys: "Answer with exactly one word.".into(), p: "Say: bereit".into(), turns: 1, min: 3, rc: None, who: 0 };
+    let md = crate::prov::tier(acc, "small");
+    let j = Job { acc: acc.clone(), md: md.clone(), ef: "low".into(), sys: "Answer with exactly one word.".into(), p: "Say: bereit".into(), turns: 1, min: 3, rc: None, who: 0 };
     let t0 = std::time::Instant::now();
     match go(a, j).await {
         Ok(r) => {
             crate::prov::record(a, acc, &md, 0, 0, r.tin, r.tout);
             crate::prov::ok(a, acc["id"].as_i64().unwrap_or(0));
-            Ok(format!("{} ({:.1} s, Modell {})", r.txt.trim().chars().take(60).collect::<String>(), t0.elapsed().as_secs_f64(), if md.is_empty() { "Standard".into() } else { md }))
+            Ok(format!("{} ({:.1} s, Modell {})", r.txt.trim().chars().take(60).collect::<String>(), t0.elapsed().as_secs_f64(), if md.is_empty() { "default".into() } else { md }))
         }
         Err(e) => {
             crate::prov::err(a, acc["id"].as_i64().unwrap_or(0), &e.to_string());
@@ -385,6 +385,6 @@ pub fn term(cmd: &str) -> Result<(), String> {
                 return r.map(|_| ()).map_err(|e| e.to_string());
             }
         }
-        Err("kein Terminal gefunden".into())
+        Err("no terminal found".into())
     }
 }

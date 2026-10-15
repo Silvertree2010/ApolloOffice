@@ -14,7 +14,7 @@ async fn post(a: &Ax, u: &str, h: Vec<(&str, String)>, b: &Value, min: u64) -> R
             q = q.header(k, v);
         }
     }
-    let r = q.send().await.map_err(|e| Er::E(format!("Anfrage fehlgeschlagen: {e}")))?;
+    let r = q.send().await.map_err(|e| Er::E(format!("request failed: {e}")))?;
     let st = r.status().as_u16();
     let ra = r.headers().get("retry-after").and_then(|v| v.to_str().ok()).and_then(|s| s.parse::<i64>().ok());
     let t = r.text().await.unwrap_or_default();
@@ -28,19 +28,19 @@ async fn post(a: &Ax, u: &str, h: Vec<(&str, String)>, b: &Value, min: u64) -> R
         }
         return Err(Er::E(format!("HTTP {st}: {m}")));
     }
-    serde_json::from_str(&t).map_err(|e| Er::E(format!("Antwort unlesbar: {e}")))
+    serde_json::from_str(&t).map_err(|e| Er::E(format!("unreadable answer: {e}")))
 }
 
 pub async fn run(a: &Ax, j: Job) -> Result<Res, Er> {
     let fmt = j.acc["fmt"].as_str().unwrap_or("openai").to_string();
     let base = j.acc["base"].as_str().unwrap_or("").trim_end_matches('/').to_string();
     if base.is_empty() {
-        return Err(Er::E("Konto ohne Adresse".into()));
+        return Err(Er::E("account without address".into()));
     }
     let k = key(a, &j.acc);
     let md = if j.md.is_empty() { j.acc["md"].as_str().unwrap_or("").to_string() } else { j.md.clone() };
     if md.is_empty() {
-        return Err(Er::E("kein Modell eingestellt".into()));
+        return Err(Er::E("no model set".into()));
     }
     let defs = j.rc.as_ref().map(|rc| crate::tools::defs(a, rc)).unwrap_or_default();
     let tk = j.rc.as_ref().map(|r| r.tk);
@@ -52,7 +52,7 @@ pub async fn run(a: &Ax, j: Job) -> Result<Res, Er> {
         let mut msgs = vec![json!({"role": "user", "content": j.p})];
         for _ in 0..mx {
             if std::time::Instant::now() > deadline {
-                return Err(Er::E(format!("Zeitlimit nach {} min", j.min)));
+                return Err(Er::E(format!("timeout after {} min", j.min)));
             }
             let mut b = json!({"model": md, "max_tokens": 8192, "system": j.sys, "messages": msgs});
             if !tools.is_empty() {
@@ -76,7 +76,7 @@ pub async fn run(a: &Ax, j: Job) -> Result<Res, Er> {
                 let n = u["name"].as_str().unwrap_or("");
                 let o = match &j.rc {
                     Some(rc) => crate::tools::call(a, rc, n, &u["input"]).await,
-                    None => Err("keine Werkzeuge".into()),
+                    None => Err("no tools".into()),
                 };
                 let (t, e) = match o {
                     Ok(t) => (t, false),
@@ -86,13 +86,13 @@ pub async fn run(a: &Ax, j: Job) -> Result<Res, Er> {
             }
             msgs.push(json!({"role": "user", "content": res}));
         }
-        Err(Er::E("zu viele Schritte".into()))
+        Err(Er::E("too many steps".into()))
     } else {
         let tools: Vec<Value> = defs.iter().map(|(n, d, s)| json!({"type": "function", "function": {"name": n, "description": d, "parameters": s}})).collect();
         let mut msgs = vec![json!({"role": "system", "content": j.sys}), json!({"role": "user", "content": j.p})];
         for _ in 0..mx {
             if std::time::Instant::now() > deadline {
-                return Err(Er::E(format!("Zeitlimit nach {} min", j.min)));
+                return Err(Er::E(format!("timeout after {} min", j.min)));
             }
             let mut b = json!({"model": md, "messages": msgs});
             if !tools.is_empty() {
@@ -120,12 +120,12 @@ pub async fn run(a: &Ax, j: Job) -> Result<Res, Er> {
                 let args: Value = serde_json::from_str(c["function"]["arguments"].as_str().unwrap_or("{}")).unwrap_or(json!({}));
                 let o = match &j.rc {
                     Some(rc) => crate::tools::call(a, rc, n, &args).await,
-                    None => Err("keine Werkzeuge".into()),
+                    None => Err("no tools".into()),
                 };
                 let t = o.unwrap_or_else(|e| format!("error: {e}"));
                 msgs.push(json!({"role": "tool", "tool_call_id": c["id"], "content": crate::sh::head(&t, 100_000)}));
             }
         }
-        Err(Er::E("zu viele Schritte".into()))
+        Err(Er::E("too many steps".into()))
     }
 }

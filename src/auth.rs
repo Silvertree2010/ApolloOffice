@@ -34,32 +34,32 @@ pub fn nonce(db: &Db, pre: &str) -> String {
 }
 
 pub fn verify(pk: &str, db: &Db, inst: &str, tok: &str, pre: &str, origin: &str) -> Result<Value, String> {
-    let (a, b) = tok.split_once('.').ok_or("Token kaputt")?;
-    let body = U.decode(a).map_err(|_| "Token kaputt")?;
-    let sig = U.decode(b).map_err(|_| "Signatur kaputt")?;
-    let k: [u8; 32] = hex::decode(pk).map_err(|_| "Schlüssel")?.try_into().map_err(|_| "Schlüssel")?;
-    let vk = VerifyingKey::from_bytes(&k).map_err(|_| "Schlüssel")?;
-    let s = Signature::from_slice(&sig).map_err(|_| "Signatur kaputt")?;
-    vk.verify(&body, &s).map_err(|_| "Signatur ungültig")?;
-    let p: Value = serde_json::from_slice(&body).map_err(|_| "Token kaputt")?;
+    let (a, b) = tok.split_once('.').ok_or("broken token")?;
+    let body = U.decode(a).map_err(|_| "broken token")?;
+    let sig = U.decode(b).map_err(|_| "broken signature")?;
+    let k: [u8; 32] = hex::decode(pk).map_err(|_| "key")?.try_into().map_err(|_| "key")?;
+    let vk = VerifyingKey::from_bytes(&k).map_err(|_| "key")?;
+    let s = Signature::from_slice(&sig).map_err(|_| "broken signature")?;
+    vk.verify(&body, &s).map_err(|_| "invalid signature")?;
+    let p: Value = serde_json::from_slice(&body).map_err(|_| "broken token")?;
     if p["i"].as_str() != Some(inst) {
-        return Err("Token gehört zu einer anderen Installation".into());
+        return Err("token belongs to another installation".into());
     }
     if p["aud"].as_str() != Some(origin) {
-        return Err("Token ist für eine andere Adresse ausgestellt".into());
+        return Err("token was issued for another address".into());
     }
     if p["exp"].as_i64().unwrap_or(0) * 1000 < now() {
-        return Err("Token abgelaufen, bitte nochmal anmelden".into());
+        return Err("token expired, please log in again".into());
     }
     let n = p["n"].as_str().unwrap_or("").to_string();
-    let r = db.one("select ck, exp from nonce where n=?", pa![n.clone()]).ok_or("Anmeldung unbekannt oder schon benutzt")?;
+    let r = db.one("select ck, exp from nonce where n=?", pa![n.clone()]).ok_or("login unknown or already used")?;
     db.run("delete from nonce where n=?", pa![n]);
     if r["ck"].as_str() != Some(&h(pre)) || r["exp"].as_i64().unwrap_or(0) < now() {
-        return Err("Anmeldung wurde in einem anderen Browser gestartet".into());
+        return Err("the login was started in another browser".into());
     }
     let (pv, sub) = (p["p"].as_str().unwrap_or(""), p["sub"].as_str().unwrap_or(""));
     if pv.is_empty() || sub.is_empty() {
-        return Err("Token ohne Konto".into());
+        return Err("token without account".into());
     }
     Ok(p)
 }
@@ -78,7 +78,7 @@ pub fn bind(db: &Db, p: &Value) -> Result<(), String> {
         db.ks("owner", &o);
         return Ok(());
     }
-    Err("Diese Installation gehört einem anderen Konto.".into())
+    Err("This installation belongs to another account.".into())
 }
 
 pub fn ses_new(db: &Db, ua: &str, ip: &str) -> String {

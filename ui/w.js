@@ -1,6 +1,6 @@
 (() => {
 const A = (window.A = {});
-const L = window.L;
+const L = (s) => ({ small: "small", medium: "medium", large: "large", low: "low", high: "high", max: "max", wait: "waiting", run: "running", done: "done", fail: "failed", rej: "rejected" })[s] ?? s;
 const T = 16, MW = 20, MH = 12;
 const $ = (i) => document.getElementById(i);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -25,7 +25,7 @@ const api = async (p, b, m) => {
   const o = { method: m || (b === undefined ? "GET" : "POST"), headers: { "x-ao": "1" } };
   if (b !== undefined) { o.headers["content-type"] = "application/json"; o.body = typeof b === "string" ? b : JSON.stringify(b); }
   const r = await fetch(p, o);
-  if (r.status === 401) { location.reload(); throw new Error(L("nicht angemeldet")); }
+  if (r.status === 401) { location.reload(); throw new Error("not logged in"); }
   const t = await r.text();
   let j = null;
   try { j = JSON.parse(t); } catch { j = t; }
@@ -35,17 +35,17 @@ const api = async (p, b, m) => {
 A.api = api;
 
 const FT = {
-  keller: { fl: ["#1a1c1f", "#1d1f23"], wl: ["#2b2e33", "#16181b"] },
+  basement: { fl: ["#1a1c1f", "#1d1f23"], wl: ["#2b2e33", "#16181b"] },
   lobby: { fl: ["#1c1e22", "#202227"], wl: ["#2c3036", "#17191c"] },
   office: { fl: ["#1b1d21", "#1f2125"], wl: ["#2a2d33", "#16181b"] },
   lounge: { fl: ["#1b1f1e", "#1f2322"], wl: ["#2a302e", "#161a19"] },
   server: { fl: ["#181b20", "#1b1e24"], wl: ["#262b33", "#13161a"] },
-  buch: { fl: ["#1c1c22", "#202027"], wl: ["#2c2c35", "#17171c"] },
-  rohbau: { fl: ["#202020", "#242424"], wl: ["#303030", "#1a1a1a"] },
+  accounting: { fl: ["#1c1c22", "#202027"], wl: ["#2c2c35", "#17171c"] },
+  shell: { fl: ["#202020", "#242424"], wl: ["#303030", "#1a1a1a"] },
 };
-const KN = { keller: "Keller", lobby: "Lobby", office: "Office", lounge: "Lounge", server: "Serverraum", buch: "Buchhaltung", rohbau: "Rohbau" };
+const KN = { basement: "Basement", lobby: "Lobby", office: "Office", lounge: "Lounge", server: "Server room", accounting: "Accounting", shell: "Shell floor" };
 const FS = { desk: [2, 1], couch: [2, 1], plant: [1, 1], rack: [1, 2], gen: [2, 2], lift: [2, 2], tray: [1, 1], counter: [3, 1], board: [2, 1], coffee: [1, 1], plan: [2, 1], chart: [2, 1], table: [2, 2], stairs: [2, 2], screen: [2, 1] };
-const FN = { desk: "Schreibtisch", couch: "Sofa", plant: "Pflanze", rack: "Server-Rack", gen: "Generator", lift: "Lift", tray: "Ablage", counter: "Empfang", board: "Personalbüro", coffee: "Kaffee", plan: "Bauplan", chart: "Diagramm-Wand", table: "Tisch", stairs: "Treppe", screen: "Bildschirm" };
+const FN = { desk: "Desk", couch: "Couch", plant: "Plant", rack: "Server rack", gen: "Generator", lift: "Lift", tray: "Tray", counter: "Reception", board: "HR office", coffee: "Coffee", plan: "Blueprint", chart: "Chart wall", table: "Table", stairs: "Stairs", screen: "Screen" };
 const WALL = new Set(["lift", "stairs", "board", "chart", "screen"]);
 const WALKOK = new Set(["tray"]);
 const COLS = ["#d97757", "#3fb6a8", "#9c7ae0", "#5c7fd6", "#d0649f", "#62b86f", "#c4614d", "#4f9fc4", "#8a6fd1", "#a8574f"];
@@ -91,7 +91,7 @@ A.view = { sc: 3, ox: 0, oy: 0 };
 A.pan = { x: 0, y: 0 };
 A.usage = null;
 
-const lvlName = (l) => (l === 0 ? L("UG") : l === 1 ? L("EG") : l - 1 + ". " + L("OG"));
+const lvlName = (l) => (l === 0 ? "B" : l === 1 ? "G" : l - 1 + ". " + "F");
 A.lvlName = lvlName;
 const flo = (id) => A.F[id];
 A.flo = flo;
@@ -173,7 +173,7 @@ A.sync = (fresh) => {
       const st = fresh ? t : { fl: i.fl, to: liftExit(f) };
       const sf = flo(st.fl) || f;
       e = A.E[i.id] = { id: i.id, fl: sf.id, x: st.to[0], y: st.to[1], fx: st.to[0] * T, fy: st.to[1] * T, p: [], st: fresh ? (t.then === "lz" ? "lz" : "sit") : "idle", face: 1, say: "", sy: 0, mood: "", mt: 0, lt: 0, mtT: 0, gl: fresh ? t : null };
-      if (!fresh) { bubble(e, L("Hallo!")); }
+      if (!fresh) { bubble(e, "Hello!"); }
     }
     e.i = i;
     const lv = i.live || {};
@@ -211,7 +211,7 @@ const arrive = (e) => {
   const g = e.goal || {};
   if (e.lift) { e.st = "lift"; e.tw = 1.1; return; }
   if (g.then === "drop") { e.mood = "ok"; e.mt = 1.6; e.st = "idle"; setTimeout(() => { e.hand = 0; const t = target(e, e.i); if (t) go(e, t); }, 1200); return; }
-  if (g.then === "hand") { bubble(e, e.hk === "ask" ? L("Kurze Frage…") : e.hk === "answer" ? L("Hier die Antwort") : L("Auftrag für dich"), 2.4); e.st = "idle"; setTimeout(() => { e.hand = 0; const t = target(e, e.i); if (t) go(e, t); }, 1600); return; }
+  if (g.then === "hand") { bubble(e, e.hk === "ask" ? "Quick question…" : e.hk === "answer" ? "Here is the answer" : "Task for you", 2.4); e.st = "idle"; setTimeout(() => { e.hand = 0; const t = target(e, e.i); if (t) go(e, t); }, 1600); return; }
   e.st = g.then === "lz" ? "lz" : g.then === "sit" ? "sit" : "idle";
 };
 
@@ -254,7 +254,7 @@ const drawTile = (f, x, y) => {
   px(X, Y, ft.wl[1], T, T);
   if (below) {
     px(X, Y, ft.wl[0], T, T); px(X, Y + T - 3, mix(ft.wl[1], "#000000", .25), T, 3);
-    if (y === 1 && x % 4 === 2 && !["keller", "server", "rohbau"].includes(f.k) && !occ(f, x, y)) { px(X + 2, Y + 2, "#121417", 12, 10); px(X + 3, Y + 3, "#23384a", 10, 8); px(X + 8, Y + 3, "#121417", 1, 8); px(X + 3, Y + 7, "#121417", 10, 1); px(X + 4, Y + 4, "#35546d", 2, 2); }
+    if (y === 1 && x % 4 === 2 && !["basement", "server", "shell"].includes(f.k) && !occ(f, x, y)) { px(X + 2, Y + 2, "#121417", 12, 10); px(X + 3, Y + 3, "#23384a", 10, 8); px(X + 8, Y + 3, "#121417", 1, 8); px(X + 3, Y + 7, "#121417", 10, 1); px(X + 4, Y + 4, "#35546d", 2, 2); }
     else if (y === 1 && x % 7 === 5 && (f.k === "lobby" || f.k === "lounge") && !occ(f, x, y)) { px(X + 3, Y + 3, "#55524b", 10, 8); px(X + 4, Y + 4, ["#d97757", "#3fb6a8", "#9c7ae0"][x % 3], 8, 6); }
     else if (y === 1 && f.k === "server" && x % 3 === 0 && !occ(f, x, y)) { px(X + 6, Y + 2, "#2a2e33", 4, 4); px(X + 7, Y + 3, Math.floor(A.tm * 2 + x) % 2 ? "#62b86f" : "#2b3a2e", 2, 2); }
   } else px(X, Y, mix(ft.wl[1], "#000000", .15), T, T);
@@ -281,7 +281,7 @@ const drawFu = (f, u) => {
       px(X, Y - 9, "#2a2d33", 11, 8); px(X + 1, Y - 8, on ? "#20323d" : "#101215", 9, 6); px(X + 4, Y - 1, "#2a2d33", 3, 1);
       if (on) for (let i = 0; i < 3; i++) px(X + 2, Y - 7 + i * 2, "#5aa9e6", 1 + ((Math.floor(t * 6) + i * 3) % 6), 1);
       if (own) { const n = own.nm.toUpperCase(); const here = e && e.fl === f.id && e.st !== "lz"; K.text(w, n, X + 16 - K.textWidth(n) / 2, Y + 16, here ? mix(own.col, "#ffffff", .2) : "#4a4e55"); }
-      else if (A.bld == null) K.text(w, L("FREI"), X + 16 - K.textWidth(L("FREI")) / 2, Y + 16, "#3a3e45");
+      else if (A.bld == null) K.text(w, "FREE", X + 16 - K.textWidth("FREE") / 2, Y + 16, "#3a3e45");
       break;
     }
     case "couch": px(X, Y + 2, "#6d4f7a", 32, 12); px(X, Y + 2, "#82629a", 32, 4); px(X + 2, Y + 7, "#93739f", 13, 5); px(X + 17, Y + 7, "#93739f", 13, 5); break;
@@ -325,7 +325,7 @@ const drawFu = (f, u) => {
       px(X + 1, Y + 2, "#26292e", 30, 12); px(X + 2, Y + 3, "#101820", 28, 10);
       let s = "";
       if (f.k === "server") { const ss = A.S.srv.filter((x) => x.fl === f.id); s = ss.length ? ss.filter((x) => x.st && x.st.on).length + "/" + ss.length + " ON" : "+ SERVER"; }
-      else if (f.k === "buch") s = (A.S.usd || 0).toFixed(2) + "$";
+      else if (f.k === "accounting") s = (A.S.usd || 0).toFixed(2) + "$";
       else s = A.lvlName(f.lvl);
       K.text(w, s, X + 16 - K.textWidth(s) / 2, Y + 6, "#5aa9e6");
       break;
@@ -405,14 +405,14 @@ A.draw = () => {
   if (f.k === "lobby" && !A.bld) { const c = (lay.fu || []).find((u) => u.k === "counter"); if (c) items.push({ y: c.y - .6, d: () => pia(fv) }); }
   items.sort((a, b) => a.y - b.y).forEach((i) => i.d());
   bubbles();
-  if (f.k === "keller") (lay.fu || []).filter((u) => u.k === "gen").forEach((u) => { const a = accOf(u.acc); const ls = a ? [a.nm.toUpperCase(), (a.k === "api" ? "API" : L("ABO")) + " " + Math.round((a.st && a.st.pct) || 0) + "%"] : [L("FREI")]; ls.forEach((s2, i) => K.text(w, s2.slice(0, 14), u.x * T + 16 - K.textWidth(s2.slice(0, 14)) / 2, u.y * T + 34 + i * 7, i ? "#6f747b" : "#c9ced4")); });
+  if (f.k === "basement") (lay.fu || []).filter((u) => u.k === "gen").forEach((u) => { const a = accOf(u.acc); const ls = a ? [a.nm.toUpperCase(), (a.k === "api" ? "API" : "SUB") + " " + Math.round((a.st && a.st.pct) || 0) + "%"] : ["FREE"]; ls.forEach((s2, i) => K.text(w, s2.slice(0, 14), u.x * T + 16 - K.textWidth(s2.slice(0, 14)) / 2, u.y * T + 34 + i * 7, i ? "#6f747b" : "#c9ced4")); });
   if (f.k === "server") (lay.fu || []).filter((u) => u.k === "rack").forEach((u) => { const s = srvOf(u.srv); if (!s) return; const s2 = s.nm.toUpperCase().slice(0, 8); K.text(w, s2, u.x * T + 8 - K.textWidth(s2) / 2, u.y * T + 34, s.st && s.st.on ? "#c9ced4" : "#d9594c"); });
-  if (f.k === "rohbau" && !A.bld) { const s = L("ROHBAU - KLICKEN ZUM AUSBAUEN"); K.text(w, s, MW * T / 2 - K.textWidth(s) / 2, MH * T / 2, "#5a5e65"); }
-  if (f.k === "keller" && !(lay.fu || []).some((u) => u.k === "gen") && !A.bld) { const s = L("KEIN STROM - HIER KLICKEN"); K.text(w, s, MW * T / 2 - K.textWidth(s) / 2, MH * T / 2, Math.floor(A.tm * 2) % 2 ? "#d9594c" : "#8a4a44"); }
+  if (f.k === "shell" && !A.bld) { const s = "SHELL FLOOR - CLICK TO BUILD OUT"; K.text(w, s, MW * T / 2 - K.textWidth(s) / 2, MH * T / 2, "#5a5e65"); }
+  if (f.k === "basement" && !(lay.fu || []).some((u) => u.k === "gen") && !A.bld) { const s = "NO POWER - CLICK HERE"; K.text(w, s, MW * T / 2 - K.textWidth(s) / 2, MH * T / 2, Math.floor(A.tm * 2) % 2 ? "#d9594c" : "#8a4a44"); }
   if (A.bld && A.hov) { const [hx, hy] = A.hov, tl = A.bld.tool, s = ["wall", "floor", "erase"].includes(tl) ? [1, 1] : FS[tl]; const ok = A.canPlace(lay, tl, hx, hy); w.fillStyle = ok ? "rgba(98,184,111,.45)" : "rgba(217,89,76,.5)"; w.fillRect(hx * T, hy * T, s[0] * T, s[1] * T); }
   if (!A.bld) {
     const n = (f.nm || KN[f.k]).toUpperCase().slice(0, 28), ws = A.S.w.filter((x) => x.fl === f.id), act = ws.filter((x) => x.live && x.live.st === "work").length;
-    const l2 = f.k === "office" ? `W ${ws.length}  ${L("AKTIV")} ${act}  ${L("FERTIG")} ${doneOn(f.id)}` : f.k === "keller" ? `${L("GENERATOREN")} ${A.S.acc.length}` : f.k === "server" ? `${L("ONLINE")} ${A.S.srv.filter((s) => s.fl === f.id && s.st && s.st.on).length}/${A.S.srv.filter((s) => s.fl === f.id).length}` : f.k === "lounge" ? `${L("PAUSE")} ${Object.values(A.E).filter((e) => e.fl === f.id && e.st === "lz").length}` : f.k === "buch" ? `${L("HEUTE")} ${(A.S.usd || 0).toFixed(2)} $` : f.k === "lobby" ? `${L("STOCKWERKE")} ${fls().length}` : "";
+    const l2 = f.k === "office" ? `W ${ws.length}  ${"ACTIVE"} ${act}  ${"DONE"} ${doneOn(f.id)}` : f.k === "basement" ? `${"GENERATORS"} ${A.S.acc.length}` : f.k === "server" ? `${"ONLINE"} ${A.S.srv.filter((s) => s.fl === f.id && s.st && s.st.on).length}/${A.S.srv.filter((s) => s.fl === f.id).length}` : f.k === "lounge" ? `${"PAUSE"} ${Object.values(A.E).filter((e) => e.fl === f.id && e.st === "lz").length}` : f.k === "accounting" ? `${"TODAY"} ${(A.S.usd || 0).toFixed(2)} $` : f.k === "lobby" ? `${"FLOORS"} ${fls().length}` : "";
     const d = new Date(), hm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
     const bw = Math.max(K.textWidth(n) + 32, K.textWidth(l2)) + 16, bx = Math.round(MW * T / 2 - bw / 2);
     px(bx, 6, "#111316", bw, l2 ? 20 : 13); px(bx, 6, "#2f333a", bw, 1);
@@ -420,7 +420,7 @@ A.draw = () => {
     px(bx + bw - 6, 9, A.S.stop ? "#d9594c" : "#62b86f", 2, 2);
     K.text(w, hm, bx + bw - 10 - K.textWidth(hm), 9, "#6f747b");
     A.sign = [bx, 6, bw, l2 ? 20 : 13];
-  } else K.text(w, L("BAU-MODUS - WORKER AUSGEBLENDET"), 6, 4, "#e8e6df");
+  } else K.text(w, "BUILD MODE - WORKERS HIDDEN", 6, 4, "#e8e6df");
   let sc, ox, oy;
   const fe = A.fol && A.fol.fl === f.id ? A.fol : null;
   if (fe) { sc = Math.max(3, Math.floor(Math.min(vw / (MW * T), vh / (MH * T))) + 1); ox = vw / 2 - (fe.fx + 8) * sc; oy = vh / 2 - (fe.fy + 8) * sc; ox = Math.min(0, Math.max(vw - MW * T * sc, ox)); oy = Math.min(0, Math.max(vh - MH * T * sc, oy)); if (MW * T * sc < vw) ox = (vw - MW * T * sc) / 2; if (MH * T * sc < vh) oy = (vh - MH * T * sc) / 2; }

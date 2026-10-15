@@ -36,7 +36,7 @@ pub fn export(db: &Db) -> Value {
 
 pub fn import(db: &Db, v: &Value) -> Result<String, String> {
     if v["app"] != "ApolloOffice" {
-        return Err("keine ApolloOffice-Datei".into());
+        return Err("not an ApolloOffice file".into());
     }
     let mut n = 0;
     db.tx(|c| {
@@ -63,7 +63,7 @@ pub fn import(db: &Db, v: &Value) -> Result<String, String> {
     if v["set"].is_object() {
         db.ks("set", &v["set"]);
     }
-    Ok(format!("{n} Einträge übernommen. Konten und Server ohne Zugangsdaten: bitte neu verbinden."))
+    Ok(format!("{n} entries imported. Accounts and servers have no credentials: please connect them again."))
 }
 
 pub fn autostart(on: bool, me: &Path, dd: &Path) -> Result<String, String> {
@@ -74,14 +74,14 @@ pub fn autostart(on: bool, me: &Path, dd: &Path) -> Result<String, String> {
         let k = winreg::RegKey::predef(HKEY_CURRENT_USER).open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Run", winreg::enums::KEY_SET_VALUE).map_err(|e| e.to_string())?;
         if on {
             k.set_value("ApolloOffice", &format!("\"{exe}\" --data \"{}\" --quiet", dd.display())).map_err(|e| e.to_string())?;
-            return Ok("Startet ab jetzt beim Anmelden.".into());
+            return Ok("Starts at login from now on.".into());
         }
         let _ = k.delete_value("ApolloOffice");
-        return Ok("Autostart aus.".into());
+        return Ok("Autostart off.".into());
     }
     #[cfg(target_os = "macos")]
     {
-        let p = dirs::home_dir().ok_or("kein Home")?.join("Library/LaunchAgents/dev.apollonet.office.plist");
+        let p = dirs::home_dir().ok_or("no home folder")?.join("Library/LaunchAgents/dev.apollonet.office.plist");
         if on {
             let x = format!(
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>dev.apollonet.office</string><key>ProgramArguments</key><array><string>{exe}</string><string>--data</string><string>{}</string><string>--quiet</string></array><key>RunAtLoad</key><true/><key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict><key>StandardErrorPath</key><string>{}</string></dict></plist>\n",
@@ -90,25 +90,25 @@ pub fn autostart(on: bool, me: &Path, dd: &Path) -> Result<String, String> {
             );
             std::fs::create_dir_all(p.parent().unwrap()).map_err(|e| e.to_string())?;
             std::fs::write(&p, x).map_err(|e| e.to_string())?;
-            return Ok(format!("Startet ab jetzt beim Anmelden ({}).", p.display()));
+            return Ok(format!("Starts at login from now on ({}).", p.display()));
         }
         let _ = std::fs::remove_file(&p);
-        return Ok("Autostart aus.".into());
+        return Ok("Autostart off.".into());
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {
-        let d = dirs::config_dir().ok_or("kein Config-Ordner")?.join("systemd/user");
+        let d = dirs::config_dir().ok_or("no config folder")?.join("systemd/user");
         let p = d.join("apollo-office.service");
         if on {
             std::fs::create_dir_all(&d).map_err(|e| e.to_string())?;
             std::fs::write(&p, format!("[Unit]\nDescription=ApolloOffice\n\n[Service]\nExecStart={exe} --data {} --quiet\nRestart=on-failure\n\n[Install]\nWantedBy=default.target\n", dd.display())).map_err(|e| e.to_string())?;
             let _ = std::process::Command::new("systemctl").args(["--user", "daemon-reload"]).status();
             let _ = std::process::Command::new("systemctl").args(["--user", "enable", "apollo-office"]).status();
-            return Ok("Startet ab jetzt beim Anmelden (systemd --user).".into());
+            return Ok("Starts at login from now on (systemd --user).".into());
         }
         let _ = std::process::Command::new("systemctl").args(["--user", "disable", "apollo-office"]).status();
         let _ = std::fs::remove_file(&p);
-        Ok("Autostart aus.".into())
+        Ok("Autostart off.".into())
     }
 }
 

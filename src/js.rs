@@ -37,7 +37,7 @@ fn exec(h: tokio::runtime::Handle, a: Ax, rc: Rc, src: &str, entry: &str, arg: V
         let (a2, rc2, h2) = (a.clone(), rc.clone(), h.clone());
         let f = Function::new(c.clone(), move |n: String, x: String| -> String {
             if !OK.contains(&n.as_str()) {
-                return json!({"e": "nicht erlaubt"}).to_string();
+                return json!({"e": "not allowed"}).to_string();
             }
             let v: Value = serde_json::from_str(&x).unwrap_or(json!({}));
             if n == "log" {
@@ -52,9 +52,9 @@ fn exec(h: tokio::runtime::Handle, a: Ax, rc: Rc, src: &str, entry: &str, arg: V
         .map_err(|e| e.to_string())?;
         c.globals().set("__call", f).map_err(|e| e.to_string())?;
         c.eval::<(), _>(PRE).catch(&c).map_err(|e| e.to_string())?;
-        c.eval::<(), _>(src).catch(&c).map_err(|e| format!("Fehler im Skript: {e}"))?;
-        let call = format!("(() => {{ if (typeof {entry} !== 'function') throw new Error('function {entry}(args, ctx) fehlt'); const r = {entry}(JSON.parse({}), ctx); return typeof r === 'string' ? r : JSON.stringify(r === undefined ? null : r); }})()", json!(arg.to_string()));
-        c.eval::<String, _>(call).catch(&c).map_err(|e| format!("Fehler im Skript: {e}"))
+        c.eval::<(), _>(src).catch(&c).map_err(|e| format!("error in script: {e}"))?;
+        let call = format!("(() => {{ if (typeof {entry} !== 'function') throw new Error('function {entry}(args, ctx) is missing'); const r = {entry}(JSON.parse({}), ctx); return typeof r === 'string' ? r : JSON.stringify(r === undefined ? null : r); }})()", json!(arg.to_string()));
+        c.eval::<String, _>(call).catch(&c).map_err(|e| format!("error in script: {e}"))
     })
 }
 

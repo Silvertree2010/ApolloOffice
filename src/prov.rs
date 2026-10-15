@@ -36,10 +36,10 @@ pub fn tier(acc: &Value, t: &str) -> String {
     }
     let k = acc["k"].as_str().unwrap_or("");
     match (k, t) {
-        ("claude", "klein") => "claude-haiku-5-5".into(),
-        ("claude", "mittel") => "claude-sonnet-5-5".into(),
-        ("claude", "gross") => "claude-opus-5-5".into(),
-        ("claude", m) | ("codex", m) | ("gemini", m) | ("api", m) if !matches!(m, "klein" | "mittel" | "gross") => m.to_string(),
+        ("claude", "small") => "claude-haiku-5-5".into(),
+        ("claude", "medium") => "claude-sonnet-5-5".into(),
+        ("claude", "large") => "claude-opus-5-5".into(),
+        ("claude", m) | ("codex", m) | ("gemini", m) | ("api", m) if !matches!(m, "small" | "medium" | "large") => m.to_string(),
         ("api", _) => acc["md"].as_str().unwrap_or("").to_string(),
         _ => String::new(),
     }
@@ -198,16 +198,16 @@ pub fn pick(a: &Ax, wc: &Value, tdef: &str) -> Result<(Value, String), String> {
     let pk = wc["pk"].as_str().unwrap_or("");
     let sub = wc["sub"].as_bool() == Some(true);
     let cut = wc["cut"].as_f64().unwrap_or(100.0);
-    let tdef = if tdef.is_empty() { "mittel" } else { tdef };
+    let tdef = if tdef.is_empty() { "medium" } else { tdef };
     let md = wc["md"].as_str().filter(|s| !s.is_empty()).unwrap_or(tdef).to_string();
     let avail = |x: &Value| x["st"]["s"] != "off" && x["st"]["pct"].as_f64().unwrap_or(0.0) < cut && !(x["k"] == "api" && spent(a) >= a.set()["usd_day"].as_f64().unwrap_or(5.0) && crate::prov::price(x, &tier(x, &md)).0 > 0.0);
     if all.is_empty() {
-        return Err("Kein Konto im Keller. Erst Strom anschliessen.".into());
+        return Err("No account in the basement. Connect power first.".into());
     }
     if fixed > 0 {
-        let x = all.iter().find(|x| x["id"] == fixed).ok_or("Das gewählte Konto gibt es nicht mehr")?;
+        let x = all.iter().find(|x| x["id"] == fixed).ok_or("The chosen account no longer exists")?;
         if !avail(x) {
-            return Err(format!("{} ist gerade voll oder aus", x["nm"].as_str().unwrap_or("Konto")));
+            return Err(format!("{} is full or off right now", x["nm"].as_str().unwrap_or("Account")));
         }
         return Ok((x.clone(), tier(x, &md)));
     }
@@ -219,14 +219,14 @@ pub fn pick(a: &Ax, wc: &Value, tdef: &str) -> Result<(Value, String), String> {
         let p = |v: &Value| (if cli_kind(v["k"].as_str().unwrap_or("")) { 0.0 } else { 1000.0 }) + v["st"]["pct"].as_f64().unwrap_or(0.0);
         p(x).partial_cmp(&p(y)).unwrap()
     });
-    let x = c.first().ok_or("Alle passenden Konten sind voll oder aus")?;
+    let x = c.first().ok_or("All matching accounts are full or off")?;
     Ok(((*x).clone(), tier(x, &md)))
 }
 
 pub fn ef(e: &str) -> &'static str {
     match e {
-        "niedrig" | "low" => "low",
-        "hoch" | "high" => "high",
+        "low" => "low",
+        "high" => "high",
         "max" => "max",
         _ => "medium",
     }
@@ -239,11 +239,11 @@ mod t {
     #[test]
     fn tiers() {
         let c = json!({"k": "claude", "cfg": {}});
-        assert_eq!(tier(&c, "klein"), "claude-haiku-5-5");
+        assert_eq!(tier(&c, "small"), "claude-haiku-5-5");
         assert_eq!(tier(&c, "claude-opus-5-5"), "claude-opus-5-5");
-        let o = json!({"k": "api", "md": "deepseek-chat", "base": "https://api.deepseek.com/v1", "cfg": {"tiers": {"gross": "deepseek-reasoner"}}});
-        assert_eq!(tier(&o, "klein"), "deepseek-chat");
-        assert_eq!(tier(&o, "gross"), "deepseek-reasoner");
+        let o = json!({"k": "api", "md": "deepseek-chat", "base": "https://api.deepseek.com/v1", "cfg": {"tiers": {"large": "deepseek-reasoner"}}});
+        assert_eq!(tier(&o, "small"), "deepseek-chat");
+        assert_eq!(tier(&o, "large"), "deepseek-reasoner");
         assert_eq!(price(&o, "deepseek-chat"), (0.28, 0.42));
         assert_eq!(price(&json!({"k": "api", "base": "http://127.0.0.1:11434/v1", "cfg": {}}), "llama"), (0.0, 0.0));
     }

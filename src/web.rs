@@ -109,7 +109,7 @@ async fn route(a: &Ax, ip: SocketAddr, m: Method, u: Uri, hd: HeaderMap, b: Byte
     let p = u.path().to_string();
     if p == "/int/mcp" && m == Method::POST {
         if !ip.ip().is_loopback() {
-            return er(StatusCode::FORBIDDEN, "nur lokal");
+            return er(StatusCode::FORBIDDEN, "local only");
         }
         let t = hd.get("x-run").and_then(|v| v.to_str().ok()).unwrap_or("");
         let v: Value = serde_json::from_slice(&b).unwrap_or(json!({}));
@@ -120,12 +120,12 @@ async fn route(a: &Ax, ip: SocketAddr, m: Method, u: Uri, hd: HeaderMap, b: Byte
             return er(StatusCode::METHOD_NOT_ALLOWED, "POST");
         }
         if limited(a, &format!("hook:{}", ip.ip()), 60) {
-            return er(StatusCode::TOO_MANY_REQUESTS, "zu viele Anfragen");
+            return er(StatusCode::TOO_MANY_REQUESTS, "too many requests");
         }
         return hook(a, sec, &b);
     }
     if !hosts(a).contains(&host) {
-        return er(StatusCode::FORBIDDEN, "unbekannter Host. In den Einstellungen unter Adressen eintragen.");
+        return er(StatusCode::FORBIDDEN, "unknown host. Add it under addresses in the settings.");
     }
     let https = hd.get("x-forwarded-proto").and_then(|v| v.to_str().ok()) == Some("https");
     let origin = format!("{}://{host}", if https { "https" } else { "http" });
@@ -138,19 +138,19 @@ async fn route(a: &Ax, ip: SocketAddr, m: Method, u: Uri, hd: HeaderMap, b: Byte
     let ua = hd.get(header::USER_AGENT).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
     if p.starts_with("/auth/") {
         if limited(a, &format!("auth:{}", ip.ip()), 30) {
-            return er(StatusCode::TOO_MANY_REQUESTS, "zu viele Versuche, eine Minute warten");
+            return er(StatusCode::TOO_MANY_REQUESTS, "too many attempts, wait a minute");
         }
         return auth(a, &p, &u, &hd, &ua, ip, https, &origin);
     }
     let sid = ck(&hd, "ao_s").and_then(|t| crate::auth::ses_ok(&a.db, &t));
     if p == "/api/me" {
         let o = a.db.kg("owner");
-        return js(json!({"in": sid.is_some(), "owner": if sid.is_some() { o.clone() } else { json!(o.is_object()) }, "v": crate::cfg::V, "lang": a.set()["lang"]}));
+        return js(json!({"in": sid.is_some(), "owner": if sid.is_some() { o.clone() } else { json!(o.is_object()) }, "v": crate::cfg::V}));
     }
     if p.starts_with("/api/") {
-        let Some(sid) = sid else { return er(StatusCode::UNAUTHORIZED, "nicht angemeldet") };
+        let Some(sid) = sid else { return er(StatusCode::UNAUTHORIZED, "not logged in") };
         if limited(a, &format!("api:{}", ip.ip()), 1200) {
-            return er(StatusCode::TOO_MANY_REQUESTS, "zu viele Anfragen");
+            return er(StatusCode::TOO_MANY_REQUESTS, "too many requests");
         }
         let body: Value = if b.is_empty() { json!({}) } else { serde_json::from_slice(&b).unwrap_or(json!({})) };
         return match api(a, &m, &p, &u, &body, &sid, &b).await {
@@ -173,7 +173,7 @@ fn stat(p: &str) -> Response {
             r.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_str(mt.as_ref()).unwrap());
             r
         }
-        None => er(StatusCode::NOT_FOUND, "nicht gefunden"),
+        None => er(StatusCode::NOT_FOUND, "not found"),
     }
 }
 
@@ -184,7 +184,7 @@ fn auth(a: &Ax, p: &str, u: &Uri, hd: &HeaderMap, ua: &str, ip: SocketAddr, http
         "/auth/go" => {
             let pv = q.get("p").cloned().unwrap_or_default();
             if !["google", "github", "gitlab", "discord"].contains(&pv.as_str()) {
-                return er(StatusCode::BAD_REQUEST, "Anbieter unbekannt");
+                return er(StatusCode::BAD_REQUEST, "unknown provider");
             }
             let pre = crate::auth::rnd();
             let n = crate::auth::nonce(&a.db, &pre);
@@ -204,7 +204,7 @@ fn auth(a: &Ax, p: &str, u: &Uri, hd: &HeaderMap, ua: &str, ip: SocketAddr, http
             let res = crate::auth::verify(&pk, &a.db, &a.inst, &t, &pre, origin).and_then(|p| crate::auth::bind(&a.db, &p).map(|_| p));
             match res {
                 Ok(p) => {
-                    a.aud("Login", &format!("{} über {} von {}", p["nm"].as_str().unwrap_or(""), p["p"].as_str().unwrap_or(""), ip.ip()));
+                    a.aud("Login", &format!("{} via {} from {}", p["nm"].as_str().unwrap_or(""), p["p"].as_str().unwrap_or(""), ip.ip()));
                     let s = crate::auth::ses_new(&a.db, ua, &ip.ip().to_string());
                     let mut r = redir("/");
                     setck(&mut r, "ao_s", &s, crate::auth::DAY7 / 1000, https);
@@ -212,7 +212,7 @@ fn auth(a: &Ax, p: &str, u: &Uri, hd: &HeaderMap, ua: &str, ip: SocketAddr, http
                     r
                 }
                 Err(e) => {
-                    a.aud("Login abgewiesen", &format!("{e} von {}", ip.ip()));
+                    a.aud("Login rejected", &format!("{e} from {}", ip.ip()));
                     redir(&format!("/?e={}", url::form_urlencoded::byte_serialize(e.as_bytes()).collect::<String>()))
                 }
             }
@@ -222,7 +222,7 @@ fn auth(a: &Ax, p: &str, u: &Uri, hd: &HeaderMap, ua: &str, ip: SocketAddr, http
             if !crate::auth::link_use(&a.db, &c) {
                 return redir("/?e=Link%20ung%C3%BCltig%20oder%20abgelaufen");
             }
-            a.aud("Login per Notfall-Link", &format!("von {}", ip.ip()));
+            a.aud("Login via emergency link", &format!("from {}", ip.ip()));
             let s = crate::auth::ses_new(&a.db, ua, &ip.ip().to_string());
             let mut r = redir("/");
             setck(&mut r, "ao_s", &s, crate::auth::DAY7 / 1000, https);
@@ -236,12 +236,12 @@ fn auth(a: &Ax, p: &str, u: &Uri, hd: &HeaderMap, ua: &str, ip: SocketAddr, http
             setck(&mut r, "ao_s", "", 0, https);
             r
         }
-        _ => er(StatusCode::NOT_FOUND, "nicht gefunden"),
+        _ => er(StatusCode::NOT_FOUND, "not found"),
     }
 }
 
 fn hook(a: &Ax, s: &str, b: &Bytes) -> Response {
-    let Some(f) = a.db.one("select id from fl where hook=? and hook is not null and length(hook)>=16", pa![s.to_string()]) else { return er(StatusCode::NOT_FOUND, "unbekannt") };
+    let Some(f) = a.db.one("select id from fl where hook=? and hook is not null and length(hook)>=16", pa![s.to_string()]) else { return er(StatusCode::NOT_FOUND, "unknown") };
     let t = String::from_utf8_lossy(&b[..b.len().min(200_000)]).to_string();
     let v: Value = serde_json::from_str(&t).unwrap_or(json!({}));
     let ti = v["title"].as_str().or(v["ti"].as_str()).map(String::from).unwrap_or_else(|| t.lines().next().unwrap_or("Webhook").chars().take(120).collect());
@@ -293,26 +293,26 @@ pub fn state(a: &Ax) -> Value {
     let st = a.set();
     json!({
         "t": now(), "fl": fls, "w": ws, "flow": fl, "acc": accs, "srv": srv, "cnt": cnt, "done": done, "bell": bell,
-        "usd": crate::prov::spent(a), "usd_day": st["usd_day"], "set": {"lounge": st["lounge"], "lang": st["lang"]}, "quest": a.db.kg("quest"), "owner": a.db.kg("owner"), "stop": a.lv.lock().unwrap().stop.get(&0).copied().unwrap_or(false),
+        "usd": crate::prov::spent(a), "usd_day": st["usd_day"], "set": {"lounge": st["lounge"]}, "quest": a.db.kg("quest"), "owner": a.db.kg("owner"), "stop": a.lv.lock().unwrap().stop.get(&0).copied().unwrap_or(false),
         "tn": a.db.all("select id from tk where st='done' and t1>? order by t1 desc limit 1", pa![now() - 10_000]),
     })
 }
 
 fn sane_lay(old: &Value, l: &Value) -> Result<Value, String> {
-    let t = l["t"].as_array().ok_or("Raster fehlt")?;
+    let t = l["t"].as_array().ok_or("grid missing")?;
     if t.len() as i64 != crate::world::MH || t.iter().any(|r| r.as_array().map(|x| x.len() as i64 != crate::world::MW).unwrap_or(true)) {
-        return Err("Raster hat die falsche Grösse".into());
+        return Err("grid has the wrong size".into());
     }
     for r in t {
         for v in r.as_array().unwrap() {
             if !matches!(v.as_i64(), Some(0..=3)) {
-                return Err("ungültige Kachel".into());
+                return Err("invalid tile".into());
             }
         }
     }
-    let fu = l["fu"].as_array().ok_or("Möbel fehlen")?;
+    let fu = l["fu"].as_array().ok_or("furniture missing")?;
     if fu.len() > 200 {
-        return Err("zu viele Möbel".into());
+        return Err("too much furniture".into());
     }
     let ok: Vec<&str> = crate::world::FS.iter().map(|x| x.0).collect();
     let mut nx = l["nx"].as_i64().unwrap_or(1);
@@ -320,7 +320,7 @@ fn sane_lay(old: &Value, l: &Value) -> Result<Value, String> {
     for u in fu {
         let k = u["k"].as_str().unwrap_or("");
         if !ok.contains(&k) {
-            return Err(format!("unbekanntes Möbel {k}"));
+            return Err(format!("unknown furniture {k}"));
         }
         let mut x = json!({"id": u["id"], "k": k, "x": u["x"].as_i64().unwrap_or(0), "y": u["y"].as_i64().unwrap_or(0)});
         if let Some(o) = old["fu"].as_array().and_then(|a| a.iter().find(|o| o["id"] == u["id"] && o["k"] == k)) {
@@ -341,16 +341,16 @@ fn sane_lay(old: &Value, l: &Value) -> Result<Value, String> {
         let before = old["fu"].as_array().map(|a| a.iter().filter(|u| u["k"] == k).count()).unwrap_or(0);
         let after = out.iter().filter(|u| u["k"] == k && !u[key].is_null()).count();
         if after < before {
-            return Err(if k == "gen" { "Generatoren entfernt man über das Konto, nicht im Bau-Modus".into() } else { "Racks entfernt man über den Server, nicht im Bau-Modus".into() });
+            return Err(if k == "gen" { "Remove generators through their account, not in build mode".into() } else { "Remove racks through their server, not in build mode".into() });
         }
     }
     if !out.iter().any(|u| u["k"] == "lift") {
-        return Err("Der Lift muss bleiben".into());
+        return Err("The lift has to stay".into());
     }
     let mut chk = json!({"t": l["t"], "fu": []});
     for u in &out {
         if !crate::world::can(&chk, u["k"].as_str().unwrap_or(""), u["x"].as_i64().unwrap_or(0), u["y"].as_i64().unwrap_or(0), -1) {
-            return Err(format!("{} steht im Weg oder auf einer Wand", u["k"].as_str().unwrap_or("")));
+            return Err(format!("{} is in the way or on a wall", u["k"].as_str().unwrap_or("")));
         }
         chk["fu"].as_array_mut().unwrap().push(u.clone());
     }
@@ -366,7 +366,7 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
     match (seg[0], seg.get(2).copied().unwrap_or(""), post) {
         ("state", _, false) => Ok(js(state(a))),
         ("floor", "", false) => {
-            let f = crate::world::floor(&a.db, id).ok_or("keine Etage")?;
+            let f = crate::world::floor(&a.db, id).ok_or("no such floor")?;
             let tray = a.db.all("select id,ti,st,res,files,wk,t1 from tk where fl=? and st in ('done','fail','rej') order by t1 desc limit 40", pa![id]);
             Ok(js(json!({"f": f, "tray": tray, "hook": f["hook"]})))
         }
@@ -376,24 +376,24 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
         }
         ("floor", "demolish", true) => {
             crate::world::demolish(&a.db, id)?;
-            a.aud("Etage abgerissen", &id.to_string());
+            a.aud("Floor torn down", &id.to_string());
             ok()
         }
         ("floor", "rename", true) => {
             let nm: String = s(b, "nm").trim().chars().take(32).collect();
             if nm.is_empty() {
-                return Err("Name fehlt".into());
+                return Err("name missing".into());
             }
-            a.db.run("update fl set nm=?, lv=lv+1 where id=? and k not in ('rohbau')", pa![nm, id]);
+            a.db.run("update fl set nm=?, lv=lv+1 where id=? and k not in ('shell')", pa![nm, id]);
             ok()
         }
         ("floor", "lay", true) => {
-            let f = crate::world::floor(&a.db, id).ok_or("keine Etage")?;
+            let f = crate::world::floor(&a.db, id).ok_or("no such floor")?;
             let l = sane_lay(&f["lay"], &b["lay"])?;
             let desks = crate::world::desks(&l);
             for w in a.db.all("select id, desk, nm from wk where fl=?", pa![id]) {
                 if !desks.contains(&w["desk"].as_i64().unwrap_or(-1)) {
-                    return Err(format!("{} sitzt am Schreibtisch, den du entfernen willst. Erst umsetzen oder entlassen.", w["nm"].as_str().unwrap_or("")));
+                    return Err(format!("{} sits at the desk you want to remove. Move or dismiss them first.", w["nm"].as_str().unwrap_or("")));
                 }
             }
             crate::world::save(&a.db, id, &l);
@@ -401,7 +401,7 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
         }
         ("floor", "hook", true) => {
             a.db.run("update fl set hook=? where id=?", pa![hex::encode(rand::random::<[u8; 16]>()), id]);
-            a.aud("Webhook erneuert", &id.to_string());
+            a.aud("Webhook renewed", &id.to_string());
             ok()
         }
         ("height", _, true) => {
@@ -412,7 +412,7 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
         ("type", "", true) => {
             let tid: String = s(b, "id").to_lowercase().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').take(24).collect();
             if tid.is_empty() || s(b, "nm").trim().is_empty() || s(b, "role").trim().is_empty() {
-                return Err("Name und Rolle sind nötig".into());
+                return Err("name and role are required".into());
             }
             let ex = a.db.one("select own from ty where id=?", pa![tid.clone()]);
             let acc = if crate::world::ACCS.contains(&s(b, "acc")) { s(b, "acc") } else { "none" };
@@ -424,14 +424,14 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
                 a.db.run("insert into ty(id,nm,role,tools,md,ef,prov,acc,col,dsc,outf,chk,own) values(?,?,?,?,?,?,?,?,?,?,?,?,1)", pa![tid.clone(), s(b, "nm").chars().take(24).collect::<String>(), s(b, "role").chars().take(20000).collect::<String>(), tools.to_string(), s(b, "md").to_string(), s(b, "ef").to_string(), s(b, "prov").to_string(), acc.to_string(), col.to_string(), s(b, "dsc").chars().take(200).collect::<String>(), s(b, "outf").chars().take(500).collect::<String>(), s(b, "chk").to_string()]);
             }
             if !s(b, "chk").is_empty() {
-                a.aud("Prüfung am Typ", &format!("{tid}: {}", s(b, "chk")));
+                a.aud("Check on type", &format!("{tid}: {}", s(b, "chk")));
             }
             ok()
         }
         ("type", "del", true) => {
             let tid = seg.get(1).copied().unwrap_or("").to_string();
             if a.db.n("select count(*) from wk where ty=?", pa![tid.clone()]) > 0 {
-                return Err("Es gibt noch Worker dieses Typs".into());
+                return Err("there are still workers of this type".into());
             }
             a.db.run("delete from ty where id=? and own=1", pa![tid]);
             ok()
@@ -439,11 +439,11 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
         ("tool", "", true) => {
             let tid: String = s(b, "id").to_lowercase().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_').take(32).collect();
             if tid.is_empty() || s(b, "src").is_empty() {
-                return Err("Name und Code sind nötig".into());
+                return Err("name and code are required".into());
             }
             let sch = if b["sch"].is_object() { b["sch"].clone() } else { json!({"type": "object", "properties": {}}) };
             a.db.run("insert into tool(id,dsc,sch,src) values(?,?,?,?) on conflict(id) do update set dsc=excluded.dsc, sch=excluded.sch, src=excluded.src", pa![tid.clone(), s(b, "dsc").to_string(), sch.to_string(), s(b, "src").to_string()]);
-            a.aud("Eigenes Werkzeug gespeichert", &tid);
+            a.aud("Custom tool saved", &tid);
             ok()
         }
         ("tool", "del", true) => {
@@ -455,15 +455,15 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             Ok(js(json!({"ok": true, "id": wid})))
         }
         ("team", _, true) => {
-            let tm = crate::world::teams().as_array().unwrap().iter().find(|t| t["id"] == b["id"]).cloned().ok_or("Team unbekannt")?;
+            let tm = crate::world::teams().as_array().unwrap().iter().find(|t| t["id"] == b["id"]).cloned().ok_or("unknown team")?;
             let fl = n(b, "fl");
             let need = tm["ws"].as_array().unwrap().len();
-            let f = crate::world::floor(&a.db, fl).ok_or("keine Etage")?;
+            let f = crate::world::floor(&a.db, fl).ok_or("no such floor")?;
             let mut l = f["lay"].clone();
             let used: Vec<i64> = a.db.all("select desk from wk where fl=?", pa![fl]).iter().filter_map(|r| r["desk"].as_i64()).collect();
             let mut free = crate::world::desks(&l).into_iter().filter(|d| !used.contains(d)).count();
             while free < need {
-                crate::world::add(&mut l, "desk", json!({})).ok_or("Kein Platz mehr für Schreibtische auf dieser Etage")?;
+                crate::world::add(&mut l, "desk", json!({})).ok_or("No room for more desks on this floor")?;
                 free += 1;
             }
             crate::world::save(&a.db, fl, &l);
@@ -480,39 +480,39 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             Ok(js(json!({"ok": true, "ids": ids})))
         }
         ("worker", "", false) => {
-            let w = a.db.one("select w.*, t.nm tn, t.tools ttools, t.md tmd from wk w left join ty t on t.id=w.ty where w.id=?", pa![id]).ok_or("Worker unbekannt")?;
+            let w = a.db.one("select w.*, t.nm tn, t.tools ttools, t.md tmd from wk w left join ty t on t.id=w.ty where w.id=?", pa![id]).ok_or("unknown worker")?;
             let tk = a.db.all("select id,ti,st,src,res,t0,t1 from tk where wk=? order by id desc limit 30", pa![id]);
             let ev = a.db.all("select t,m,tk from ev where w=? order by id desc limit 60", pa![id.to_string()]);
             let us = a.db.one("select coalesce(sum(tin+tout),0) tok, coalesce(sum(usd),0) usd from us where wk=? and day=?", pa![id, crate::db::day()]);
             Ok(js(json!({"w": w, "tk": tk, "ev": ev, "us": us, "live": a.lv.lock().unwrap().w.get(&id).cloned().unwrap_or_default()})))
         }
         ("worker", "", true) => {
-            let w = a.db.one("select * from wk where id=?", pa![id]).ok_or("Worker unbekannt")?;
+            let w = a.db.one("select * from wk where id=?", pa![id]).ok_or("unknown worker")?;
             let mut c = w["cfg"].clone();
             if let Some(nc) = b["cfg"].as_object() {
                 let d = danger(&c, &b["cfg"]);
                 if !d.is_empty() && b["ok"].as_bool() != Some(true) {
-                    return Err(format!("Bestätigung nötig für: {}", d.join(", ")));
+                    return Err(format!("confirmation needed for: {}", d.join(", ")));
                 }
                 for (k, v) in nc {
                     if k == "fsr" || k == "fsw" {
                         for x in v.as_array().cloned().unwrap_or_default() {
                             let pth = std::path::PathBuf::from(x.as_str().unwrap_or(""));
                             if !pth.is_absolute() {
-                                return Err(format!("{} ist kein vollständiger Pfad", pth.display()));
+                                return Err(format!("{} is not a full path", pth.display()));
                             }
                             if crate::perm::broad(&pth) {
-                                return Err(format!("{} ist zu weit gefasst (ganzes Laufwerk oder Home-Ordner)", pth.display()));
+                                return Err(format!("{} is too broad (whole drive or home folder)", pth.display()));
                             }
                             if !pth.is_dir() {
-                                return Err(format!("Ordner {} gibt es nicht", pth.display()));
+                                return Err(format!("folder {} does not exist", pth.display()));
                             }
                         }
                     }
                     c[k] = v.clone();
                 }
                 if !d.is_empty() {
-                    a.aud("Rechte geändert", &format!("{} (#{id}): {}", w["nm"].as_str().unwrap_or(""), d.iter().map(|k| format!("{k}={}", c[k])).collect::<Vec<_>>().join("; ")));
+                    a.aud("Permissions changed", &format!("{} (#{id}): {}", w["nm"].as_str().unwrap_or(""), d.iter().map(|k| format!("{k}={}", c[k])).collect::<Vec<_>>().join("; ")));
                 }
                 a.db.run("update wk set cfg=? where id=?", pa![c.to_string(), id]);
             }
@@ -524,26 +524,26 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             }
             if let Some(h) = b["hold"].as_bool() {
                 a.db.run("update wk set hold=? where id=?", pa![h as i64, id]);
-                a.say(id, if h { "pausiert von dir" } else { "weiter geht's" }, None);
+                a.say(id, if h { "paused by you" } else { "back to work" }, None);
             }
             if b["fl"].as_i64().is_some() {
                 let (fl, d) = (n(b, "fl"), b["desk"].as_i64());
-                let f = crate::world::floor(&a.db, fl).ok_or("keine Etage")?;
+                let f = crate::world::floor(&a.db, fl).ok_or("no such floor")?;
                 let d = match d {
                     Some(d) if crate::world::desks(&f["lay"]).contains(&d) && a.db.n("select count(*) from wk where fl=? and desk=? and id!=?", pa![fl, d, id]) == 0 => d,
-                    Some(_) => return Err("dieser Schreibtisch ist nicht frei".into()),
-                    None => crate::world::free_desk(&a.db, fl).ok_or("kein freier Schreibtisch dort")?,
+                    Some(_) => return Err("this desk is not free".into()),
+                    None => crate::world::free_desk(&a.db, fl).ok_or("no free desk there")?,
                 };
                 a.db.run("update wk set fl=?, desk=? where id=?", pa![fl, d, id]);
             }
             ok()
         }
         ("worker", "fire", true) => {
-            let w = a.db.one("select nm from wk where id=?", pa![id]).ok_or("Worker unbekannt")?;
+            let w = a.db.one("select nm from wk where id=?", pa![id]).ok_or("unknown worker")?;
             if a.db.n("select count(*) from tk where wk=? and st='run'", pa![id]) > 0 {
-                return Err("arbeitet gerade, erst abbrechen".into());
+                return Err("is working right now, cancel first".into());
             }
-            a.db.run("update tk set st='fail', res='Worker entlassen' where wk=? and st='wait'", pa![id]);
+            a.db.run("update tk set st='fail', res='worker dismissed' where wk=? and st='wait'", pa![id]);
             a.db.run("delete from wk where id=?", pa![id]);
             for o in a.db.all("select id, cfg from wk", pa![]) {
                 let mut c = o["cfg"].clone();
@@ -556,13 +556,13 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
                 }
             }
             a.lv.lock().unwrap().w.remove(&id);
-            a.aud("Entlassen", w["nm"].as_str().unwrap_or(""));
+            a.aud("Dismissed", w["nm"].as_str().unwrap_or(""));
             ok()
         }
         ("task", "", true) => {
             let ti = s(b, "ti").trim().to_string();
             if ti.is_empty() {
-                return Err("Titel fehlt".into());
+                return Err("title missing".into());
             }
             let wk = b["wk"].as_i64();
             let fl = match wk {
@@ -576,7 +576,7 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             Ok(js(json!({"ok": true, "id": tid})))
         }
         ("task", "", false) => {
-            let t = a.db.one("select * from tk where id=?", pa![id]).ok_or("Aufgabe unbekannt")?;
+            let t = a.db.one("select * from tk where id=?", pa![id]).ok_or("unknown task")?;
             let ev = a.db.all("select t,w,m from ev where tk=? order by id desc limit 80", pa![id]);
             Ok(js(json!({"t": t, "ev": ev})))
         }
@@ -603,10 +603,10 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             let fl = q.get("fl").and_then(|x| x.parse::<i64>().ok()).unwrap_or(0);
             let nm = q.get("n").cloned().unwrap_or_default();
             if nm.is_empty() || nm.contains('/') || nm.contains('\\') || nm.starts_with('.') {
-                return Err("ungültiger Name".into());
+                return Err("invalid name".into());
             }
             let f = a.fdir(fl).join(&nm);
-            let d = std::fs::read(&f).map_err(|_| "Datei nicht gefunden")?;
+            let d = std::fs::read(&f).map_err(|_| "file not found")?;
             let mut r = Response::new(Body::from(d));
             let mt = mime_guess::from_path(&nm).first_or_octet_stream();
             let inline = mt.type_() == "text" || mt.type_() == "image";
@@ -619,7 +619,7 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
         ("detect", _, false) => Ok(js(crate::run::detect().await)),
         ("acc", "", true) => {
             if id > 0 {
-                let r = a.db.one("select * from acc where id=?", pa![id]).ok_or("Konto unbekannt")?;
+                let r = a.db.one("select * from acc where id=?", pa![id]).ok_or("unknown account")?;
                 let mut c = r["cfg"].clone();
                 if !c.is_object() {
                     c = json!({});
@@ -632,7 +632,7 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
                 a.db.run("update acc set cfg=?, nm=coalesce(nullif(?,''),nm), md=coalesce(nullif(?,''),md), base=coalesce(nullif(?,''),base) where id=?", pa![c.to_string(), s(b, "nm").to_string(), s(b, "md").to_string(), s(b, "base").to_string(), id]);
                 if !s(b, "key").is_empty() {
                     if b["ok"].as_bool() != Some(true) {
-                        return Err("Bestätigung nötig".into());
+                        return Err("confirmation needed".into());
                     }
                     a.db.run("update acc set sec=? where id=?", pa![crate::vault::enc(&a.key, s(b, "key").trim()), id]);
                     a.aud("Zugangsdaten ersetzt", r["nm"].as_str().unwrap_or(""));
@@ -640,27 +640,27 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
                 return ok();
             }
             if b["ok"].as_bool() != Some(true) {
-                return Err("Bestätigung nötig".into());
+                return Err("confirmation needed".into());
             }
             let k = s(b, "k");
             if !["claude", "codex", "gemini", "api"].contains(&k) {
-                return Err("Konto-Art unbekannt".into());
+                return Err("unknown account kind".into());
             }
             let (mut fmt, mut base, mut md) = (String::new(), String::new(), String::new());
             if k == "api" {
-                let pre = crate::prov::PRE.iter().find(|x| x.0 == s(b, "pre")).ok_or("Anbieter wählen")?;
+                let pre = crate::prov::PRE.iter().find(|x| x.0 == s(b, "pre")).ok_or("choose a provider")?;
                 fmt = if s(b, "fmt").is_empty() { pre.1.to_string() } else { s(b, "fmt").to_string() };
                 base = if s(b, "base").is_empty() { pre.2.to_string() } else { s(b, "base").trim().to_string() };
                 md = if s(b, "md").is_empty() { pre.3.to_string() } else { s(b, "md").trim().to_string() };
-                let bu = url::Url::parse(&base).map_err(|_| "Adresse ungültig")?;
+                let bu = url::Url::parse(&base).map_err(|_| "invalid address")?;
                 if bu.scheme() != "https" && !matches!(bu.host_str(), Some("127.0.0.1") | Some("localhost") | Some("::1")) {
-                    return Err("API-Adressen nur mit https (ausser lokal)".into());
+                    return Err("API addresses need https (except local ones)".into());
                 }
                 if s(b, "key").is_empty() && !matches!(s(b, "pre"), "ollama" | "lmstudio" | "custom") {
-                    return Err("API-Key fehlt".into());
+                    return Err("API key missing".into());
                 }
                 if !["anthropic", "openai"].contains(&fmt.as_str()) {
-                    return Err("Format unbekannt".into());
+                    return Err("unknown format".into());
                 }
             }
             let same = a.db.n("select count(*) from acc where k=?", pa![k.to_string()]);
@@ -674,28 +674,28 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
                 let d = a.adir(aid);
                 a.db.run("update acc set dir=? where id=?", pa![d.display().to_string(), aid]);
             }
-            a.aud("Konto hinzugefügt", &format!("{nm} ({k})"));
+            a.aud("Account added", &format!("{nm} ({k})"));
             crate::world::sync_gens(a);
             Ok(js(json!({"ok": true, "id": aid, "tos": crate::prov::cli_kind(k) && same > 0})))
         }
         ("acc", "del", true) => {
-            let r = a.db.one("select nm, dir from acc where id=?", pa![id]).ok_or("Konto unbekannt")?;
+            let r = a.db.one("select nm, dir from acc where id=?", pa![id]).ok_or("unknown account")?;
             a.db.run("delete from acc where id=?", pa![id]);
             let d = a.dd.join("accounts").join(id.to_string());
             if r["dir"].as_str().map(|x| !x.is_empty()).unwrap_or(false) && d.exists() {
                 let _ = std::fs::remove_dir_all(d);
             }
-            a.aud("Konto gelöscht", r["nm"].as_str().unwrap_or(""));
+            a.aud("Account deleted", r["nm"].as_str().unwrap_or(""));
             crate::world::sync_gens(a);
             ok()
         }
         ("acc", "test", true) => {
-            let r = a.db.one("select * from acc where id=?", pa![id]).ok_or("Konto unbekannt")?;
+            let r = a.db.one("select * from acc where id=?", pa![id]).ok_or("unknown account")?;
             let r = crate::prov::view(a, &r);
             Ok(js(json!({"ok": true, "msg": crate::run::test(a, &r).await?})))
         }
         ("acc", "login", true) => {
-            let r = a.db.one("select k, dir from acc where id=?", pa![id]).ok_or("Konto unbekannt")?;
+            let r = a.db.one("select k, dir from acc where id=?", pa![id]).ok_or("unknown account")?;
             let c = crate::run::login_cmd(r["k"].as_str().unwrap_or(""), r["dir"].as_str().unwrap_or(""));
             let opened = crate::run::term(&c).is_ok();
             Ok(js(json!({"ok": true, "cmd": c, "opened": opened})))
@@ -706,20 +706,20 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
         }
         ("srv", "", true) if id == 0 => {
             if b["ok"].as_bool() != Some(true) {
-                return Err("Bestätigung nötig".into());
+                return Err("confirmation needed".into());
             }
             let sid = crate::ssh::setup(a, b).await?;
             Ok(js(json!({"ok": true, "id": sid})))
         }
         ("srv", "", true) => {
-            let r = a.db.one("select * from srv where id=?", pa![id]).ok_or("Server unbekannt")?;
+            let r = a.db.one("select * from srv where id=?", pa![id]).ok_or("unknown server")?;
             let mut c = r["cfg"].clone();
             if let Some(nc) = b["cfg"].as_object() {
                 if nc.contains_key("cmds") && nc["cmds"] != c["cmds"] {
                     if b["ok"].as_bool() != Some(true) {
-                        return Err("Bestätigung nötig".into());
+                        return Err("confirmation needed".into());
                     }
-                    a.aud("Server-Befehle geändert", &format!("{}: {}", r["nm"].as_str().unwrap_or(""), nc["cmds"]));
+                    a.aud("Server commands changed", &format!("{}: {}", r["nm"].as_str().unwrap_or(""), nc["cmds"]));
                 }
                 for (k, v) in nc {
                     c[k] = v.clone();
@@ -729,9 +729,9 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             ok()
         }
         ("srv", "del", true) => {
-            let r = a.db.one("select nm from srv where id=?", pa![id]).ok_or("Server unbekannt")?;
+            let r = a.db.one("select nm from srv where id=?", pa![id]).ok_or("unknown server")?;
             crate::ssh::remove(a, id).await;
-            a.aud("Server entfernt", r["nm"].as_str().unwrap_or(""));
+            a.aud("Server removed", r["nm"].as_str().unwrap_or(""));
             ok()
         }
         ("jobs", _, false) => Ok(js(json!(a.db.all("select id,srv,wk,tk,cmd,st,ex,t0,t1,substr(out,-4000) out from job where (?1 is null or srv=?1) order by id desc limit 50", pa![q.get("srv").and_then(|x| x.parse::<i64>().ok())])))),
@@ -739,7 +739,7 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
         ("wid", "", true) => {
             let k = s(b, "k");
             if !["num", "list", "chart", "lamp", "text"].contains(&k) {
-                return Err("Widget-Art unbekannt".into());
+                return Err("unknown widget kind".into());
             }
             let src = if b["src"].is_object() { b["src"].clone() } else { json!({}) };
             if id > 0 {
@@ -774,11 +774,11 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             if !st.is_object() {
                 st = json!({});
             }
-            for k in ["usd_day", "lang", "hosts", "api_fallback", "lounge"] {
+            for k in ["usd_day", "hosts", "api_fallback", "lounge"] {
                 if !b[k].is_null() {
                     if k == "hosts" {
                         let hs: Vec<String> = b[k].as_array().cloned().unwrap_or_default().iter().filter_map(|h| h.as_str()).map(|h| h.trim().to_lowercase()).filter(|h| crate::perm::hostok(h) && h.contains(':')).collect();
-                        a.aud("Adressen geändert", &hs.join(", "));
+                        a.aud("Addresses changed", &hs.join(", "));
                         st[k] = json!(hs);
                     } else {
                         st[k] = b[k].clone();
@@ -791,7 +791,7 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
         ("stop", _, true) => {
             let on = b["on"].as_bool().unwrap_or(true);
             a.lv.lock().unwrap().stop.insert(0, on);
-            a.aud(if on { "Alles angehalten" } else { "Weiter" }, "");
+            a.aud(if on { "Everything stopped" } else { "Resumed" }, "");
             ok()
         }
         ("ses", _, false) => Ok(js(json!(a.db.all("select id,t0,t1,exp,ua,ip from ses where exp>? order by t1 desc", pa![now()]).into_iter().map(|mut r| {
@@ -802,7 +802,7 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
         ("ses", "del", true) => {
             let pre = seg.get(1).copied().unwrap_or("");
             if pre.len() < 12 {
-                return Err("ungültig".into());
+                return Err("invalid".into());
             }
             a.db.run("delete from ses where substr(id,1,12)=?", pa![pre.to_string()]);
             ok()
@@ -814,9 +814,9 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             Ok(r)
         }
         ("import", _, true) => {
-            let v: Value = serde_json::from_slice(raw).map_err(|_| "Datei unlesbar")?;
+            let v: Value = serde_json::from_slice(raw).map_err(|_| "unreadable file")?;
             if a.db.n("select count(*) from tk where st='run'", pa![]) > 0 {
-                return Err("Es laufen noch Aufgaben. Erst alles anhalten.".into());
+                return Err("Tasks are still running. Stop everything first.".into());
             }
             let m = crate::sys::import(&a.db, &v)?;
             a.aud("Import", &m);
@@ -845,6 +845,6 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             a.db.run("delete from ses where id=?", pa![sid.to_string()]);
             ok()
         }
-        _ => Err(format!("unbekannt: {} {p}", m)),
+        _ => Err(format!("unknown: {} {p}", m)),
     }
 }

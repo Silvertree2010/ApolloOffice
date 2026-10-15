@@ -118,20 +118,20 @@ fn glob(g: &str) -> Regex {
 }
 
 pub fn shok(pm: &Pm, c: &str) -> Result<(), String> {
-    let Some(al) = &pm.sh else { return Err("dieser Worker darf keine Befehle ausführen".into()) };
+    let Some(al) = &pm.sh else { return Err("this worker may not run commands".into()) };
     if ban().is_match(c) {
-        return Err("Befehl ist immer gesperrt (sudo, Zugangsdaten, SSH-Schlüssel, zerstörerisches rm)".into());
+        return Err("command is always blocked (sudo, credentials, SSH keys, destructive rm)".into());
     }
     static PU: OnceLock<Regex> = OnceLock::new();
     if !pm.push && PU.get_or_init(|| Regex::new(r"\bgit\b[^;&|]*\bpush\b").unwrap()).is_match(c) {
-        return Err("git push ist für diesen Worker nicht erlaubt".into());
+        return Err("git push is not allowed for this worker".into());
     }
     if pm.any {
         return Ok(());
     }
     static SUB: OnceLock<Regex> = OnceLock::new();
     if SUB.get_or_init(|| Regex::new(r"`|\$\(|\$\{|\n|\r|<\(|>\(|\(|\)").unwrap()).is_match(c) {
-        return Err("Befehls-Ersetzung und mehrzeilige Befehle brauchen „beliebige Befehle“".into());
+        return Err("command substitution and multi-line commands need \"any command\"".into());
     }
     static RED: OnceLock<Regex> = OnceLock::new();
     static SAFE: OnceLock<Regex> = OnceLock::new();
@@ -143,13 +143,13 @@ pub fn shok(pm: &Pm, c: &str) -> Result<(), String> {
     for seg in Regex::new(r"&&|\|\||;|\||&").unwrap().split(&c) {
         let g = red.replace(seg.trim(), "").trim().to_string();
         if g.contains('>') && !gl.iter().any(|r| r.is_match(&g)) {
-            return Err(format!("„{}“ schreibt in eine Datei und ist nicht erlaubt", g.chars().take(80).collect::<String>()));
+            return Err(format!("\"{}\" writes to a file and is not allowed", g.chars().take(80).collect::<String>()));
         }
         if g.is_empty() || safe.is_match(&g) && !g.split_whitespace().any(|w| w.starts_with('/') || w.starts_with('~') || w.split('/').any(|p| p == "..")) {
             continue;
         }
         if !gl.iter().any(|r| r.is_match(&g)) {
-            return Err(format!("„{}“ passt zu keinem erlaubten Befehl ({})", g.chars().take(80).collect::<String>(), al.join(", ")));
+            return Err(format!("\"{}\" matches no allowed command ({})", g.chars().take(80).collect::<String>(), al.join(", ")));
         }
     }
     Ok(())

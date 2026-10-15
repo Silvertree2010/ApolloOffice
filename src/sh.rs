@@ -111,7 +111,7 @@ pub struct Out {
 }
 
 pub async fn sh(cmd: &str, cwd: &Path, min: u64, x: HashMap<String, String>, pid: impl Fn(u32, bool)) -> Out {
-    let Some(b) = bash() else { return Out { c: -1, o: "keine Shell gefunden: Git for Windows installieren (git-scm.com)".into() } };
+    let Some(b) = bash() else { return Out { c: -1, o: "no shell found: install Git for Windows (git-scm.com)".into() } };
     let mut c = Command::new(b);
     c.arg("-c").arg(cmd).current_dir(cwd).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
     env(&mut c, &x);
@@ -140,7 +140,7 @@ pub async fn sh(cmd: &str, cwd: &Path, min: u64, x: HashMap<String, String>, pid
         Ok((s, o)) => Out { c: s, o: cut(&String::from_utf8_lossy(&o), 30000) },
         Err(_) => {
             kill(id);
-            Out { c: -1, o: format!("[Zeitlimit nach {min} min]") }
+            Out { c: -1, o: format!("[timeout after {min} min]") }
         }
     }
 }
@@ -158,6 +158,6 @@ pub fn head(s: &str, n: usize) -> String {
     if s.chars().count() <= n {
         s.to_string()
     } else {
-        format!("{}\n…(gekürzt)", s.chars().take(n).collect::<String>())
+        format!("{}\n…(cut)", s.chars().take(n).collect::<String>())
     }
 }

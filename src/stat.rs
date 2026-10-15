@@ -31,9 +31,9 @@ fn path(v: &Value, p: &str) -> Value {
 }
 
 async fn get(a: &Ax, u: &str) -> Result<(u16, String), String> {
-    let pu = url::Url::parse(u).map_err(|_| "Adresse ungültig")?;
+    let pu = url::Url::parse(u).map_err(|_| "invalid address")?;
     if pu.scheme() != "http" && pu.scheme() != "https" {
-        return Err("nur http(s)".into());
+        return Err("http(s) only".into());
     }
     let r = a.hc.get(u).header("user-agent", "ApolloOffice").timeout(std::time::Duration::from_secs(20)).send().await.map_err(|e| e.to_string())?;
     let s = r.status().as_u16();
@@ -48,7 +48,7 @@ pub async fn val(a: &Ax, s: &Value) -> Result<Value, String> {
         "text" => Ok(s["text"].clone()),
         "http" => {
             let (_, b) = get(a, s["url"].as_str().unwrap_or("")).await?;
-            let j: Value = serde_json::from_str(&b).map_err(|_| "keine JSON-Antwort")?;
+            let j: Value = serde_json::from_str(&b).map_err(|_| "no JSON answer")?;
             Ok(path(&j, s["path"].as_str().unwrap_or("")))
         }
         "uptime" => {
@@ -61,7 +61,7 @@ pub async fn val(a: &Ax, s: &Value) -> Result<Value, String> {
         "github" => {
             let r = s["repo"].as_str().unwrap_or("").trim();
             if !regex::Regex::new(r"^[\w.-]+/[\w.-]+$").unwrap().is_match(r) {
-                return Err("Repo als besitzer/name".into());
+                return Err("repo as owner/name".into());
             }
             match s["f"].as_str().unwrap_or("stars") {
                 "prs" => {

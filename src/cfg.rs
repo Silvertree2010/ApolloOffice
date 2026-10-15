@@ -58,7 +58,7 @@ pub fn ddir(o: Option<PathBuf>) -> PathBuf {
 
 impl App {
     pub fn set(&self) -> Value {
-        let mut d = json!({"usd_day": 5.0, "lang": "de", "hosts": [], "api_fallback": false, "lounge": true});
+        let mut d = json!({"usd_day": 5.0, "hosts": [], "api_fallback": false, "lounge": true});
         if let Value::Object(m) = self.db.kg("set") {
             for (k, v) in m {
                 d[k] = v;

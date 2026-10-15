@@ -36,8 +36,8 @@ async fn conn(host: &str, port: u16, want: Option<String>) -> Result<(Handle<H>,
     let s = seen.lock().unwrap().clone();
     match r {
         Ok(Ok(c)) => Ok((c, s)),
-        Ok(Err(e)) => Err(if s.is_some() { format!("Host-Key passt nicht oder ist nicht bestätigt ({e})") } else { format!("keine Verbindung: {e}") }),
-        Err(_) => Err("keine Verbindung (Zeitüberschreitung)".into()),
+        Ok(Err(e)) => Err(if s.is_some() { format!("host key does not match or is not confirmed ({e})") } else { format!("no connection: {e}") }),
+        Err(_) => Err("no connection (timeout)".into()),
     }
 }
 
@@ -49,7 +49,7 @@ pub async fn probe(host: &str, port: u16) -> Result<(String, String), String> {
             let seen = Arc::new(Mutex::new(None));
             let _ = tokio::time::timeout(Duration::from_secs(15), client::connect(cfg, (host, port), H { want: None, seen: seen.clone() })).await;
             let s = seen.lock().unwrap().clone();
-            s.ok_or_else(|| format!("{host}:{port} ist nicht erreichbar"))
+            s.ok_or_else(|| format!("{host}:{port} is not reachable"))
         }
     }
 }
@@ -83,7 +83,7 @@ async fn exec(c: &Handle<H>, cmd: &str, input: Option<Vec<u8>>, secs: u64) -> Re
     })
     .await;
     if r.is_err() {
-        return Err("Zeitüberschreitung".into());
+        return Err("timeout".into());
     }
     Ok((code, o))
 }
@@ -100,23 +100,23 @@ pub async fn setup(a: &Ax, b: &Value) -> Result<i64, String> {
     let fp = b["fp"].as_str().unwrap_or("").to_string();
     let fl = b["fl"].as_i64().unwrap_or(0);
     if host.is_empty() || fp.is_empty() {
-        return Err("Adresse und bestätigter Host-Key nötig".into());
+        return Err("address and confirmed host key required".into());
     }
     if a.db.one("select id from fl where id=? and k='server'", pa![fl]).is_none() {
-        return Err("Server kommen in einen Serverraum".into());
+        return Err("servers go into a server room".into());
     }
     let (mut c, s) = conn(&host, port, Some(fp.clone())).await?;
     let hk = s.map(|x| x.1).unwrap_or_default();
     let pw = b["pw"].as_str().unwrap_or("").to_string();
     let ok = if let Some(k) = b["key"].as_str().filter(|k| !k.trim().is_empty()) {
-        let pk = russh::keys::decode_secret_key(k, b["kpw"].as_str().filter(|x| !x.is_empty())).map_err(|e| format!("Schlüssel unlesbar: {e}"))?;
+        let pk = russh::keys::decode_secret_key(k, b["kpw"].as_str().filter(|x| !x.is_empty())).map_err(|e| format!("unreadable key: {e}"))?;
         let h = c.best_supported_rsa_hash().await.ok().flatten().flatten();
         c.authenticate_publickey(&usr, PrivateKeyWithHashAlg::new(Arc::new(pk), h)).await.map_err(|e| e.to_string())?.success()
     } else {
         c.authenticate_password(&usr, &pw).await.map_err(|e| e.to_string())?.success()
     };
     if !ok {
-        return Err("Anmeldung als Admin fehlgeschlagen".into());
+        return Err("admin login failed".into());
     }
     let k = newkey();
     let pubk = k.public_key().to_openssh().map_err(|e| e.to_string())?;
@@ -140,13 +140,13 @@ echo OKAY
     let (code, o) = exec(&c, &format!("bash -c {}", q(&sc)), Some(format!("{pw}\n").into_bytes()), 120).await?;
     let o = String::from_utf8_lossy(&o).to_string();
     if o.contains("NOSUDO") {
-        return Err("Der Admin-Benutzer darf kein sudo. Als root oder mit sudo-Rechten anmelden.".into());
+        return Err("The admin user cannot use sudo. Log in as root or with sudo rights.".into());
     }
     if o.contains("NOLINUX") {
-        return Err("Nur Linux-Server werden unterstützt".into());
+        return Err("Only Linux servers are supported".into());
     }
     if code != 0 || !o.contains("OKAY") {
-        return Err(format!("Einrichtung fehlgeschlagen: {}", o.chars().rev().take(300).collect::<String>().chars().rev().collect::<String>()));
+        return Err(format!("setup failed: {}", o.chars().rev().take(300).collect::<String>().chars().rev().collect::<String>()));
     }
     let _ = c.disconnect(russh::Disconnect::ByApplication, "", "").await;
     let ks = k.to_openssh(ssh_key::LineEnding::LF).map_err(|e| e.to_string())?.to_string();
@@ -157,18 +157,18 @@ echo OKAY
         pa![fl, nm.clone(), host.clone(), port as i64, crate::vault::enc(&a.key, &ks), fp.clone(), if o.contains("DOCKER") { 1 } else { 0 }, cfg.to_string(), now()],
     );
     let _ = hk;
-    a.aud("Server hinzugefügt", &format!("{nm} ({host}:{port}), Host-Key {fp}, Docker {}", o.contains("DOCKER")));
+    a.aud("Server added", &format!("{nm} ({host}:{port}), Host-Key {fp}, Docker {}", o.contains("DOCKER")));
     crate::world::sync_racks(a);
     Ok(id)
 }
 
 async fn login(a: &Ax, s: &Value) -> Result<Handle<H>, String> {
     let (mut c, _) = conn(s["host"].as_str().unwrap_or(""), s["port"].as_i64().unwrap_or(22) as u16, Some(s["hk"].as_str().unwrap_or("").to_string())).await?;
-    let ks = a.db.blob("select key from srv where id=?", pa![s["id"].as_i64().unwrap_or(0)]).and_then(|b| crate::vault::dec(&a.key, &b)).ok_or("Schlüssel fehlt")?;
+    let ks = a.db.blob("select key from srv where id=?", pa![s["id"].as_i64().unwrap_or(0)]).and_then(|b| crate::vault::dec(&a.key, &b)).ok_or("key missing")?;
     let pk = russh::keys::decode_secret_key(&ks, None).map_err(|e| e.to_string())?;
     let ok = c.authenticate_publickey("apollo", PrivateKeyWithHashAlg::new(Arc::new(pk), None)).await.map_err(|e| e.to_string())?.success();
     if !ok {
-        return Err("Anmeldung als apollo fehlgeschlagen".into());
+        return Err("login as apollo failed".into());
     }
     Ok(c)
 }
@@ -239,13 +239,13 @@ pub async fn poll(a: &Ax) {
 fn srv_for(a: &Ax, rc: &Rc, n: &str) -> Result<Value, String> {
     let allowed: Vec<i64> = rc.wc["srv"].as_array().map(|x| x.iter().filter_map(|v| v.as_i64()).collect()).unwrap_or_default();
     let n = n.trim().to_lowercase();
-    a.db.all("select * from srv", pa![]).into_iter().find(|s| allowed.contains(&s["id"].as_i64().unwrap_or(0)) && (s["nm"].as_str().map(|x| x.to_lowercase()) == Some(n.clone()) || s["id"].as_i64().map(|i| i.to_string()) == Some(n.clone()) || s["host"].as_str() == Some(&n))).ok_or_else(|| format!("Server {n} ist für dich nicht freigegeben"))
+    a.db.all("select * from srv", pa![]).into_iter().find(|s| allowed.contains(&s["id"].as_i64().unwrap_or(0)) && (s["nm"].as_str().map(|x| x.to_lowercase()) == Some(n.clone()) || s["id"].as_i64().map(|i| i.to_string()) == Some(n.clone()) || s["host"].as_str() == Some(&n))).ok_or_else(|| format!("server {n} is not allowed for you"))
 }
 
 fn rpath(p: &str) -> Result<String, String> {
     let p = p.trim().trim_start_matches("./");
     if p.is_empty() || p.starts_with('/') || p.split('/').any(|x| x == "..") {
-        return Err("Pfad muss relativ im Arbeitsordner des Servers liegen".into());
+        return Err("path must be relative inside the server's work folder".into());
     }
     Ok(p.to_string())
 }
@@ -262,11 +262,11 @@ pub async fn tool(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String>
             let sv = srv_for(a, rc, &s("server"))?;
             let cmd = s("cmd");
             let cmds: Vec<String> = sv["cfg"]["cmds"].as_array().map(|x| x.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default();
-            shok(&Pm { sh: Some(cmds.clone()), any: false, ..Default::default() }, &cmd).map_err(|e| format!("auf diesem Server nicht erlaubt: {e}"))?;
+            shok(&Pm { sh: Some(cmds.clone()), any: false, ..Default::default() }, &cmd).map_err(|e| format!("not allowed on this server: {e}"))?;
             let sid = sv["id"].as_i64().unwrap_or(0);
             let run = a.db.n("select count(*) from job where srv=? and st='run'", pa![sid]);
             if run >= lanes(&sv) {
-                return Err(format!("alle {} Bahnen sind belegt, später nochmal", lanes(&sv)));
+                return Err(format!("all {} lanes are busy, try again later", lanes(&sv)));
             }
             let id = a.db.run("insert into job(srv,wk,tk,cmd,st,t0,t1) values(?,?,?,?,'run',?,?)", pa![sid, rc.wk, rc.tk, cmd.clone(), now(), now()]);
             let c = login(a, &sv).await.inspect_err(|e| {
@@ -282,15 +282,15 @@ pub async fn tool(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String>
             if code != 0 {
                 let o = String::from_utf8_lossy(&o).to_string();
                 a.db.run("update job set st='fail', out=? where id=?", pa![o.clone(), id]);
-                return Err(format!("Job startet nicht: {}", o.chars().take(300).collect::<String>()));
+                return Err(format!("job does not start: {}", o.chars().take(300).collect::<String>()));
             }
             a.db.run("update srv set st=json_set(st,'$.t',0) where id=?", pa![sid]);
-            Ok(format!("Job #{id} läuft auf {}", sv["nm"].as_str().unwrap_or("")))
+            Ok(format!("job #{id} runs on {}", sv["nm"].as_str().unwrap_or("")))
         }
         "job_log" | "job_stop" => {
             let id = x["job"].as_i64().unwrap_or(0);
-            let j = a.db.one("select * from job where id=?", pa![id]).ok_or("Job unbekannt")?;
-            let sv = a.db.one("select * from srv where id=?", pa![j["srv"].as_i64().unwrap_or(0)]).ok_or("Server weg")?;
+            let j = a.db.one("select * from job where id=?", pa![id]).ok_or("unknown job")?;
+            let sv = a.db.one("select * from srv where id=?", pa![j["srv"].as_i64().unwrap_or(0)]).ok_or("server gone")?;
             srv_for(a, rc, &sv["id"].as_i64().unwrap_or(0).to_string())?;
             if n == "job_log" {
                 return Ok(format!("status {} exit {}\n{}", j["st"].as_str().unwrap_or(""), j["ex"], j["out"].as_str().unwrap_or("")));
@@ -312,17 +312,17 @@ pub async fn tool(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String>
                     Err(e) => return Err(e),
                 };
                 let (code, _) = exec(&c, &format!("mkdir -p \"$(dirname ~/work/{r})\" && cat > ~/work/{r}", r = q(&rem)), Some(data), 600).await?;
-                Ok(if code == 0 { format!("hochgeladen nach ~/work/{rem}") } else { "Upload fehlgeschlagen".into() })
+                Ok(if code == 0 { format!("uploaded to ~/work/{rem}") } else { "upload failed".into() })
             } else {
                 let rem = rpath(&s("remote"))?;
                 let (code, data) = exec(&c, &format!("cat ~/work/{}", q(&rem)), None, 600).await?;
                 if code != 0 {
-                    return Err("Datei nicht gefunden".into());
+                    return Err("file not found".into());
                 }
                 crate::tools::raw(a, rc, "write_bytes", &json!({"path": s("path"), "b64": base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &data)})).await
             }
         }
-        _ => Err("unbekannt".into()),
+        _ => Err("unknown".into()),
     }
 }
 

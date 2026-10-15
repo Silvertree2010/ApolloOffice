@@ -112,7 +112,7 @@ fn ab(rc: &Rc, p: &str) -> PathBuf {
 fn rp(rc: &Rc, p: &str) -> Result<PathBuf, String> {
     let f = ab(rc, p);
     if !rc.pm.canr(&f) {
-        return Err(format!("{} liegt ausserhalb der Ordner, die du lesen darfst", f.display()));
+        return Err(format!("{} is outside the folders you may read", f.display()));
     }
     Ok(f)
 }
@@ -120,7 +120,7 @@ fn rp(rc: &Rc, p: &str) -> Result<PathBuf, String> {
 fn wp(rc: &Rc, p: &str) -> Result<PathBuf, String> {
     let f = ab(rc, p);
     if !rc.pm.canw(&f) {
-        return Err(format!("{} liegt ausserhalb der Ordner, in die du schreiben darfst", f.display()));
+        return Err(format!("{} is outside the folders you may write", f.display()));
     }
     Ok(f)
 }
@@ -159,13 +159,13 @@ pub fn wk_by_name(a: &Ax, fl: i64, n: &str) -> Option<Value> {
 pub fn accepts(a: &Ax, to: &Value, from: i64) -> Result<(), String> {
     let f = to["cfg"]["from"].as_array().cloned().unwrap_or_default();
     let r = f.iter().find(|x| x["w"].as_i64() == Some(from) || x.as_i64() == Some(from));
-    let Some(r) = r else { return Err(format!("{} nimmt keine Aufträge von dir an", s(to, "nm"))) };
+    let Some(r) = r else { return Err(format!("{} does not take orders from you", s(to, "nm"))) };
     let max = r["max"].as_i64().unwrap_or(0);
     if max > 0 {
         let d0 = chrono::Local::now().date_naive().and_hms_opt(0, 0, 0).unwrap().and_local_timezone(chrono::Local).unwrap().timestamp_millis();
         let n = a.db.n("select count(*) from tk where wk=? and src=? and t0>=?", pa![to["id"].as_i64().unwrap_or(0), format!("w:{from}"), d0]);
         if n >= max {
-            return Err(format!("{} hat heute schon {} Aufträge von dir angenommen (Limit)", s(to, "nm"), n));
+            return Err(format!("{} already took {} orders from you today (limit)", s(to, "nm"), n));
         }
     }
     Ok(())
@@ -173,7 +173,7 @@ pub fn accepts(a: &Ax, to: &Value, from: i64) -> Result<(), String> {
 
 pub async fn call(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> {
     if !defs(a, rc).iter().any(|d| d.0 == n) {
-        return Err(format!("Werkzeug {n} ist für dich nicht freigegeben"));
+        return Err(format!("tool {n} is not allowed for you"));
     }
     a.say(rc.wk, &format!("→ {n} {}", cut_s(&x.to_string(), 140)), Some(rc.tk));
     raw(a, rc, n, x).await
@@ -185,7 +185,7 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
         "read_bytes" => {
             let f = rp(rc, s(x, "path"))?;
             if std::fs::metadata(&f).map(|m| m.len()).unwrap_or(0) > 50_000_000 {
-                return Err("Datei grösser als 50 MB".into());
+                return Err("file larger than 50 MB".into());
             }
             let b = std::fs::read(&f).map_err(|e| e.to_string())?;
             Ok(base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b))
@@ -208,7 +208,7 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
             let fr = x["from"].as_u64().unwrap_or(1).max(1) as usize;
             let k = x["n"].as_u64().unwrap_or(500).min(3000) as usize;
             let o: Vec<String> = t.lines().skip(fr - 1).take(k).enumerate().map(|(i, l)| format!("{:>6}\t{}", fr + i, l)).collect();
-            Ok(if o.is_empty() { "(leer oder hinter dem Ende)".into() } else { o.join("\n") })
+            Ok(if o.is_empty() { "(empty or past the end)".into() } else { o.join("\n") })
         }
         "write" => {
             let f = wp(rc, s(x, "path"))?;
@@ -226,7 +226,7 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
             let t = std::fs::read_to_string(&f).map_err(|e| e.to_string())?;
             let (o, nw) = (s(x, "old"), s(x, "new"));
             if o.is_empty() {
-                return Err("old ist leer".into());
+                return Err("old is empty".into());
             }
             let k = t.matches(o).count();
             if k == 0 {
@@ -267,7 +267,7 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
             } else {
                 one(&b);
             }
-            Ok(if r.is_empty() { "(keine Treffer)".into() } else { r.join("\n") })
+            Ok(if r.is_empty() { "(no matches)".into() } else { r.join("\n") })
         }
         "ls" => {
             let b = rp(rc, if s(x, "path").is_empty() { "." } else { s(x, "path") })?;
@@ -277,14 +277,14 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
                     r.push(p.strip_prefix(&b).unwrap_or(p).display().to_string());
                     r.len() < 2000
                 });
-                return Ok(if r.is_empty() { "(leer)".into() } else { r.join("\n") });
+                return Ok(if r.is_empty() { "(empty)".into() } else { r.join("\n") });
             }
             let mut r: Vec<String> = std::fs::read_dir(&b).map_err(|e| e.to_string())?.filter_map(|e| e.ok()).map(|e| {
                 let n = e.file_name().to_string_lossy().to_string();
                 if e.path().is_dir() { format!("{n}/") } else { n }
             }).collect();
             r.sort();
-            Ok(if r.is_empty() { "(leer)".into() } else { r.join("\n") })
+            Ok(if r.is_empty() { "(empty)".into() } else { r.join("\n") })
         }
         "sh" => {
             let c = s(x, "cmd");
@@ -302,30 +302,30 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
         "deliver" => {
             let nm: String = s(x, "name").chars().filter(|c| c.is_alphanumeric() || "._- ".contains(*c)).collect::<String>().trim().to_string();
             if nm.is_empty() || nm.starts_with('.') {
-                return Err("Name fehlt".into());
+                return Err("name missing".into());
             }
             let f = rc.out.join(&nm);
             std::fs::write(&f, s(x, "text")).map_err(|e| e.to_string())?;
             file(a, rc.tk, &f);
-            Ok(format!("in der Ablage: {nm}"))
+            Ok(format!("in the tray: {nm}"))
         }
         "order" | "ask" => {
-            let to = wk_by_name(a, rc.fl, s(x, "to")).ok_or_else(|| format!("keinen Worker namens {} gefunden", s(x, "to")))?;
+            let to = wk_by_name(a, rc.fl, s(x, "to")).ok_or_else(|| format!("no worker named {} found", s(x, "to")))?;
             let tid = to["id"].as_i64().unwrap_or(0);
             if tid == rc.wk {
-                return Err("an dich selbst geht nicht".into());
+                return Err("you cannot give orders to yourself".into());
             }
             accepts(a, &to, rc.wk)?;
-            let (ti, tx) = if n == "ask" { (format!("Frage von {}", rc.nm), s(x, "question").to_string()) } else { (s(x, "title").to_string(), s(x, "text").to_string()) };
+            let (ti, tx) = if n == "ask" { (format!("Question from {}", rc.nm), s(x, "question").to_string()) } else { (s(x, "title").to_string(), s(x, "text").to_string()) };
             let mk = a.db.n("select mk from tk where id=?", pa![rc.tk]);
             let id = a.db.run(
                 "insert into tk(ti,tx,src,wk,fl,st,kind,par,mk,t0,t1) values(?,?,?,?,?,'wait',?,?,?,?,?)",
                 pa![cut_s(&ti, 300), cut_s(&tx, 20000), format!("w:{}", rc.wk), tid, to["fl"].as_i64().unwrap_or(rc.fl), if n == "ask" { "ask" } else { "task" }.to_string(), rc.tk, mk, now(), now()],
             );
             a.flow(rc.wk, tid, n);
-            a.say(tid, &format!("neuer Auftrag von {}: {}", rc.nm, cut_s(&ti, 80)), Some(id));
+            a.say(tid, &format!("new order from {}: {}", rc.nm, cut_s(&ti, 80)), Some(id));
             if n == "order" {
-                return Ok(format!("Auftrag #{id} an {} übergeben", s(&to, "nm")));
+                return Ok(format!("order #{id} handed to {}", s(&to, "nm")));
             }
             {
                 let mut l = a.lv.lock().unwrap();
@@ -338,36 +338,36 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
                 match r["st"].as_str().unwrap_or("") {
                     "done" => {
                         a.lv.lock().unwrap().w.entry(rc.wk).or_default().st = "work".into();
-                        return Ok(format!("Antwort von {}:\n{}", s(&to, "nm"), r["res"].as_str().unwrap_or("")));
+                        return Ok(format!("Answer from {}:\n{}", s(&to, "nm"), r["res"].as_str().unwrap_or("")));
                     }
                     "fail" | "rej" => {
                         a.lv.lock().unwrap().w.entry(rc.wk).or_default().st = "work".into();
-                        return Err(format!("{} konnte nicht antworten: {}", s(&to, "nm"), cut_s(r["res"].as_str().unwrap_or(""), 300)));
+                        return Err(format!("{} could not answer: {}", s(&to, "nm"), cut_s(r["res"].as_str().unwrap_or(""), 300)));
                     }
                     _ => {}
                 }
                 if now() - t0 > 30 * 60_000 {
-                    return Err("keine Antwort nach 30 min".into());
+                    return Err("no answer after 30 min".into());
                 }
             }
         }
         "hire" => {
             let ty = s(x, "type").to_lowercase();
-            let t = a.db.one("select * from ty where lower(id)=? or lower(nm)=?", pa![ty.clone(), ty]).ok_or("unbekannter Worker-Typ")?;
+            let t = a.db.one("select * from ty where lower(id)=? or lower(nm)=?", pa![ty.clone(), ty]).ok_or("unknown worker type")?;
             let id = crate::eng::hire(a, t["id"].as_str().unwrap_or(""), rc.fl, None, s(x, "name"), json!({}))?;
-            a.aud("CEO stellt ein", &format!("{} stellt {} ein (#{id})", rc.nm, s(&t, "nm")));
+            a.aud("CEO hires", &format!("{} hires {} (#{id})", rc.nm, s(&t, "nm")));
             Ok(format!("eingestellt: Worker #{id}"))
         }
         "connect" => {
-            let w = wk_by_name(a, rc.fl, s(x, "worker")).filter(|w| w["fl"].as_i64() == Some(rc.fl)).ok_or("Worker auf deiner Etage nicht gefunden")?;
-            let f = wk_by_name(a, rc.fl, s(x, "from")).filter(|w| w["fl"].as_i64() == Some(rc.fl)).ok_or("Absender auf deiner Etage nicht gefunden")?;
+            let w = wk_by_name(a, rc.fl, s(x, "worker")).filter(|w| w["fl"].as_i64() == Some(rc.fl)).ok_or("worker not found on your floor")?;
+            let f = wk_by_name(a, rc.fl, s(x, "from")).filter(|w| w["fl"].as_i64() == Some(rc.fl)).ok_or("sender not found on your floor")?;
             let wp = Pm::from(&w["cfg"], &rc.out);
             let ids = |v: &Value| -> Vec<i64> { v["srv"].as_array().map(|x| x.iter().filter_map(|y| y.as_i64()).collect()).unwrap_or_default() };
             let (mine, theirs) = (ids(&rc.wc), ids(&w["cfg"]));
             let flag = |v: &Value, k: &str| v[k].as_bool() == Some(true);
             let more = theirs.iter().any(|x| !mine.contains(x)) || ["ceo_hire", "ceo_conn", "fb"].iter().any(|k| flag(&w["cfg"], k) && !flag(&rc.wc, k)) || w["cfg"]["tools"].as_array().map(|t| t.iter().any(|x| x.as_str().map(|s| s.starts_with("x:") && !rc.tools.iter().any(|m| m == s)).unwrap_or(false))).unwrap_or(false);
             if !rc.pm.sub(&wp) || more {
-                return Err(format!("{} hat mehr Rechte als du. Das darf nur der Besitzer verbinden.", s(&w, "nm")));
+                return Err(format!("{} has more permissions than you. Only the owner may connect them.", s(&w, "nm")));
             }
             let wid = w["id"].as_i64().unwrap_or(0);
             let mut c = w["cfg"].clone();
@@ -381,13 +381,13 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
             }
             c["from"] = json!(fr);
             a.db.run("update wk set cfg=? where id=?", pa![c.to_string(), wid]);
-            a.aud("CEO verbindet", &format!("{} lässt {} Aufträge von {} annehmen", rc.nm, s(&w, "nm"), s(&f, "nm")));
+            a.aud("CEO verbindet", &format!("{} lets {} take orders from {}", rc.nm, s(&w, "nm"), s(&f, "nm")));
             Ok("verbunden".into())
         }
         "server_status" | "job_start" | "job_log" | "job_stop" | "put_file" | "get_file" => Box::pin(crate::ssh::tool(a, rc, n, x)).await,
         _ if n.starts_with("x_") => {
             let id = &n[2..];
-            let r = a.db.one("select src from tool where id=?", pa![id.to_string()]).ok_or("Werkzeug fehlt")?;
+            let r = a.db.one("select src from tool where id=?", pa![id.to_string()]).ok_or("tool missing")?;
             crate::js::run(a.clone(), rc.clone(), r["src"].as_str().unwrap_or("").to_string(), "run", x.clone()).await
         }
         _ => Err(format!("unbekanntes Werkzeug {n}")),
@@ -427,7 +427,7 @@ pub fn file(a: &Ax, tk: i64, f: &Path) {
 pub async fn web(a: &Ax, pm: &Pm, x: &Value) -> Result<String, String> {
     let u = s(x, "url");
     if !netok(pm, u) {
-        return Err(format!("Zugriff auf {u} ist nicht erlaubt (erlaubt: {})", if pm.net.is_empty() { "nichts".into() } else { pm.net.join(", ") }));
+        return Err(format!("access to {u} is not allowed (allowed: {})", if pm.net.is_empty() { "nothing".into() } else { pm.net.join(", ") }));
     }
     let m = if s(x, "method").is_empty() { "GET".to_string() } else { s(x, "method").to_uppercase() };
     let m = reqwest::Method::from_bytes(m.as_bytes()).map_err(|_| "bad method")?;
@@ -452,7 +452,7 @@ pub async fn web(a: &Ax, pm: &Pm, x: &Value) -> Result<String, String> {
     if (300..400).contains(&st) {
         let l = r.headers().get("location").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
         let full = url::Url::parse(u).ok().and_then(|b| b.join(&l).ok()).map(|x| x.to_string()).unwrap_or(l);
-        return Ok(format!("status {st}\nredirect to {full}{}", if netok(pm, &full) { "" } else { " (nicht in den erlaubten Domains)" }));
+        return Ok(format!("status {st}\nredirect to {full}{}", if netok(pm, &full) { "" } else { " (not in the allowed domains)" }));
     }
     let ct = r.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
     let b = r.bytes().await.map_err(|e| e.to_string())?;

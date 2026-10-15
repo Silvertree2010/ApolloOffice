@@ -36,32 +36,32 @@ pub fn pj(t: &str) -> Option<Value> {
 }
 
 pub fn hire(a: &Ax, ty: &str, fl: i64, desk: Option<i64>, nm: &str, cfg: Value) -> Result<i64, String> {
-    let t = a.db.one("select * from ty where id=?", pa![ty.to_string()]).ok_or("unbekannter Worker-Typ")?;
-    let f = crate::world::floor(&a.db, fl).ok_or("keine Etage")?;
-    if f["k"] != "office" && f["k"] != "buch" && f["k"] != "server" {
-        return Err("Worker arbeiten im Office (oder in Buchhaltung und Serverraum)".into());
+    let t = a.db.one("select * from ty where id=?", pa![ty.to_string()]).ok_or("unknown worker type")?;
+    let f = crate::world::floor(&a.db, fl).ok_or("no such floor")?;
+    if f["k"] != "office" && f["k"] != "accounting" && f["k"] != "server" {
+        return Err("Workers work in an office (or in accounting and the server room)".into());
     }
     let d = match desk {
         Some(d) => {
             if !crate::world::desks(&f["lay"]).contains(&d) {
-                return Err("an diesem Platz steht kein Schreibtisch".into());
+                return Err("there is no desk at this spot".into());
             }
             if a.db.n("select count(*) from wk where fl=? and desk=?", pa![fl, d]) > 0 {
-                return Err("dieser Schreibtisch ist besetzt".into());
+                return Err("this desk is taken".into());
             }
             d
         }
-        None => crate::world::free_desk(&a.db, fl).ok_or("Kein freier Schreibtisch. Im Bau-Modus einen hinstellen.")?,
+        None => crate::world::free_desk(&a.db, fl).ok_or("No free desk. Place one in build mode.")?,
     };
     let nm = if nm.trim().is_empty() { crate::world::name(&a.db) } else { nm.trim().chars().take(20).collect() };
-    let mut c = json!({"from": [], "par": 1, "perday": 0, "prio": 3, "cut": 100, "md": "", "ef": t["ef"].as_str().unwrap_or("mittel"), "pk": t["prov"].as_str().unwrap_or(""), "acct": 0, "sub": false, "fb": false, "fsr": [], "fsw": [], "sh": false, "net": [], "push": false, "min": 30, "hrs": null, "srv": [], "chk": ""});
+    let mut c = json!({"from": [], "par": 1, "perday": 0, "prio": 3, "cut": 100, "md": "", "ef": t["ef"].as_str().unwrap_or("medium"), "pk": t["prov"].as_str().unwrap_or(""), "acct": 0, "sub": false, "fb": false, "fsr": [], "fsw": [], "sh": false, "net": [], "push": false, "min": 30, "hrs": null, "srv": [], "chk": ""});
     if let Value::Object(m) = cfg {
         for (k, v) in m {
             c[k] = v;
         }
     }
     let id = a.db.run("insert into wk(ty,nm,col,fl,desk,cfg,hold,t0) values(?,?,?,?,?,?,0,?)", pa![ty.to_string(), nm.clone(), crate::world::col(), fl, d, c.to_string(), now()]);
-    a.say(id, &format!("Hallo, ich bin {nm}, {}.", t["nm"].as_str().unwrap_or("")), None);
+    a.say(id, &format!("Hi, I'm {nm}, {}.", t["nm"].as_str().unwrap_or("")), None);
     a.mood(id, "ok");
     Ok(id)
 }
@@ -76,7 +76,7 @@ pub fn recover(a: &Ax) {
     }
     a.db.ks("pids", &json!([]));
     a.db.run("update tk set st='wait', lk=0, nx=0 where st='run'", pa![]);
-    a.db.run("update job set st='fail', out=out||'\n[ApolloOffice neu gestartet]' where st='run' and srv not in (select id from srv)", pa![]);
+    a.db.run("update job set st='fail', out=out||'\n[ApolloOffice restarted]' where st='run' and srv not in (select id from srv)", pa![]);
     let _ = std::fs::remove_dir_all(a.dd.join("runs"));
 }
 
@@ -85,10 +85,10 @@ pub fn hrs_ok(c: &Value) -> bool {
     if !h.is_object() {
         return true;
     }
-    let (v, b) = (h["von"].as_i64().unwrap_or(0), h["bis"].as_i64().unwrap_or(24));
+    let (v, b) = (h["from"].as_i64().unwrap_or(0), h["to"].as_i64().unwrap_or(24));
     let n = chrono::Local::now();
     let hr: i64 = n.format("%H").to_string().parse().unwrap_or(0);
-    if let Some(d) = h["tage"].as_array() {
+    if let Some(d) = h["days"].as_array() {
         let wd = n.format("%u").to_string().parse::<i64>().unwrap_or(1);
         if !d.is_empty() && !d.iter().any(|x| x.as_i64() == Some(wd)) {
             return false;
@@ -111,22 +111,22 @@ pub fn avail(a: &Ax, w: &Value) -> Result<(), String> {
     let id = w["id"].as_i64().unwrap_or(0);
     let c = &w["cfg"];
     if w["hold"].as_i64() == Some(1) {
-        return Err("pausiert".into());
+        return Err("paused".into());
     }
     if !hrs_ok(c) {
-        return Err("hat frei".into());
+        return Err("off duty".into());
     }
     let busy = a.lv.lock().unwrap().w.get(&id).map(|x| x.busy).unwrap_or(0);
     if busy >= c["par"].as_i64().unwrap_or(1).max(1) {
-        return Err("beschäftigt".into());
+        return Err("busy".into());
     }
     let pd = c["perday"].as_i64().unwrap_or(0);
     if pd > 0 && a.db.n("select count(*) from tk where wk=? and t0>=? and st in ('run','done','fail')", pa![id, d0()]) >= pd {
-        return Err("Tageslimit erreicht".into());
+        return Err("daily limit reached".into());
     }
     let tokd = c["tokd"].as_i64().unwrap_or(0);
     if tokd > 0 && a.db.n("select coalesce(sum(tin+tout),0) from us where day=? and wk=?", pa![day(), id]) >= tokd {
-        return Err("Token-Limit für heute erreicht".into());
+        return Err("token limit for today reached".into());
     }
     Ok(())
 }
@@ -175,7 +175,7 @@ fn sched(a: &Ax) {
             if last == 0 && s["at"].is_null() {
                 continue;
             }
-            let ti = s["ti"].as_str().unwrap_or("Wiederkehrende Aufgabe").to_string();
+            let ti = s["ti"].as_str().unwrap_or("Recurring task").to_string();
             if a.db.n("select count(*) from tk where wk=? and ti=? and st in ('wait','run')", pa![id, ti.clone()]) > 0 {
                 continue;
             }
@@ -205,7 +205,7 @@ fn dispatch(a: &Ax) {
             Some(w) => match a.db.one("select * from wk where id=?", pa![w]) {
                 Some(x) => x,
                 None => {
-                    a.db.run("update tk set st='fail', res='Worker gibt es nicht mehr', t1=? where id=?", pa![now(), tid]);
+                    a.db.run("update tk set st='fail', res='worker no longer exists', t1=? where id=?", pa![now(), tid]);
                     continue;
                 }
             },
@@ -293,13 +293,13 @@ Rules:\n- Work only on the task you are given. Use only your tools. Do the work 
 }
 
 async fn guard(a: &Ax, acc: &Value, wid: i64, tk: &Value) -> Result<(bool, String), Er> {
-    let md = crate::prov::tier(acc, "klein");
+    let md = crate::prov::tier(acc, "small");
     let txt = format!("{}\n{}", tk["ti"].as_str().unwrap_or(""), tk["tx"].as_str().unwrap_or(""));
-    let j = Job { acc: acc.clone(), md: md.clone(), ef: "niedrig".into(), sys: GUARD.into(), p: format!("{}\n\nUse exactly this id as JSON key: t1", wrap("t1", &txt)), turns: 1, min: 5, rc: None, who: wid };
+    let j = Job { acc: acc.clone(), md: md.clone(), ef: "low".into(), sys: GUARD.into(), p: format!("{}\n\nUse exactly this id as JSON key: t1", wrap("t1", &txt)), turns: 1, min: 5, rc: None, who: wid };
     let r = crate::run::go(a, j).await?;
     crate::prov::record(a, acc, &md, wid, tk["fl"].as_i64().unwrap_or(0), r.tin, r.tout);
-    let v = pj(&r.txt).ok_or_else(|| Er::E("Guard gab kein lesbares Urteil".into()))?;
-    let inj = v["t1"]["inj"].as_bool().ok_or_else(|| Er::E("Guard gab kein lesbares Urteil".into()))?;
+    let v = pj(&r.txt).ok_or_else(|| Er::E("Guard gave no readable verdict".into()))?;
+    let inj = v["t1"]["inj"].as_bool().ok_or_else(|| Er::E("Guard gave no readable verdict".into()))?;
     Ok((inj, v["t1"]["why"].as_str().unwrap_or("").to_string()))
 }
 
@@ -329,10 +329,10 @@ async fn work(a: &Ax, tid: i64, w: &Value) {
     let back = |why: &str, nx: i64| {
         a.db.run("update tk set st='wait', lk=0, n=max(n-1,0), nx=?, res=?, t1=? where id=?", pa![nx, why.to_string(), now(), tid]);
     };
-    let (acc, md) = match crate::prov::pick(a, &w["cfg"], t["md"].as_str().unwrap_or("mittel")) {
+    let (acc, md) = match crate::prov::pick(a, &w["cfg"], t["md"].as_str().unwrap_or("medium")) {
         Ok(x) => x,
         Err(e) => {
-            a.say(wid, &format!("wartet: {e}"), Some(tid));
+            a.say(wid, &format!("waiting: {e}"), Some(tid));
             back(&e, now() + 60_000);
             return;
         }
@@ -341,10 +341,10 @@ async fn work(a: &Ax, tid: i64, w: &Value) {
     let fl = w["fl"].as_i64().unwrap_or(0);
     let mut mk = tk["mk"].as_i64() == Some(1);
     if mk {
-        a.say(wid, "lässt den Text von aussen vom Guard prüfen", Some(tid));
+        a.say(wid, "has Guard check the outside text", Some(tid));
         match guard(a, &acc, wid, &tk).await {
             Ok((true, why)) => {
-                a.db.run("update tk set st='rej', lk=0, res=?, t1=? where id=?", pa![format!("Guard hat den Auftrag abgelehnt: {why}"), now(), tid]);
+                a.db.run("update tk set st='rej', lk=0, res=?, t1=? where id=?", pa![format!("Guard rejected the order: {why}"), now(), tid]);
                 a.say(wid, &format!("Guard blockiert #{tid}: {why}"), Some(tid));
                 a.mood(wid, "err");
                 return;
@@ -355,12 +355,12 @@ async fn work(a: &Ax, tid: i64, w: &Value) {
             }
             Err(Er::Lim(r, m)) => {
                 crate::prov::limit(a, aid, r, &m);
-                back("Konto voll, wartet", now() + 60_000);
+                back("account full, waiting", now() + 60_000);
                 return;
             }
             Err(Er::E(e)) => {
-                a.say(wid, &format!("Guard-Fehler: {e}"), Some(tid));
-                back(&format!("Guard-Fehler: {e}"), now() + 120_000);
+                a.say(wid, &format!("Guard error: {e}"), Some(tid));
+                back(&format!("Guard error: {e}"), now() + 120_000);
                 return;
             }
         }
@@ -376,8 +376,8 @@ async fn work(a: &Ax, tid: i64, w: &Value) {
     if tk["kind"] == "ask" {
         p.push_str("\n\nAnswer the question briefly. Your answer goes back to the colleague who asked.");
     }
-    a.say(wid, &format!("arbeitet an: {}", cut_s(ti, 80)), Some(tid));
-    let j = Job { acc: acc.clone(), md: md.clone(), ef: w["cfg"]["ef"].as_str().unwrap_or("mittel").to_string(), sys: sys(a, w, &t, &rc), p, turns: w["cfg"]["turns"].as_u64().unwrap_or(60) as u32, min: w["cfg"]["min"].as_u64().unwrap_or(30).clamp(1, 600), rc: Some(rc.clone()), who: wid };
+    a.say(wid, &format!("working on: {}", cut_s(ti, 80)), Some(tid));
+    let j = Job { acc: acc.clone(), md: md.clone(), ef: w["cfg"]["ef"].as_str().unwrap_or("medium").to_string(), sys: sys(a, w, &t, &rc), p, turns: w["cfg"]["turns"].as_u64().unwrap_or(60) as u32, min: w["cfg"]["min"].as_u64().unwrap_or(30).clamp(1, 600), rc: Some(rc.clone()), who: wid };
     let r = crate::run::go(a, j).await;
     if a.db.one("select st from tk where id=?", pa![tid]).map(|r| r["st"] != "run").unwrap_or(true) {
         return;
@@ -385,9 +385,9 @@ async fn work(a: &Ax, tid: i64, w: &Value) {
     match r {
         Err(Er::Lim(rs, m)) => {
             crate::prov::limit(a, aid, rs, &m);
-            a.say(wid, &format!("{} ist voll, wartet", acc["nm"].as_str().unwrap_or("Konto")), Some(tid));
+            a.say(wid, &format!("{} is full, waiting", acc["nm"].as_str().unwrap_or("Account")), Some(tid));
             a.mood(wid, "err");
-            back("Konto voll, wartet", now() + 30_000);
+            back("account full, waiting", now() + 30_000);
         }
         Err(Er::E(e)) => {
             crate::prov::err(a, aid, &e);
@@ -398,15 +398,15 @@ async fn work(a: &Ax, tid: i64, w: &Value) {
             crate::prov::ok(a, aid);
             let c = w["cfg"]["chk"].as_str().filter(|s| !s.is_empty()).or(t["chk"].as_str()).unwrap_or("").to_string();
             if !c.is_empty() {
-                a.say(wid, "prüft das Ergebnis", Some(tid));
+                a.say(wid, "checking the result", Some(tid));
                 match check(a, &rc, &c, &r.txt).await {
                     Ok((true, _)) => {}
                     Ok((false, why)) => {
-                        fail(a, wid, tid, &tk, &format!("Prüfung nicht bestanden: {why}"));
+                        fail(a, wid, tid, &tk, &format!("check failed: {why}"));
                         return;
                     }
                     Err(e) => {
-                        fail(a, wid, tid, &tk, &format!("Prüfung kaputt: {e}"));
+                        fail(a, wid, tid, &tk, &format!("check broken: {e}"));
                         return;
                     }
                 }
@@ -415,8 +415,8 @@ async fn work(a: &Ax, tid: i64, w: &Value) {
             let _ = std::fs::write(&f, format!("# {ti}\n\n{}\n", r.txt.trim()));
             crate::tools::file(a, tid, &f);
             a.db.run("update tk set st='done', lk=0, res=?, fb='', t1=? where id=?", pa![r.txt.trim().to_string(), now(), tid]);
-            let first = r.txt.trim().lines().next().unwrap_or("fertig").to_string();
-            a.say(wid, &format!("fertig: {}", cut_s(&first, 160)), Some(tid));
+            let first = r.txt.trim().lines().next().unwrap_or("done").to_string();
+            a.say(wid, &format!("done: {}", cut_s(&first, 160)), Some(tid));
             a.mood(wid, "ok");
             if tk["kind"] == "ask" {
                 if let Some(x) = src.strip_prefix("w:").and_then(|x| x.parse::<i64>().ok()) {
@@ -433,40 +433,40 @@ fn fail(a: &Ax, wid: i64, tid: i64, tk: &Value, e: &str) {
     let n = a.db.n("select n from tk where id=?", pa![tid]);
     a.mood(wid, "err");
     if n < 3 {
-        a.say(wid, &format!("Fehler, versucht es nochmal: {}", cut_s(e, 180)), Some(tid));
+        a.say(wid, &format!("error, trying again: {}", cut_s(e, 180)), Some(tid));
         a.db.run("update tk set st='wait', lk=0, nx=?, fb=?, t1=? where id=?", pa![now() + 20_000 * n, cut_s(e, 2000), now(), tid]);
     } else {
-        a.say(wid, &format!("aufgegeben: {}", cut_s(e, 180)), Some(tid));
-        a.db.run("update tk set st='fail', lk=0, res=?, t1=? where id=?", pa![format!("Fehlgeschlagen nach {n} Versuchen: {e}"), now(), tid]);
+        a.say(wid, &format!("gave up: {}", cut_s(e, 180)), Some(tid));
+        a.db.run("update tk set st='fail', lk=0, res=?, t1=? where id=?", pa![format!("failed after {n} attempts: {e}"), now(), tid]);
     }
     let _ = tk;
 }
 
 pub fn cancel(a: &Ax, tid: i64) -> Result<(), String> {
-    let t = a.db.one("select st, wk from tk where id=?", pa![tid]).ok_or("Aufgabe unbekannt")?;
+    let t = a.db.one("select st, wk from tk where id=?", pa![tid]).ok_or("unknown task")?;
     match t["st"].as_str().unwrap_or("") {
         "wait" => {
-            a.db.run("update tk set st='fail', res='von dir abgebrochen', t1=? where id=?", pa![now(), tid]);
+            a.db.run("update tk set st='fail', res='cancelled by you', t1=? where id=?", pa![now(), tid]);
         }
         "run" => {
             let w = t["wk"].as_i64().unwrap_or(0);
-            a.db.run("update tk set st='fail', lk=0, res='von dir abgebrochen', t1=? where id=?", pa![now(), tid]);
+            a.db.run("update tk set st='fail', lk=0, res='cancelled by you', t1=? where id=?", pa![now(), tid]);
             let ps = a.lv.lock().unwrap().pids.get(&w).cloned().unwrap_or_default();
             for p in ps {
                 crate::sh::kill(p);
             }
         }
-        _ => return Err("Aufgabe ist schon fertig".into()),
+        _ => return Err("task is already finished".into()),
     }
     Ok(())
 }
 
 pub async fn lab(a: &Ax, b: &Value) -> Result<Value, String> {
-    let acc = a.db.one("select * from acc where id=?", pa![b["acc"].as_i64().unwrap_or(0)]).ok_or("Konto wählen")?;
+    let acc = a.db.one("select * from acc where id=?", pa![b["acc"].as_i64().unwrap_or(0)]).ok_or("choose an account")?;
     let acc = crate::prov::view(a, &acc);
-    let md = crate::prov::tier(&acc, b["md"].as_str().filter(|s| !s.is_empty()).unwrap_or("mittel"));
+    let md = crate::prov::tier(&acc, b["md"].as_str().filter(|s| !s.is_empty()).unwrap_or("medium"));
     let t0 = std::time::Instant::now();
-    let j = Job { acc: acc.clone(), md: md.clone(), ef: b["ef"].as_str().unwrap_or("mittel").to_string(), sys: b["sys"].as_str().filter(|s| !s.is_empty()).unwrap_or("You are a helpful assistant.").to_string(), p: b["p"].as_str().unwrap_or("").to_string(), turns: 1, min: 10, rc: None, who: -1 };
+    let j = Job { acc: acc.clone(), md: md.clone(), ef: b["ef"].as_str().unwrap_or("medium").to_string(), sys: b["sys"].as_str().filter(|s| !s.is_empty()).unwrap_or("You are a helpful assistant.").to_string(), p: b["p"].as_str().unwrap_or("").to_string(), turns: 1, min: 10, rc: None, who: -1 };
     match crate::run::go(a, j).await {
         Ok(r) => {
             crate::prov::record(a, &acc, &md, -1, 0, r.tin, r.tout);
@@ -475,7 +475,7 @@ pub async fn lab(a: &Ax, b: &Value) -> Result<Value, String> {
         }
         Err(Er::Lim(rs, m)) => {
             crate::prov::limit(a, acc["id"].as_i64().unwrap_or(0), rs, &m);
-            Err(format!("Limit erreicht: {m}"))
+            Err(format!("limit reached: {m}"))
         }
         Err(Er::E(e)) => Err(e),
     }
@@ -515,9 +515,9 @@ mod t {
     #[test]
     fn hours() {
         assert!(hrs_ok(&json!({})));
-        assert!(hrs_ok(&json!({"hrs": {"von": 0, "bis": 24}})));
+        assert!(hrs_ok(&json!({"hrs": {"from": 0, "to": 24}})));
         let h: i64 = chrono::Local::now().format("%H").to_string().parse().unwrap();
-        assert!(hrs_ok(&json!({"hrs": {"von": h, "bis": (h + 1) % 24}})));
-        assert!(!hrs_ok(&json!({"hrs": {"von": (h + 1) % 24, "bis": (h + 2) % 24}})));
+        assert!(hrs_ok(&json!({"hrs": {"from": h, "to": (h + 1) % 24}})));
+        assert!(!hrs_ok(&json!({"hrs": {"from": (h + 1) % 24, "to": (h + 2) % 24}})));
     }
 }
