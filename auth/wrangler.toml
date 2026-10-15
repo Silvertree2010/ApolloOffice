@@ -1,0 +1,12 @@
+name = "apollo-office-auth"
+main = "worker.js"
+compatibility_date = "2026-09-01"
+routes = [{ pattern = "auth.apollonet.dev", custom_domain = true }]
+
+# Secrets (wrangler secret put …):
+# SIGN_KEY        Ed25519 private key, PKCS#8 DER, base64
+# STATE_KEY       random string, at least 32 characters
+# GITHUB_ID, GITHUB_SECRET
+# GOOGLE_ID, GOOGLE_SECRET
+# GITLAB_ID, GITLAB_SECRET
+# DISCORD_ID, DISCORD_SECRET
