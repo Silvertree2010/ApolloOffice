@@ -45,6 +45,10 @@ pub async fn handle(a: &Ax, t: &str, m: &Value) -> Value {
 }
 
 pub async fn bridge(port: u16, t: String) {
+    let t = match t.strip_prefix('@') {
+        Some(f) => std::fs::read_to_string(f).unwrap_or_default().trim().to_string(),
+        None => t,
+    };
     let c = reqwest::Client::builder().no_proxy().timeout(std::time::Duration::from_secs(4 * 3600)).build().unwrap();
     let mut l = BufReader::new(tokio::io::stdin()).lines();
     let mut out = tokio::io::stdout();

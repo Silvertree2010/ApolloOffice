@@ -58,7 +58,19 @@ pub async fn go(a: &Ax, j: Job) -> Result<Res, Er> {
 fn rundir(a: &Ax) -> PathBuf {
     let d = a.dd.join("runs").join(hex::encode(rand::random::<[u8; 6]>()));
     let _ = std::fs::create_dir_all(&d);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o700));
+    }
     d
+}
+
+fn tokfile(rd: &std::path::Path, t: &str) -> String {
+    let f = rd.join("run.tok");
+    let _ = std::fs::write(&f, t);
+    crate::vault::tight(&f);
+    format!("@{}", f.display())
 }
 
 fn token(a: &Ax, rc: &Option<Rc>) -> Option<String> {
@@ -82,6 +94,7 @@ pub async fn cli(a: &Ax, j: Job, k: &str) -> Result<Res, Er> {
     let me = a.me.display().to_string();
     let tk = token(a, &j.rc);
     let port = a.port.to_string();
+    let ta = tk.as_ref().map(|t| tokfile(&rd, t));
     let mut x: HashMap<String, String> = HashMap::new();
     let dir = j.acc["dir"].as_str().unwrap_or("").to_string();
     let mut c = Command::new(&b);
@@ -96,7 +109,7 @@ pub async fn cli(a: &Ax, j: Job, k: &str) -> Result<Res, Er> {
             if !j.ef.is_empty() {
                 c.args(["--effort", crate::prov::ef(&j.ef)]);
             }
-            if let Some(t) = &tk {
+            if let Some(t) = &ta {
                 let mf = rd.join("mcp.json");
                 let _ = std::fs::write(&mf, json!({"mcpServers": {"office": {"type": "stdio", "command": me, "args": ["mcp", port, t]}}}).to_string());
                 c.arg("--mcp-config").arg(&mf).args(["--tools", "", "--allowedTools", "mcp__office"]);
@@ -122,9 +135,9 @@ pub async fn cli(a: &Ax, j: Job, k: &str) -> Result<Res, Er> {
                 c.args(["--disable", f]);
             }
             c.arg("-C").arg(&rd);
-            c.args(["-c", "approval_policy=\"never\""]);
+            c.args(["-c", "approval_policy=\"never\"", "-c", "apps._default.enabled=false", "-c", "include_apply_patch_tool=false", "-c", "tools.web_search=false"]);
             c.arg("-o").arg(rd.join("last.txt"));
-            if let Some(t) = &tk {
+            if let Some(t) = &ta {
                 c.arg("-c").arg(format!("mcp_servers.office.command={}", json!(me)));
                 c.arg("-c").arg(format!("mcp_servers.office.args={}", json!(["mcp", port, t])));
                 c.args(["-c", "mcp_servers.office.tool_timeout_sec=10800", "-c", "mcp_servers.office.default_tools_approval_mode=\"approve\""]);
@@ -145,7 +158,7 @@ pub async fn cli(a: &Ax, j: Job, k: &str) -> Result<Res, Er> {
             let gd = rd.join(".gemini");
             let _ = std::fs::create_dir_all(&gd);
             let mut st = json!({"coreTools": [], "tools": {"core": []}, "telemetry": {"enabled": false}, "privacy": {"usageStatisticsEnabled": false}});
-            if let Some(t) = &tk {
+            if let Some(t) = &ta {
                 st["mcpServers"] = json!({"office": {"command": me, "args": ["mcp", port, t], "trust": true, "timeout": 10800000}});
             }
             let _ = std::fs::write(gd.join("settings.json"), st.to_string());
