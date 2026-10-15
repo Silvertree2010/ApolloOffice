@@ -118,7 +118,7 @@ pub async fn cli(a: &Ax, j: Job, k: &str) -> Result<Res, Er> {
         }
         "codex" => {
             c.args(["exec", "--json", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "--ignore-rules", "-s", "read-only", "--color", "never"]);
-            for f in ["shell_tool", "unified_exec", "apps", "browser_use", "browser_use_external", "computer_use", "image_generation", "hooks"] {
+            for f in ["shell_tool", "unified_exec", "browser_use", "browser_use_external", "computer_use", "image_generation", "hooks"] {
                 c.args(["--disable", f]);
             }
             c.arg("-C").arg(&rd);
@@ -127,7 +127,7 @@ pub async fn cli(a: &Ax, j: Job, k: &str) -> Result<Res, Er> {
             if let Some(t) = &tk {
                 c.arg("-c").arg(format!("mcp_servers.office.command={}", json!(me)));
                 c.arg("-c").arg(format!("mcp_servers.office.args={}", json!(["mcp", port, t])));
-                c.args(["-c", "mcp_servers.office.tool_timeout_sec=10800"]);
+                c.args(["-c", "mcp_servers.office.tool_timeout_sec=10800", "-c", "mcp_servers.office.default_tools_approval_mode=\"approve\""]);
             }
             if !j.md.is_empty() {
                 c.args(["-m", &j.md]);

@@ -27,7 +27,7 @@ up tasks, use the tools you allowed, pass work to colleagues who accept orders
 from them, and drop results into the OUT tray.
 
 > [!NOTE]
-> This is an early release. Workers run on your own Claude, ChatGPT or Gemini
+> This is an early release. Workers run on your own Claude or ChatGPT
 > subscription, or on API keys you add. Nothing leaves your machine except the
 > calls the models make, the websites you allow, and the login.
 
@@ -46,8 +46,8 @@ from them, and drop results into the OUT tray.
   on the Fixer. Orders never carry rights: the Fixer always works with its own
   folders and commands.
 - **Accounts in the basement.** Claude Code (Claude subscription), Codex CLI
-  (ChatGPT subscription), Gemini CLI and API keys for Anthropic, OpenAI,
-  DeepSeek, Mistral, OpenRouter, Groq, Gemini, Ollama or LM Studio. Several
+  (ChatGPT subscription) and API keys for Anthropic, OpenAI, Gemini,
+  DeepSeek, Mistral, OpenRouter, Groq, Ollama or LM Studio. Several
   accounts per provider; workers can pick the one with the most room left.
   A generator runs, stutters when nearly full and stops at its limit.
 - **Server room.** Add a Linux server with an address and one admin login.
@@ -84,7 +84,9 @@ from them, and drop results into the OUT tray.
    Discord. The first login owns the installation.
 
 For subscriptions you need the matching CLI, logged in:
-[Claude Code](https://claude.com/claude-code), Codex CLI or Gemini CLI. On
+[Claude Code](https://claude.com/claude-code) or Codex CLI. Gemini works
+with an API key; Google no longer lets Gemini CLI run on personal Google
+logins. On
 Windows workers run shell commands through Git Bash, so install
 [Git for Windows](https://git-scm.com) if you want them to run commands.
 
@@ -140,7 +142,9 @@ around limits you can see and confirm:
   network or process access except through `ctx`, with the worker's rights.
 
 What remains: a worker allowed to run "any command" can do anything your user
-can do, and Codex CLI and Gemini CLI keep some read access of their own.
+can do, and Codex CLI keeps read-only access of its own to the files your
+user can read. On Linux the encryption key sits in a file readable only by
+your user, since there is often no credential store.
 Only allow that where it is fine.
 
 **Login.** The login runs through `auth.apollonet.dev`, a small Cloudflare
