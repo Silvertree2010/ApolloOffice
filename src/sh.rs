@@ -152,15 +152,23 @@ pub fn browser() -> Option<(PathBuf, bool)> {
     c.into_iter().find(|(p, _)| p.is_file())
 }
 
-pub async fn shot(u: &str, f: &Path, w: i64, h: i64) -> Result<(), String> {
+pub async fn shot(u: &str, f: &Path, w: i64, h: i64, net: &[String]) -> Result<(), String> {
     let (b, ff) = browser().ok_or("no Chrome, Edge, Brave, Chromium or Firefox found for screenshots")?;
     let pd = std::env::temp_dir().join(format!("ao-shot-{}", hex::encode(rand::random::<[u8; 6]>())));
     let _ = std::fs::create_dir_all(&pd);
     let mut c = Command::new(&b);
     if ff {
+        let hs: Vec<String> = net.iter().map(|d| d.split(':').next().unwrap_or("").replace("*.", ".")).filter(|d| !d.is_empty()).collect();
+        let p = format!(
+            "user_pref(\"network.proxy.type\", 1);\nuser_pref(\"network.proxy.http\", \"127.0.0.1\");\nuser_pref(\"network.proxy.http_port\", 9);\nuser_pref(\"network.proxy.ssl\", \"127.0.0.1\");\nuser_pref(\"network.proxy.ssl_port\", 9);\nuser_pref(\"network.proxy.socks\", \"\");\nuser_pref(\"network.proxy.allow_hijacking_localhost\", true);\nuser_pref(\"network.proxy.no_proxies_on\", \"{}\");\nuser_pref(\"network.dns.disablePrefetch\", true);\nuser_pref(\"network.prefetch-next\", false);\n",
+            hs.join(", ")
+        );
+        std::fs::write(pd.join("user.js"), p).map_err(|e| e.to_string())?;
         c.args(["--headless", "--no-remote", "--profile"]).arg(&pd).arg(format!("--window-size={w},{h}")).arg("--screenshot").arg(f).arg(u);
     } else {
-        c.args(["--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run", "--no-default-browser-check", "--mute-audio"]).arg(format!("--user-data-dir={}", pd.display())).arg(format!("--window-size={w},{h}")).arg(format!("--screenshot={}", f.display())).arg(u);
+        let mut by = vec!["<-loopback>".to_string()];
+        by.extend(net.iter().cloned());
+        c.args(["--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run", "--no-default-browser-check", "--mute-audio", "--proxy-server=http://127.0.0.1:9", "--dns-prefetch-disable"]).arg(format!("--proxy-bypass-list={}", by.join(";"))).arg(format!("--user-data-dir={}", pd.display())).arg(format!("--window-size={w},{h}")).arg(format!("--screenshot={}", f.display())).arg(u);
     }
     c.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).kill_on_drop(true);
     grp(&mut c);
@@ -247,7 +255,10 @@ mod t {
     async fn shot() {
         let f = std::env::temp_dir().join("ao-shot-t.png");
         let _ = std::fs::remove_file(&f);
-        super::shot("https://example.com", &f, 800, 600).await.unwrap();
+        super::shot("https://example.com", &f, 800, 600, &["example.com".to_string()]).await.unwrap();
         assert!(f.is_file());
+        let g = std::env::temp_dir().join("ao-shot-t2.png");
+        let _ = std::fs::remove_file(&g);
+        let _ = super::shot("https://example.org", &g, 800, 600, &["example.com".to_string()]).await;
     }
 }

@@ -429,6 +429,19 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
                 return Err("you cannot pause yourself".into());
             }
             let on = x["on"].as_bool().unwrap_or(true);
+            let mut wp: Vec<i64> = a.db.kg("wpause").as_array().map(|v| v.iter().filter_map(|x| x.as_i64()).collect()).unwrap_or_default();
+            if on {
+                if w["hold"].as_i64() == Some(1) {
+                    return Ok(format!("{} is already paused", s(&w, "nm")));
+                }
+                wp.push(wid);
+            } else {
+                if !wp.contains(&wid) {
+                    return Err(format!("{} was not paused by a worker; only the owner can resume them", s(&w, "nm")));
+                }
+                wp.retain(|x| *x != wid);
+            }
+            a.db.ks("wpause", &json!(wp));
             a.db.run("update wk set hold=? where id=?", pa![on as i64, wid]);
             a.aud(if on { "Worker paused by worker" } else { "Worker resumed by worker" }, &format!("{} -> {}: {}", rc.nm, s(&w, "nm"), cut_s(s(x, "why"), 300)));
             a.say(wid, &format!("{} by {}", if on { "paused" } else { "resumed" }, rc.nm), None);
@@ -466,8 +479,9 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
             }
             let (w, h) = (x["w"].as_i64().unwrap_or(1366).clamp(320, 3840), x["h"].as_i64().unwrap_or(900).clamp(320, 4000));
             let f = rc.out.join(format!("shot-{}-{}.png", rc.tk, now()));
-            crate::sh::shot(u, &f, w, h).await?;
+            crate::sh::shot(u, &f, w, h, &rc.pm.net).await?;
             file(a, rc.tk, &f);
+            shots().lock().unwrap().insert(f.display().to_string());
             Ok(format!("\u{1}img:{}\nscreenshot of {u} at {w}x{h}, saved as {}", f.display(), f.display()))
         }
         _ if n.starts_with("x_") => {
@@ -568,10 +582,18 @@ pub enum Part {
     I(String),
 }
 
+fn shots() -> &'static std::sync::Mutex<std::collections::HashSet<String>> {
+    static S: std::sync::OnceLock<std::sync::Mutex<std::collections::HashSet<String>>> = std::sync::OnceLock::new();
+    S.get_or_init(Default::default)
+}
+
 pub fn parts(r: &str) -> Vec<Part> {
     if let Some(x) = r.strip_prefix('\u{1}') {
         if let Some(rest) = x.strip_prefix("img:") {
             let (p, t) = rest.split_once('\n').unwrap_or((rest, ""));
+            if !shots().lock().unwrap().remove(p) {
+                return vec![Part::T(r.replace('\u{1}', ""))];
+            }
             if let Ok(b) = std::fs::read(p) {
                 if b.len() < 8_000_000 {
                     return vec![Part::I(base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b)), Part::T(t.to_string())];

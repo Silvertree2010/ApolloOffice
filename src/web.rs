@@ -601,6 +601,8 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             }
             if let Some(h) = b["hold"].as_bool() {
                 a.db.run("update wk set hold=? where id=?", pa![h as i64, id]);
+                let wp: Vec<i64> = a.db.kg("wpause").as_array().map(|v| v.iter().filter_map(|x| x.as_i64()).filter(|x| *x != id).collect()).unwrap_or_default();
+                a.db.ks("wpause", &json!(wp));
                 a.say(id, if h { "paused by you" } else { "back to work" }, None);
             }
             if b["fl"].as_i64().is_some() {
