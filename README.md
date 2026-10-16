@@ -60,6 +60,12 @@ from them, and drop results into the OUT tray.
   hood it is still a simple rule: "takes orders from Repro" on the Fixer.
   Orders never carry rights: the Fixer always works with its own folders and
   commands.
+- **Scripts for fixed pipelines.** A Script worker runs your own program
+  (any language) instead of a model and gives tasks to the other workers over
+  a local API, so hard checks stay code. Tasks can carry a workspace on a
+  server: the worker's read, write, edit, grep, ls and sh then run there.
+  Servers can also come straight from your SSH config, with an optional
+  container.
 - **Accounts in the basement.** Claude Code (Claude subscription), Codex CLI
   (ChatGPT subscription) and API keys for Anthropic, OpenAI, Gemini,
   DeepSeek, Mistral, OpenRouter, Groq, Ollama or LM Studio. Several

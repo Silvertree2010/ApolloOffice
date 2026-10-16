@@ -1,6 +1,6 @@
 [package]
 name = "apollo-office"
-version = "0.2.6"
+version = "0.3.0"
 edition = "2021"
 license = "AGPL-3.0-only"
 description = "A pixel skyscraper full of AI workers that runs on your own machine"

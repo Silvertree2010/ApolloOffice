@@ -245,6 +245,7 @@ pub async fn api(a: &Ax, t: &str, b: &Value) -> Result<Value, String> {
             let r = a.db.one("select id,st,res,n,t0,t1,wk from tk where id=? and src=?", pa![b["id"].as_i64().unwrap_or(0), format!("w:{sid}")]).ok_or("unknown task")?;
             Ok(r)
         }
+        "open" => Ok(json!(a.db.all("select id,key,st,wk from tk where src=? and st in ('wait','run')", pa![format!("w:{sid}")]))),
         "cancel" => {
             let id = b["id"].as_i64().unwrap_or(0);
             a.db.one("select id from tk where id=? and src=?", pa![id, format!("w:{sid}")]).ok_or("unknown task")?;
