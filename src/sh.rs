@@ -152,26 +152,92 @@ pub fn browser() -> Option<(PathBuf, bool)> {
     c.into_iter().find(|(p, _)| p.is_file())
 }
 
+async fn gate(mut c: tokio::net::TcpStream, net: Vec<String>) {
+    use tokio::io::AsyncWriteExt;
+    let mut b = vec![0u8; 0];
+    let mut t = [0u8; 4096];
+    let e = loop {
+        let Ok(Ok(n)) = tokio::time::timeout(Duration::from_secs(20), c.read(&mut t)).await else { return };
+        if n == 0 {
+            return;
+        }
+        b.extend_from_slice(&t[..n]);
+        if let Some(p) = b.windows(4).position(|w| w == b"\r\n\r\n") {
+            break p + 4;
+        }
+        if b.len() > 32_000 {
+            return;
+        }
+    };
+    let hd = String::from_utf8_lossy(&b[..e]).to_string();
+    let first = hd.lines().next().unwrap_or("").to_string();
+    let mut it = first.split_whitespace();
+    let (m, tg) = (it.next().unwrap_or(""), it.next().unwrap_or(""));
+    let pm = crate::perm::Pm { net: net.clone(), ..Default::default() };
+    let deny = |c: &mut tokio::net::TcpStream| {
+        let _ = c.try_write(b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+    };
+    if m.eq_ignore_ascii_case("CONNECT") {
+        let Some((h, pt)) = tg.rsplit_once(':') else { return deny(&mut c) };
+        let h = h.trim_start_matches('[').trim_end_matches(']').to_lowercase();
+        let hu = if h.contains(':') { format!("[{h}]") } else { h.clone() };
+        if pt.parse::<u16>().is_err() || !crate::perm::netok(&pm, &format!("https://{hu}:{pt}/")) {
+            return deny(&mut c);
+        }
+        let Ok(Ok(mut up)) = tokio::time::timeout(Duration::from_secs(15), tokio::net::TcpStream::connect(format!("{hu}:{pt}"))).await else { return deny(&mut c) };
+        if c.write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n").await.is_err() {
+            return;
+        }
+        let _ = up.write_all(&b[e..]).await;
+        let _ = tokio::io::copy_bidirectional(&mut c, &mut up).await;
+        return;
+    }
+    let Ok(u) = url::Url::parse(tg) else { return deny(&mut c) };
+    if u.scheme() != "http" || !crate::perm::netok(&pm, tg) {
+        return deny(&mut c);
+    }
+    let Some(h) = u.host_str().map(String::from) else { return deny(&mut c) };
+    let pt = u.port_or_known_default().unwrap_or(80);
+    let Ok(Ok(mut up)) = tokio::time::timeout(Duration::from_secs(15), tokio::net::TcpStream::connect(format!("{h}:{pt}"))).await else { return deny(&mut c) };
+    let path = format!("{}{}", u.path(), u.query().map(|q| format!("?{q}")).unwrap_or_default());
+    let mut out = format!("{m} {path} HTTP/1.1\r\n");
+    for l in hd.lines().skip(1) {
+        let k = l.split(':').next().unwrap_or("").trim().to_ascii_lowercase();
+        if l.is_empty() || k == "connection" || k == "proxy-connection" || k == "keep-alive" || k.starts_with("proxy-") {
+            continue;
+        }
+        out.push_str(l);
+        out.push_str("\r\n");
+    }
+    out.push_str("Connection: close\r\n\r\n");
+    if up.write_all(out.as_bytes()).await.is_err() {
+        return;
+    }
+    let _ = up.write_all(&b[e..]).await;
+    let _ = tokio::io::copy_bidirectional(&mut c, &mut up).await;
+}
+
 pub async fn shot(u: &str, f: &Path, w: i64, h: i64, net: &[String]) -> Result<(), String> {
     let (b, ff) = browser().ok_or("no Chrome, Edge, Brave, Chromium or Firefox found for screenshots")?;
+    let ln = tokio::net::TcpListener::bind("127.0.0.1:0").await.map_err(|e| e.to_string())?;
+    let px = ln.local_addr().map_err(|e| e.to_string())?.port();
+    let nv = net.to_vec();
+    let gt = tokio::spawn(async move {
+        while let Ok((c, _)) = ln.accept().await {
+            tokio::spawn(gate(c, nv.clone()));
+        }
+    });
     let pd = std::env::temp_dir().join(format!("ao-shot-{}", hex::encode(rand::random::<[u8; 6]>())));
     let _ = std::fs::create_dir_all(&pd);
     let mut c = Command::new(&b);
     if ff {
-        let pac = format!(
-            "function FindProxyForURL(url, host) {{ var A = {}; var m = url.match(/^[a-z]+:\\/\\/([^\\/?#]*)/i); var au = m ? m[1].split('@').pop() : ''; var pm = au.match(/:(\\d+)$/); var port = pm ? pm[1] : ''; host = host.toLowerCase(); for (var i = 0; i < A.length; i++) {{ var d = A[i]; if (d.indexOf('*.') === 0) {{ var s = d.slice(2); if (host === s || host.slice(-s.length - 1) === '.' + s) return 'DIRECT'; }} else if (d.indexOf(':') >= 0) {{ if (port && host + ':' + port === d) return 'DIRECT'; }} else if (host === d) return 'DIRECT'; }} return 'PROXY 127.0.0.1:9'; }}",
-            serde_json::to_string(net).unwrap_or("[]".into())
-        );
-        let pu = format!("data:application/x-ns-proxy-autoconfig;base64,{}", base64::Engine::encode(&base64::engine::general_purpose::STANDARD, pac));
         let p = format!(
-            "user_pref(\"network.proxy.type\", 2);\nuser_pref(\"network.proxy.autoconfig_url\", \"{pu}\");\nuser_pref(\"network.proxy.failover_direct\", false);\nuser_pref(\"network.proxy.allow_hijacking_localhost\", true);\nuser_pref(\"network.proxy.no_proxies_on\", \"\");\nuser_pref(\"network.dns.disablePrefetch\", true);\nuser_pref(\"network.prefetch-next\", false);\n"
+            "user_pref(\"network.proxy.type\", 1);\nuser_pref(\"network.proxy.http\", \"127.0.0.1\");\nuser_pref(\"network.proxy.http_port\", {px});\nuser_pref(\"network.proxy.ssl\", \"127.0.0.1\");\nuser_pref(\"network.proxy.ssl_port\", {px});\nuser_pref(\"network.proxy.share_proxy_settings\", true);\nuser_pref(\"network.proxy.socks\", \"\");\nuser_pref(\"network.proxy.no_proxies_on\", \"\");\nuser_pref(\"network.proxy.allow_hijacking_localhost\", true);\nuser_pref(\"network.proxy.failover_direct\", false);\nuser_pref(\"network.http.http3.enable\", false);\nuser_pref(\"media.peerconnection.enabled\", false);\nuser_pref(\"network.dns.disablePrefetch\", true);\nuser_pref(\"network.prefetch-next\", false);\nuser_pref(\"network.trr.mode\", 5);\n"
         );
         std::fs::write(pd.join("user.js"), p).map_err(|e| e.to_string())?;
         c.args(["--headless", "--no-remote", "--profile"]).arg(&pd).arg(format!("--window-size={w},{h}")).arg("--screenshot").arg(f).arg(u);
     } else {
-        let mut by = vec!["<-loopback>".to_string()];
-        by.extend(net.iter().cloned());
-        c.args(["--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run", "--no-default-browser-check", "--mute-audio", "--proxy-server=http://127.0.0.1:9", "--dns-prefetch-disable"]).arg(format!("--proxy-bypass-list={}", by.join(";"))).arg(format!("--user-data-dir={}", pd.display())).arg(format!("--window-size={w},{h}")).arg(format!("--screenshot={}", f.display())).arg(u);
+        c.args(["--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run", "--no-default-browser-check", "--mute-audio", "--dns-prefetch-disable", "--disable-quic", "--force-webrtc-ip-handling-policy=disable_non_proxied_udp", "--proxy-bypass-list=<-loopback>"]).arg(format!("--proxy-server=http://127.0.0.1:{px}")).arg(format!("--user-data-dir={}", pd.display())).arg(format!("--window-size={w},{h}")).arg(format!("--screenshot={}", f.display())).arg(u);
     }
     c.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).kill_on_drop(true);
     grp(&mut c);
@@ -186,6 +252,7 @@ pub async fn shot(u: &str, f: &Path, w: i64, h: i64, net: &[String]) -> Result<(
         }
         Err(e) => Err(format!("{} does not start: {e}", b.display())),
     };
+    gt.abort();
     let _ = std::fs::remove_dir_all(&pd);
     r?;
     if !f.is_file() {
@@ -253,6 +320,25 @@ pub fn head(s: &str, n: usize) -> String {
 
 #[cfg(test)]
 mod t {
+    #[tokio::test]
+    async fn gate() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let ln = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let p = ln.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((c, _)) = ln.accept().await {
+                tokio::spawn(super::gate(c, vec!["example.com".into(), "localhost:3000".into()]));
+            }
+        });
+        for r in ["CONNECT evil.com:443 HTTP/1.1\r\n\r\n", "CONNECT 127.0.0.1:47300 HTTP/1.1\r\n\r\n", "CONNECT localhost:47300 HTTP/1.1\r\n\r\n", "GET http://localhost:47300/api/me HTTP/1.1\r\nHost: localhost\r\n\r\n", "GET http://sub.example.com/ HTTP/1.1\r\n\r\n"] {
+            let mut c = tokio::net::TcpStream::connect(("127.0.0.1", p)).await.unwrap();
+            c.write_all(r.as_bytes()).await.unwrap();
+            let mut b = vec![];
+            c.read_to_end(&mut b).await.unwrap();
+            assert!(String::from_utf8_lossy(&b).starts_with("HTTP/1.1 403"), "{r}");
+        }
+    }
+
     #[tokio::test]
     #[ignore]
     async fn shot() {
