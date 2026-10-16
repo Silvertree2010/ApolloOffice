@@ -1,7 +1,7 @@
 (() => {
 const A = window.A, L = A.L, $ = A.$, esc = A.esc;
 
-A.goFloor = (id) => { A.bld && A.setBld(false); A.cur = id; A.fol = null; A.close(); const f = A.flo(id); if (f && f.k === "accounting") loadUsage(); };
+A.goFloor = (id) => { A.bld && A.setBld(false); A.cur = id; A.fol = null; A.close(); nav(); const f = A.flo(id); if (f && f.k === "accounting") loadUsage(); };
 const loadUsage = async () => { try { A.usage = await A.api("/api/usage?d=7"); } catch {} };
 
 const dd = (html, anchor, onclick) => {
@@ -32,7 +32,40 @@ const top = () => {
   const q = A.quest;
   $("tQ").hidden = !A.questOn();
   if (A.questOn()) $("tQ").innerHTML = `${"Starter quest"} <b>${Math.min(q.s, 5)}/5</b>`;
+  nav();
 };
+
+let nvOn = innerWidth > 720;
+try { const v = localStorage.getItem("nav"); if (v && innerWidth > 720) nvOn = v === "1"; } catch {}
+const NST = { work: "working", wait: "waiting for an answer", off: "in the lounge", hold: "paused" };
+const nav = () => {
+  const n = $("nav"), S = A.S;
+  if (!S) return;
+  n.hidden = !nvOn;
+  A.NW = nvOn && innerWidth > 720 ? 220 : 0;
+  $("pg").style.left = A.NW + "px";
+  if (!nvOn) return;
+  const sel = A.sel && A.sel.i ? A.sel.i.id : 0;
+  const sh = S.fl.filter((f) => f.k === "shell");
+  const fl = [...S.fl].reverse().filter((f) => f.k !== "shell" || f.id === A.cur).map((f) => {
+    const ws = S.w.filter((x) => x.fl === f.id);
+    return `<div class="f${f.id === A.cur ? " cur" : ""}" data-f="${f.id}"><b>${esc(A.lvlName(f.lvl))}</b><span>${esc(f.nm || L(A.KN[f.k]))}</span><small>${f.k === "shell" ? "+" : ws.length || ""}</small></div>` +
+      ws.map((x) => { const st = x.hold ? "hold" : (x.live && x.live.st) || "idle"; return `<div class="w${x.id === sel ? " cur" : ""}" data-w="${x.id}" title="${esc(NST[st] || "waiting for work")}"><i class="${st}"></i><span>${esc(x.nm)}</span><small>${esc(x.tn || x.ty)}</small></div>`; }).join("");
+  }).join("");
+  n.innerHTML = `<div class="h">${"Building"}</div>${fl}${sh.length ? `<div class="f" data-f="${sh[0].id}"><b>+</b><span>${sh.length} ${"empty floors"}</span></div>` : ""}<div class="h">${"Pages"}</div>` +
+    [["house", "Building overview"], ["stats", "Control room"], ["lab", "Lab"], ["types", "HR office"], ["usage", "Accounting"], ["settings", "Settings"]].map(([k, t]) => `<div class="a" data-p="${k}">${t}</div>`).join("");
+};
+A.nav = nav;
+$("nav").onclick = (e) => {
+  const f = e.target.closest("[data-f]"), w = e.target.closest("[data-w]"), p = e.target.closest("[data-p]");
+  if (innerWidth <= 720 && (f || w || p)) { nvOn = false; nav(); }
+  if (p) return A.page(p.dataset.p);
+  A.page(null);
+  if (f) A.goFloor(+f.dataset.f);
+  if (w) { const e2 = A.E[+w.dataset.w]; if (e2) { A.goFloor(e2.fl); A.wBox(e2); } }
+};
+$("tNav").onclick = () => { nvOn = !nvOn; try { if (innerWidth > 720) localStorage.setItem("nav", nvOn ? "1" : "0"); } catch {} nav(); };
+addEventListener("resize", () => nav());
 
 $("tUp").onclick = async () => {
   const run = (A.S.cnt || []).filter((c) => c.st === "run").reduce((a, b) => a + b.n, 0);
@@ -275,7 +308,7 @@ PG.usage = async (o = {}) => {
 };
 
 PG.settings = async () => {
-  const [s, ses, aud] = await Promise.all([A.api("/api/set"), A.api("/api/ses"), A.api("/api/aud")]);
+  const [s, ses, aud, nf] = await Promise.all([A.api("/api/set"), A.api("/api/ses"), A.api("/api/aud"), A.api("/api/ch")]);
   if (A.pgK !== "settings") return;
   const o = A.S.owner || {};
   pgi.innerHTML = head("Settings") + `<div class="card">
@@ -286,6 +319,7 @@ PG.settings = async () => {
     <h2>${"Program"}</h2><div class="card"><div class="row"><span>ApolloOffice ${esc(s.v)}</span><span class="mt">${"Address"} ${esc(s.bind)}:${s.port}</span><span class="mt">${"Data"}: ${esc(s.data)}</span></div>
     <div class="row" style="margin-top:10px"><label><input type="checkbox" id="sAu"${s.autostart ? " checked" : ""}> ${"Start when logging in to the computer"}</label><button id="sStop">${A.S.stop ? "Keep working" : "Pause everything"}</button></div></div>
     <h2>${"Updates"}</h2><div class="card"><div class="row"><label><input type="checkbox" id="sUp"${s.updates !== "off" ? " checked" : ""}> ${"Install updates automatically"}</label><span class="mt">${s.upd && s.upd.t ? "Last check " + new Date(s.upd.t).toLocaleString() + (s.upd.latest ? ", latest " + esc(s.upd.latest) : "") : "Not checked yet"}${s.upd && s.upd.err ? " · " + esc(s.upd.err) : ""}</span><button id="sUc">${"Check now"}</button>${s.upd_ready ? `<button class="p" id="sUi">${"Install"} ${esc((s.upd || {}).ready || "")}</button>` : ""}</div><p class="mt">${"Updates are checked every 6 hours on GitHub, verified with a signature and installed when no task is running. ApolloOffice then restarts by itself."}</p></div>
+    <h2>${"Notifications"}</h2><div class="card" id="sNf">${NF.html(nf)}</div>
     <h2>${"Account"}</h2><div class="card"><div class="row"><span>${"Owner"}: ${o.nm ? esc(o.nm) + " (" + esc(o.p || "") + ")" : "nobody yet, the next login binds"}</span><span class="mt">${"Only this account gets in. To rebind: apollo-office reset-owner in the terminal. Emergency login: apollo-office login-link."}</span></div></div>
     <h2>${"Sessions"}</h2><div class="tw"><table><tr><th>${"Device"}</th><th>IP</th><th>${"Last"}</th><th></th></tr>${ses.map((x) => `<tr><td>${esc(x.ua.slice(0, 80))}${x.me ? ` <span class="mt">(${"this"})</span>` : ""}</td><td>${esc(x.ip)}</td><td>${new Date(x.t1).toLocaleString()}</td><td>${x.me ? "" : `<button class="d" data-ses="${esc(x.id)}">${"Log out"}</button>`}</td></tr>`).join("")}</table></div>
     <h2>${"Save"}</h2><div class="card"><div class="row"><a href="/api/export" download><button>${"Export (without credentials)"}</button></a><label><button id="sImB">${"Import …"}</button><input type="file" id="sIm" accept=".json" hidden></label><span class="mt">${"Automatic daily backup of the database, 7 copies, in the data folder under backup."}</span></div></div>
@@ -307,7 +341,69 @@ PG.settings = async () => {
     if (!(await A.confirmBox("Import", ["Floors, workers, tasks and settings will be replaced by the file. Accounts and servers stay, credentials are not in the file."], "Yes, replace"))) return;
     try { const r = await A.api("/api/import", await f.text()); A.toast(r.msg); A.poll(true); } catch (x) { A.fail(x); }
   };
+  NF.bind(nf);
   pgi.onclick = async (e) => { const b = e.target.closest("[data-ses]"); if (b) { await A.api(`/api/ses/${b.dataset.ses}/del`, {}); PG.settings(); } };
+};
+
+const NK = { discord: "Discord", ntfy: "ntfy", telegram: "Telegram", email: "E-mail (SMTP)", webhook: "Webhook", desktop: "Desktop" };
+const NF = {
+  ed: null,
+  fields(k, c, has) {
+    const i = (id, lb, v, ph, ty = "text", w = 260) => `<label>${lb} <input type="${ty}" id="${id}" value="${esc(v ?? "")}" placeholder="${esc(ph || "")}" style="width:${w}px" autocomplete="off"></label>`;
+    const sec = (lb, ph) => i("nSec", lb, "", has ? "unchanged (" + has + ")" : ph, "password");
+    if (k === "discord") return sec("Webhook address", "https://discord.com/api/webhooks/…");
+    if (k === "ntfy") return i("nUrl", "Server", c.url, "https://ntfy.sh") + i("nTop", "Topic", c.topic, "my-office-alerts", "text", 180) + sec("Access token (optional)", "tk_…");
+    if (k === "telegram") return sec("Bot token", "123456:ABC…") + i("nChat", "Chat id", c.chat, "123456789 or @channel", "text", 180);
+    if (k === "email") return i("nHost", "SMTP server", c.host, "smtp.example.com", "text", 200) + `<label>${"Encryption"} <select id="nTls"><option value="starttls"${c.tls !== "tls" ? " selected" : ""}>STARTTLS</option><option value="tls"${c.tls === "tls" ? " selected" : ""}>TLS</option></select></label>` + i("nPort", "Port", c.port, "587", "number", 80) + i("nUser", "User", c.user, "", "text", 160) + sec("Password", "") + i("nFrom", "From", c.from, "office@example.com", "text", 220) + i("nTo", "To", c.to, "you@example.com", "text", 220);
+    if (k === "webhook") return sec("Address (POST JSON {title, text})", "https://example.com/hook");
+    return `<span class="mt">${"Shows a notification on this computer."}</span>`;
+  },
+  form(c) {
+    const k = c.k || "ntfy", has = c.id ? c.sec : "";
+    return `<div class="card" style="margin-top:10px"><div class="row">${c.id ? `<b>${esc(NK[k])}</b>` : `<label>${"Kind"} <select id="nK">${Object.entries(NK).map(([v, n]) => `<option value="${v}"${v === k ? " selected" : ""}>${n}</option>`).join("")}</select></label>`}<label>${"Name"} <input id="nNm" value="${esc(c.nm || "")}" placeholder="${"e.g. phone"}" style="width:160px"></label><label><input type="checkbox" id="nOn"${c.on !== 0 ? " checked" : ""}> ${"on"}</label></div>
+      <div class="row" style="margin-top:8px;flex-wrap:wrap">${NF.fields(k, c.cfg || {}, has)}</div>
+      <div class="row" style="margin-top:10px"><button class="p" id="nSv">${"Save"}</button><button class="l" id="nX">${"Cancel"}</button></div></div>`;
+  },
+  html(nf) {
+    const ch = nf.ch;
+    const tb = ch.length ? `<div class="tw"><table><tr><th>${"Channel"}</th><th>${"Kind"}</th><th></th></tr>${ch.map((c) => `<tr><td>${esc(c.nm)}${c.on === 0 ? ` <span class="mt">(${"off"})</span>` : ""}</td><td class="mt">${esc(NK[c.k] || c.k)}${c.cfg && c.cfg.topic ? " · " + esc(c.cfg.topic) : ""}${c.cfg && c.cfg.to ? " · " + esc(c.cfg.to) : ""}</td><td><button data-nt="${c.id}">${"Test"}</button><button class="l" data-ne="${c.id}">${"Edit"}</button><button class="d" data-nd="${c.id}">${"Remove"}</button></td></tr>`).join("")}</table></div>` : `<p class="mt">${"No channels yet. Add one to get notifications on your phone, by mail or on the desktop."}</p>`;
+    const mx = ch.length ? `<h3 style="margin-top:14px">${"When"}</h3><div class="tw"><table><tr><th></th>${ch.map((c) => `<th>${esc(c.nm)}</th>`).join("")}</tr>${nf.evs.map((e) => `<tr><td>${esc(e.nm)}</td>${ch.map((c) => `<td><input type="checkbox" data-ev="${e.k}" data-ec="${c.id}"${(nf.ev[e.k] || []).includes(c.id) ? " checked" : ""}></td>`).join("")}</tr>`).join("")}</table></div><p class="mt">${"Workers with the notify tool (the Notifier has it) can also send over these channels. Text from outside can end up in a notification."}</p>` : "";
+    return tb + `<div class="row" style="margin-top:10px"><button id="nAdd">${"Add channel"}</button></div><div id="nFm">${NF.ed ? NF.form(NF.ed) : ""}</div>` + mx;
+  },
+  bind(nf) {
+    const box = $("sNf");
+    const re = async () => { const n = await A.api("/api/ch"); box.innerHTML = NF.html(n); NF.bind(n); };
+    const v = (id) => ($(id) ? $(id).value.trim() : "");
+    box.onchange = async (e) => {
+      const t = e.target;
+      if (t.id === "nK") { NF.ed = { k: t.value, nm: v("nNm") }; $("nFm").innerHTML = NF.form(NF.ed); return; }
+      if (t.dataset.ev) {
+        const r = {}; box.querySelectorAll("[data-ev]").forEach((x) => { (r[x.dataset.ev] ||= []); if (x.checked) r[x.dataset.ev].push(+x.dataset.ec); });
+        try { await A.api("/api/ntf", r); A.toast("saved"); } catch (x) { A.fail(x); }
+      }
+    };
+    box.onclick = async (e) => {
+      const t = e.target, D = t.dataset;
+      if (t.id === "nAdd") { NF.ed = { k: "ntfy" }; $("nFm").innerHTML = NF.form(NF.ed); return; }
+      if (t.id === "nX") { NF.ed = null; $("nFm").innerHTML = ""; return; }
+      if (D.ne) { NF.ed = nf.ch.find((c) => c.id === +D.ne); $("nFm").innerHTML = NF.form(NF.ed); return; }
+      if (D.nd) {
+        const c = nf.ch.find((x) => x.id === +D.nd);
+        if (!(await A.confirmBox("Remove channel", [c.nm + " will no longer get notifications."], "Remove"))) return;
+        try { await A.api(`/api/ch/${D.nd}/del`, {}); re(); } catch (x) { A.fail(x); }
+        return;
+      }
+      if (D.nt) { t.textContent = "sending …"; try { await A.api(`/api/ch/${D.nt}/test`, {}); A.toast("Test sent"); } catch (x) { A.fail(x); } t.textContent = "Test"; return; }
+      if (t.id === "nSv") {
+        const ed = NF.ed, k = ed.id ? ed.k : v("nK");
+        const cfg = { url: v("nUrl"), topic: v("nTop"), chat: v("nChat"), host: v("nHost"), tls: v("nTls"), port: +v("nPort") || undefined, user: v("nUser"), from: v("nFrom"), to: v("nTo") };
+        try {
+          await A.api("/api/ch/" + (ed.id || 0), { k, nm: v("nNm"), on: $("nOn").checked, cfg, sec: v("nSec") });
+          NF.ed = null; A.toast("saved"); re();
+        } catch (x) { A.fail(x); }
+      }
+    };
+  },
 };
 
 const QS = [
@@ -403,7 +499,7 @@ A.poll = async (force) => {
 let last = performance.now();
 const loop = (n) => {
   const dt = Math.min(.1, (n - last) / 1000); last = n;
-  if (A.S && pg.hidden) { A.step(dt); A.draw(); A.replace(); }
+  if (A.S && pg.hidden) { A.step(dt); A.draw(); }
   if (typing) { qti += dt * 60; $("dT").textContent = qtx.slice(0, Math.floor(qti)); if (qti >= qtx.length) typing = 0; }
   if (!$("dlg").hidden) portrait();
   requestAnimationFrame(loop);

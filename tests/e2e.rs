@@ -44,6 +44,9 @@ async fn fake_model() -> u16 {
         } else if last["role"] == "user" && user.contains("ORDER:") && tools.contains(&"order".to_string()) {
             let t = user.split("ORDER:").nth(1).unwrap_or("").split_whitespace().next().unwrap_or("");
             call("order", json!({"to": t, "title": "Subtask", "text": "please do this"}))
+        } else if last["role"] == "user" && user.contains("NOTIFY:") && tools.contains(&"notify".to_string()) {
+            let c = user.split("NOTIFY:").nth(1).unwrap_or("").split_whitespace().next().unwrap_or("");
+            call("notify", json!({"channel": c, "title": "Heads up", "text": "worker says hi"}))
         } else if last["role"] == "user" && user.contains("WRITE:") && tools.contains(&"write".to_string()) {
             call("write", json!({"path": "out/note.txt", "text": "written"}))
         } else {
@@ -80,8 +83,15 @@ impl Srv {
         let o = Command::new(exe()).args(["--data", self.dd.to_str().unwrap(), "login-link"]).env("APOLLO_OFFICE_VAULT", "file").output().unwrap();
         let l = String::from_utf8_lossy(&o.stdout).lines().last().unwrap().to_string();
         let l = l.replace(&format!(":{}", 47300), &format!(":{}", self.port));
-        let r = self.c.get(&l).send().await.unwrap();
-        assert_eq!(r.status(), 302);
+        for _ in 0..2 {
+            let r = self.c.get(&l).send().await.unwrap();
+            assert_eq!(r.status(), 200, "a GET (browser prefetch) must not use up the link");
+        }
+        let c = l.split("c=").nth(1).unwrap().to_string();
+        let r = self.c.post(self.u("/auth/link")).header("content-type", "application/x-www-form-urlencoded").body(format!("c={c}")).send().await.unwrap();
+        assert_eq!(r.status(), 303);
+        let r = self.c.post(self.u("/auth/link")).header("content-type", "application/x-www-form-urlencoded").body(format!("c={c}")).send().await.unwrap();
+        assert!(r.headers()["location"].to_str().unwrap().contains("expired"));
     }
 
     async fn get(&self, p: &str) -> Value {
@@ -223,6 +233,66 @@ async fn whole_building() {
     assert!(!e.to_string().contains("sk-test"));
     let aud = s.get("/api/aud").await;
     assert!(aud.as_array().unwrap().iter().any(|r| r["what"] == "Permissions changed"));
+    let _ = std::fs::remove_dir_all(&s.dd);
+}
+
+#[tokio::test]
+async fn notifications() {
+    use axum::{routing::post, Json, Router};
+    use std::sync::{Arc, Mutex};
+    let m = fake_model().await;
+    let got: Arc<Mutex<Vec<Value>>> = Arc::new(Mutex::new(vec![]));
+    let g2 = got.clone();
+    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let hp = l.local_addr().unwrap().port();
+    tokio::spawn(async move { axum::serve(l, Router::new().route("/hook-sec-77", post(move |Json(b): Json<Value>| { let g = g2.clone(); async move { g.lock().unwrap().push(b); "ok" } }))).await.unwrap() });
+    let s = Srv::start().await;
+    s.login().await;
+
+    let (c, _) = s.post("/api/ch/0", json!({"k": "discord", "nm": "x", "sec": "https://evil.example/api/webhooks/1/a"})).await;
+    assert_eq!(c, 400);
+    let hook = format!("http://127.0.0.1:{hp}/hook-sec-77");
+    let ch = s.ok("/api/ch/0", json!({"k": "webhook", "nm": "Hook", "sec": hook})).await["id"].as_i64().unwrap();
+    let v = s.get("/api/ch").await;
+    assert!(!v.to_string().contains("hook-sec-77"), "{v}");
+    let raw = std::fs::read(s.dd.join("office.db")).unwrap();
+    assert!(!raw.windows(11).any(|w| w == b"hook-sec-77"));
+    let (c, _) = s.post("/api/ch/0", json!({"k": "webhook", "nm": "hook", "sec": hook})).await;
+    assert_eq!(c, 400, "duplicate name");
+
+    s.ok(&format!("/api/ch/{ch}/test"), json!({})).await;
+    assert_eq!(got.lock().unwrap().last().unwrap()["title"], "ApolloOffice test");
+
+    s.ok("/api/acc", json!({"k": "api", "pre": "custom", "nm": "Fake", "base": format!("http://127.0.0.1:{m}/v1"), "md": "fake", "key": "sk-test-123456", "ok": true})).await;
+    let st = s.get("/api/state").await;
+    let fl = st["fl"].as_array().unwrap().iter().find(|f| f["k"] == "shell").unwrap()["id"].as_i64().unwrap();
+    s.ok(&format!("/api/floor/{fl}/build"), json!({"k": "office", "nm": "Test"})).await;
+    let w1 = s.ok("/api/hire", json!({"ty": "notifier", "fl": fl, "nm": "Nia"})).await["id"].as_i64().unwrap();
+    let w2 = s.ok("/api/hire", json!({"ty": "writer", "fl": fl, "nm": "Wes"})).await["id"].as_i64().unwrap();
+
+    s.ok("/api/ntf", json!({"done": [ch], "fail": [], "rej": [ch]})).await;
+    tokio::time::sleep(Duration::from_secs(16)).await;
+    let id = s.ok("/api/task", json!({"wk": w1, "ti": "Ping", "tx": "NOTIFY: hook"})).await["id"].as_i64().unwrap();
+    let t = s.wait(id, &["done", "fail"]).await;
+    assert!(t["res"].as_str().unwrap().contains("sent over Hook"), "{t}");
+    assert!(got.lock().unwrap().iter().any(|b| b["title"] == "Nia: Heads up" && b["text"] == "worker says hi"));
+
+    let id = s.ok("/api/task", json!({"wk": w2, "ti": "Ping 2", "tx": "NOTIFY: Hook"})).await["id"].as_i64().unwrap();
+    let t = s.wait(id, &["done", "fail"]).await;
+    assert!(!t["res"].as_str().unwrap().contains("sent over"), "writer has no notify tool: {t}");
+
+    let mut ok = false;
+    for _ in 0..30 {
+        if got.lock().unwrap().iter().any(|b| b["title"].as_str().unwrap_or("").starts_with(&format!("Done: #{id} Ping 2"))) {
+            ok = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+    assert!(ok, "done event: {:?}", got.lock().unwrap());
+
+    s.ok(&format!("/api/ch/{ch}/del"), json!({})).await;
+    assert_eq!(s.get("/api/ch").await["ev"]["done"], json!([]));
     let _ = std::fs::remove_dir_all(&s.dd);
 }
 

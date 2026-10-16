@@ -1,6 +1,6 @@
 [package]
 name = "apollo-office"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 license = "AGPL-3.0-only"
 description = "A pixel skyscraper full of AI workers that runs on your own machine"
@@ -31,6 +31,7 @@ futures = "0.3"
 anyhow = "1"
 mime_guess = "2"
 url = "2"
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1-rustls-tls", "builder", "hostname"] }
 
 [target.'cfg(all(windows, target_arch = "aarch64"))'.dependencies]
 rquickjs = { version = "0.9", features = ["futures", "bindgen"] }

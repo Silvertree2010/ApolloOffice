@@ -5,6 +5,7 @@ mod db;
 mod eng;
 mod js;
 mod mcp;
+mod ntf;
 mod perm;
 mod prov;
 mod run;

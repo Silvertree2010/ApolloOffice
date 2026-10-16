@@ -31,17 +31,27 @@ from them, and drop results into the OUT tray.
 > subscription, or on API keys you add. Nothing leaves your machine except the
 > calls the models make, the websites you allow, and the login.
 
+> [!WARNING]
+> ApolloOffice is not secure. It lets AI models read files, run commands and
+> send messages on your computer. Prompt injection is always possible: text
+> from a web page, an issue, a webhook or a mail can make a worker do things
+> you did not want, and every safeguard here can fail. Only give workers what
+> you could afford to lose. You use it at your own risk; the authors accept no
+> liability for any damage, cost or data loss (see sections 15 and 16 of the
+> [license](LICENSE)).
+
 ## What's inside
 
 - **The building.** 11 to 18 floors, random at first, more whenever you want.
   Unbuilt floors become an Office, Lounge, Server room or Accounting with one
   click. A lift and stairs connect them.
-- **Workers.** Twelve types come with it (CEO, Scout, Triage, Repro, Fixer,
+- **Workers.** Many types come with it (CEO, Scout, Triage, Hunter, Repro, Fixer,
   Reviewer, Tester, Writer, Researcher, Analyst, Ops, Reporter), and you can
   build your own in the HR office. One click hires a whole team: Bugfix,
   Research or Writing.
-- **Settings in the world.** No sidebar. Click a worker, a desk, a generator,
-  a rack or the tray and a small pixel menu opens right there.
+- **Settings in the world.** Click a worker, a desk, a generator, a rack or
+  the tray and its menu opens in a fixed panel on the right. The sidebar on
+  the left lists every floor and worker with its status.
 - **Rules instead of a flow editor.** "Takes orders from Repro" is a checkbox
   on the Fixer. Orders never carry rights: the Fixer always works with its own
   folders and commands.
@@ -54,6 +64,10 @@ from them, and drop results into the OUT tray.
   ApolloOffice creates a restricted `apollo` user with its own key and only
   uses that afterwards. Jobs run in Docker when it is there, plain otherwise.
   Workers never get free SSH, only the commands you allow on that server.
+- **Notifications.** Discord, ntfy, Telegram, e-mail over SMTP, any webhook
+  or the desktop. Pick per event where it goes: task done, failed or
+  rejected, daily cost cap, account error, server offline, update. Nothing is
+  on by default. Workers with the notify tool can send too.
 - **Build mode.** A grid, a palette of furniture, walls and floors, undo. All
   workers are hidden while you build.
 - **Pages.** Control room with widgets (numbers, lists, charts, lamps from the
@@ -146,6 +160,13 @@ can do, and Codex CLI keeps read-only access of its own to the files your
 user can read. On Linux the encryption key sits in a file readable only by
 your user, since there is often no credential store.
 Only allow that where it is fine.
+
+**Notifications.** Channels are set up in the settings; their addresses and
+tokens are encrypted like other credentials. Workers only pick a channel by
+name and never see the address. Each channel sends at most 10 messages a
+minute, and the same message twice within 10 minutes goes out once. A worker
+can forward text from outside, so a notification may contain anything a web
+page or webhook said.
 
 **Login.** The login runs through `auth.apollonet.dev`, a small Cloudflare
 Worker without storage ([source](auth/)). It learns who signs in and nothing

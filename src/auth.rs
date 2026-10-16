@@ -112,6 +112,10 @@ pub fn link_new(db: &Db) -> String {
     c
 }
 
+pub fn link_ok(db: &Db, c: &str) -> bool {
+    db.n("select count(*) from lnk where c=? and exp>?", pa![h(c), now()]) > 0
+}
+
 pub fn link_use(db: &Db, c: &str) -> bool {
     let id = h(c);
     let ok = db.ch("delete from lnk where c=? and exp>?", pa![id.clone(), now()]) > 0;

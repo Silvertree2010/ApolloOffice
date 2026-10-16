@@ -6,31 +6,18 @@ A.toast = toast;
 const fail = (e) => toast(e.message || String(e), true);
 A.fail = fail;
 
-const place = (el, at) => {
-  if (innerWidth <= 720 || !at) return;
-  let sx, sy;
-  if (at.fx !== undefined) [sx, sy] = A.toS(at.fx + 16, at.fy - 6);
-  else if (at.k) [sx, sy] = A.toS((at.x + FS[at.k][0]) * T + 4, at.y * T);
-  else [sx, sy] = [at.sx || innerWidth / 2, at.sy || 80];
-  el.style.left = Math.min(innerWidth - el.offsetWidth - 8, Math.max(8, sx + 8)) + "px";
-  el.style.top = Math.min(innerHeight - el.offsetHeight - 8, Math.max(52, sy - 20)) + "px";
-};
-let boxAt = null;
 const box = (html, at, cls) => {
   const b = $("bx");
   if (!/[?&]shot\b/.test(location.search)) $("dlg").hidden = true;
   b.className = "bx" + (cls ? " " + cls : "");
   b.innerHTML = `<span class="ar" data-x>✕</span>` + html;
   b.hidden = false; b.onclick = null; b.onchange = null; b.oninput = null;
-  boxAt = at;
-  b.style.left = "50%"; b.style.top = "56px";
-  if (!cls || !cls.includes("mid")) place(b, at);
+  b.scrollTop = 0;
   if (!b.dataset.xl) { b.dataset.xl = 1; b.addEventListener("click", (e) => { if (e.target.closest("[data-x]")) close(); }); }
   return b;
 };
-const close = () => { $("bx").hidden = true; A.sel = null; boxAt = null; };
+const close = () => { $("bx").hidden = true; A.sel = null; A.nav && A.nav(); };
 A.box = box; A.close = close;
-A.replace = () => { const b = $("bx"); if (!b.hidden && boxAt && boxAt.fx !== undefined) place(b, boxAt); };
 
 const confirmBox = (title, lines, ok, at) => new Promise((res) => {
   const b = box(`<h3>${esc(title)}</h3><div class="mt">${"Please read carefully. This happens when you confirm:"}</div><ul>${lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul><div class="acts"><button data-y>${esc(ok || "Yes, allow")}</button><button class="l" data-n>${"Cancel"}</button></div>`, at, "mid");
@@ -48,7 +35,7 @@ const wName = (id) => { const x = A.wInfo(id); return x ? x.nm : "#" + id; };
 const stTxt = (lv) => ({ work: "working", idle: "waiting for work", off: "has free", hold: "paused", wait: "waiting for an answer" })[lv && lv.st] || "waiting for work";
 
 A.wBox = async (e) => {
-  A.sel = e;
+  A.sel = e; A.nav();
   const i = e.i;
   let d;
   try { d = await A.api("/api/worker/" + i.id); } catch (x) { return fail(x); }

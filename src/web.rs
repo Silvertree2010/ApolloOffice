@@ -153,7 +153,7 @@ async fn route(a: &Ax, ip: SocketAddr, m: Method, u: Uri, hd: HeaderMap, b: Byte
         return er(StatusCode::FORBIDDEN, "unknown host. Add it under addresses in the settings.");
     }
     let origin = format!("{}://{host}", if https { "https" } else { "http" });
-    if m != Method::GET && m != Method::HEAD {
+    if m != Method::GET && m != Method::HEAD && !(p == "/auth/link" && m == Method::POST) {
         let og = hd.get(header::ORIGIN).and_then(|v| v.to_str().ok()).map(|o| url::Url::parse(o).map(|u| u.origin().ascii_serialization()).unwrap_or_else(|_| o.to_string()));
         if hd.get("x-ao").and_then(|v| v.to_str().ok()) != Some("1") || og.map(|o| o != origin).unwrap_or(false) {
             return er(StatusCode::FORBIDDEN, "forbidden");
@@ -164,6 +164,9 @@ async fn route(a: &Ax, ip: SocketAddr, m: Method, u: Uri, hd: HeaderMap, b: Byte
     if p.starts_with("/auth/") {
         if limited(a, &format!("auth:{rk}"), 30) {
             return er(StatusCode::TOO_MANY_REQUESTS, "too many attempts, wait a minute");
+        }
+        if p == "/auth/link" {
+            return link(a, &m, &u, &b, &ua, ip, https);
         }
         return auth(a, &p, &u, &hd, &ua, ip, https, &origin);
     }
@@ -200,6 +203,28 @@ fn stat(p: &str) -> Response {
         }
         None => er(StatusCode::NOT_FOUND, "not found"),
     }
+}
+
+fn link(a: &Ax, m: &Method, u: &Uri, b: &Bytes, ua: &str, ip: SocketAddr, https: bool) -> Response {
+    if *m != Method::POST {
+        let c: String = qs(u).get("c").cloned().unwrap_or_default().chars().filter(|x| x.is_ascii_alphanumeric() || *x == '-' || *x == '_').take(200).collect();
+        if !crate::auth::link_ok(&a.db, &c) {
+            return redir("/?e=Link%20invalid%20or%20expired");
+        }
+        let mut r = Response::new(Body::from(format!("<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width\"><title>ApolloOffice</title><body style=\"font:16px system-ui;background:#1b1d22;color:#e8e6df;display:grid;place-items:center;height:100vh;margin:0\"><form method=post action=/auth/link style=\"text-align:center\"><p>One-time login link for ApolloOffice</p><input type=hidden name=c value=\"{c}\"><button style=\"font:inherit;padding:10px 26px;border:0;border-radius:6px;background:#5c7fd6;color:#fff;cursor:pointer\">Log in</button></form>")));
+        r.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
+        return r;
+    }
+    let c = url::form_urlencoded::parse(b).find(|(k, _)| k == "c").map(|(_, v)| v.into_owned()).unwrap_or_default();
+    if !crate::auth::link_use(&a.db, &c) {
+        return redir("/?e=Link%20invalid%20or%20expired");
+    }
+    a.aud("Login via emergency link", &format!("from {}", ip.ip()));
+    let s = crate::auth::ses_new(&a.db, ua, &ip.ip().to_string());
+    let mut r = redir("/");
+    *r.status_mut() = StatusCode::SEE_OTHER;
+    setck(&mut r, "ao_s", &s, crate::auth::DAY7 / 1000, https);
+    r
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -241,17 +266,6 @@ fn auth(a: &Ax, p: &str, u: &Uri, hd: &HeaderMap, ua: &str, ip: SocketAddr, http
                     redir(&format!("/?e={}", url::form_urlencoded::byte_serialize(e.as_bytes()).collect::<String>()))
                 }
             }
-        }
-        "/auth/link" => {
-            let c = q.get("c").cloned().unwrap_or_default();
-            if !crate::auth::link_use(&a.db, &c) {
-                return redir("/?e=Link%20invalid%20or%20expired");
-            }
-            a.aud("Login via emergency link", &format!("from {}", ip.ip()));
-            let s = crate::auth::ses_new(&a.db, ua, &ip.ip().to_string());
-            let mut r = redir("/");
-            setck(&mut r, "ao_s", &s, crate::auth::DAY7 / 1000, https);
-            r
         }
         "/auth/logout" => {
             if let Some(t) = ck(hd, "ao_s") {
@@ -551,7 +565,9 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             for ln in tm["ln"].as_array().unwrap() {
                 let (to, from) = (ids[ln[0].as_u64().unwrap_or(0) as usize], ids[ln[1].as_u64().unwrap_or(0) as usize]);
                 let mut c = a.db.one("select cfg from wk where id=?", pa![to]).map(|r| r["cfg"].clone()).unwrap_or(json!({}));
-                c["from"] = json!([{"w": from}]);
+                let mut fr = c["from"].as_array().cloned().unwrap_or_default();
+                fr.push(json!({"w": from}));
+                c["from"] = json!(fr);
                 a.db.run("update wk set cfg=? where id=?", pa![c.to_string(), to]);
             }
             Ok(js(json!({"ok": true, "ids": ids})))
@@ -841,6 +857,24 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
         ("wid", "now", true) => {
             a.db.run("update wid set t=0 where id=?", pa![id]);
             crate::stat::poll(a).await;
+            ok()
+        }
+        ("ch", _, false) => Ok(js(json!({"ch": crate::ntf::view(a), "ev": crate::ntf::rules(a), "evs": crate::ntf::EVS.iter().map(|(k, n)| json!({"k": k, "nm": n})).collect::<Vec<_>>()}))),
+        ("ch", "", true) => {
+            let cid = crate::ntf::save(a, id, b)?;
+            Ok(js(json!({"ok": true, "id": cid})))
+        }
+        ("ch", "del", true) => {
+            crate::ntf::del(a, id)?;
+            ok()
+        }
+        ("ch", "test", true) => {
+            let c = crate::ntf::list(a).into_iter().find(|c| c["id"].as_i64() == Some(id)).ok_or("unknown channel")?;
+            crate::ntf::deliver(a, &c, "ApolloOffice test", "If you read this, the channel works.").await?;
+            ok()
+        }
+        ("ntf", _, true) => {
+            crate::ntf::set_rules(a, b)?;
             ok()
         }
         ("lab", _, true) => Ok(js(crate::eng::lab(a, b).await?)),

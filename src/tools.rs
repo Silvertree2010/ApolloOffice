@@ -70,6 +70,7 @@ pub fn base() -> Vec<(&'static str, &'static str, Value)> {
         ("pause", "Pause or resume a worker by name (only if you may pause). Paused workers take no new tasks.", sc(json!({"worker": s, "on": b, "why": s}), &["worker", "on"])),
         ("type_propose", "Propose a change to a worker type's role, description or result description. The owner decides in the HR office.", sc(json!({"type": s, "role": s, "dsc": s, "outf": s, "why": s}), &["type", "why"])),
         ("delete", "Delete a file or folder inside a folder you may write. The folders you were given themselves cannot be deleted.", sc(json!({"path": s}), &["path"])),
+        ("notify", "Send a short notification to the user over a channel they set up (Discord, ntfy, Telegram, e-mail, webhook or desktop). Use the channel name; you can not choose an address.", sc(json!({"channel": s, "title": s, "text": s}), &["channel", "text"])),
         ("screenshot", "Screenshot a web page of an allowed domain in a headless browser. w and h set the window size (default 1366x900). Returns the image.", sc(json!({"url": s, "w": n, "h": n}), &["url"])),
     ]
 }
@@ -78,6 +79,14 @@ pub fn defs(a: &Ax, rc: &Rc) -> Vec<(String, String, Value)> {
     let mut o = vec![];
     for (n, d, s) in base() {
         if rc.tools.iter().any(|t| t == n) && allowed(rc, n) {
+            if n == "notify" {
+                let cs: Vec<String> = crate::ntf::list(a).iter().filter(|c| c["on"].as_i64() != Some(0)).filter_map(|c| c["nm"].as_str().map(String::from)).collect();
+                if cs.is_empty() {
+                    continue;
+                }
+                o.push((n.to_string(), format!("{d} Channels: {}.", cs.join(", ")), s));
+                continue;
+            }
             o.push((n.to_string(), d.to_string(), s));
         }
     }
@@ -319,6 +328,17 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
             std::fs::write(&f, s(x, "text")).map_err(|e| e.to_string())?;
             file(a, rc.tk, &f);
             Ok(format!("in the tray: {nm}"))
+        }
+        "notify" => {
+            let c = crate::ntf::by_name(a, s(x, "channel")).ok_or_else(|| format!("no channel named {}", s(x, "channel")))?;
+            let tx = s(x, "text").trim();
+            if tx.is_empty() {
+                return Err("text missing".into());
+            }
+            let ti = if s(x, "title").trim().is_empty() { rc.nm.clone() } else { format!("{}: {}", rc.nm, s(x, "title").trim()) };
+            crate::ntf::send(a, &c, &ti, tx).await?;
+            a.say(rc.wk, &format!("sent a notification over {}", c["nm"].as_str().unwrap_or("")), Some(rc.tk));
+            Ok(format!("sent over {}", c["nm"].as_str().unwrap_or("")))
         }
         "order" | "ask" => {
             let to = wk_by_name(a, rc.fl, s(x, "to")).ok_or_else(|| format!("no worker named {} found", s(x, "to")))?;

@@ -89,6 +89,8 @@ pub fn types() -> Vec<Value> {
           "You find work. Search the sources named in the task, pick items that are real and worth doing, and pass each one on as an order to the worker who handles it. Never invent items.", "A short list of what you found and who got it."),
         t("watcher", "Watcher", "lead", "antenna", "#4f9fc4", "small", &["web", "read", "write", "ls", "server_status", "order"], "Checks sources on a schedule and reports only changes.",
           "You watch. Check the pages, feeds, repos or servers named in the task, compare with what you noted last time in your notes file in out/, and report only what changed. If nothing changed, answer with one line saying so. Pass real problems on as an order if you have someone for it.", "Only the changes since last time, or: no changes."),
+        t("hunter", "Hunter", "code", "glasses", "#c45a4a", "medium", &["read", "grep", "ls", "sh", "order"], "Hunts bugs in the code before users find them.",
+          "You hunt bugs. Read the code in your folders, run the tests and checks you may run, and look for real defects: wrong logic, unhandled errors, edge cases, crashes, races, broken paths. Confirm each one by following the actual code path or with a command before you report it. Pass each confirmed bug as an order with file, line and how to trigger it to the worker who reproduces or fixes bugs. Never invent bugs and never change files.", "Confirmed bugs with file:line, trigger and who got them, or: nothing found."),
         t("repro", "Repro", "code", "glasses", "#e8e6df", "medium", &["read", "grep", "ls", "sh", "write", "order"], "Reproduces bugs with a test.",
           "You reproduce bugs. Read the report, find the code, write the smallest failing test or command that shows the bug. If you can reproduce it, pass it to a fixer with the exact steps. If not, say why.", "Steps or test that reproduce the bug, or why it does not reproduce."),
         t("fixer", "Fixer", "code", "apron", "#e8e6df", "medium", &["read", "write", "edit", "grep", "ls", "sh", "order"], "Changes code and makes tests pass.",
@@ -141,8 +143,8 @@ pub fn types() -> Vec<Value> {
           "You keep folders tidy. Sort files into a clear structure, give them consistent names, keep an INDEX.md, and remove files that are clearly obsolete such as old temporary results, logs and duplicates. Never delete anything you are not sure about: list it instead.", "What you moved, renamed and deleted, and what you left for the user to decide."),
         t("backup", "Backup Keeper", "operations", "shield", "#5c7fd6", "small", &["ls", "read", "sh"], "Checks backups and tests restores.",
           "You check backups with the commands you may run: are they there, recent, complete and readable. Test a restore into a scratch folder when you can. Report problems clearly.", "Backup state per source and the restore test result."),
-        t("notifier", "Notifier", "operations", "headset", "#3fb6a8", "small", &["read", "deliver"], "Sends summaries and alerts (channels come later).",
-          "You prepare notifications: short summaries and alerts for the user. Until a channel is connected, deliver them as a file in the result tray.", "The notification text."),
+        t("notifier", "Notifier", "operations", "headset", "#3fb6a8", "small", &["read", "notify", "deliver"], "Sends summaries and alerts to Discord, ntfy, Telegram, e-mail or the desktop.",
+          "You prepare notifications: short summaries and alerts for the user. Send them with the notify tool over the channel named in the task, or the best fitting one. Keep them short: one line title, a few lines text. If no channel is set up, deliver the text as a file in the result tray.", "The notification text and the channel it went to."),
         t("accountant", "Accountant", "office", "tie", "#62b86f", "small", &["usage", "read", "order", "ask", "pause"], "Estimates costs before, watches them after, pauses workers over budget.",
           "You look after costs. Before a big task, estimate what it will cost from the prices and past usage. Afterwards, compare spending with the limits, point out workers or models that cost more than they bring and suggest cheaper models. If you may pause workers, pause only those that are over their budget, and say so.", "Costs per worker and account, estimate if asked, actions taken."),
         t("coach", "Coach", "office", "cap", "#c75b8a", "medium", &["read", "grep", "ls", "type_propose"], "Learns from failed tasks and suggests better roles.",
@@ -175,7 +177,7 @@ pub fn grps() -> Value {
 
 pub fn teams() -> Value {
     json!([
-        {"id": "bugfix", "nm": "Bugfix team", "dsc": "Triage, Repro, Fixer, Reviewer", "ws": ["triage", "repro", "fixer", "reviewer"], "ln": [[1, 0], [2, 1], [3, 2]]},
+        {"id": "bugfix", "nm": "Bugfix team", "dsc": "Triage, Hunter, Repro, Fixer, Reviewer", "ws": ["triage", "repro", "fixer", "reviewer", "hunter"], "ln": [[1, 0], [2, 1], [3, 2], [1, 4]]},
         {"id": "research", "nm": "Research team", "dsc": "Researcher, Analyst, Writer", "ws": ["researcher", "analyst", "writer"], "ln": [[1, 0], [2, 1]]},
         {"id": "writing", "nm": "Writing team", "dsc": "Writer, Reviewer", "ws": ["writer", "reviewer"], "ln": [[1, 0]]}
     ])

@@ -520,6 +520,7 @@ pub fn spawn(a: Ax) {
                 crate::ssh::poll(&a).await;
                 crate::stat::poll(&a).await;
                 crate::sys::daily(&a);
+                crate::ntf::poll(&a);
             }
             dispatch(&a);
             i += 1;

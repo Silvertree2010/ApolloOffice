@@ -392,8 +392,10 @@ const pia = (f) => {
 
 A.draw = () => {
   const f = flo(A.cur);
-  const vw = innerWidth, vh = innerHeight - 44;
+  const bq = document.getElementById("bx"), pw = innerWidth > 720 && !bq.hidden && !bq.classList.contains("mid") ? bq.offsetWidth + 24 : 0;
+  const nw = A.NW || 0, vw = innerWidth - nw - pw, vh = innerHeight - 44;
   if (cv.width !== vw || cv.height !== vh) { cv.width = vw; cv.height = vh; }
+  if (cv.style.left !== nw + "px") cv.style.left = nw + "px";
   cx.imageSmoothingEnabled = false; cx.fillStyle = "#14161a"; cx.fillRect(0, 0, vw, vh);
   if (!f) return;
   const lay = A.bld ? A.bld.lay : f.lay;
@@ -424,7 +426,7 @@ A.draw = () => {
   let sc, ox, oy;
   const fe = A.fol && A.fol.fl === f.id ? A.fol : null;
   if (fe) { sc = Math.max(3, Math.floor(Math.min(vw / (MW * T), vh / (MH * T))) + 1); ox = vw / 2 - (fe.fx + 8) * sc; oy = vh / 2 - (fe.fy + 8) * sc; ox = Math.min(0, Math.max(vw - MW * T * sc, ox)); oy = Math.min(0, Math.max(vh - MH * T * sc, oy)); if (MW * T * sc < vw) ox = (vw - MW * T * sc) / 2; if (MH * T * sc < vh) oy = (vh - MH * T * sc) / 2; }
-  else if (vw < 720) {
+  else if (innerWidth <= 720) {
     sc = Math.max(2, Math.floor(Math.min(vw / (MW * T), vh / (MH * T)) * 2) / 2);
     const mx = Math.max(0, MW * T * sc - vw), my = Math.max(0, MH * T * sc - vh);
     A.pan.x = Math.max(-mx / 2, Math.min(mx / 2, A.pan.x)); A.pan.y = Math.max(-my / 2, Math.min(my / 2, A.pan.y));
@@ -436,7 +438,7 @@ A.draw = () => {
 };
 
 A.toW = (e) => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left - A.view.ox) / A.view.sc, (e.clientY - r.top - A.view.oy) / A.view.sc]; };
-A.toS = (wx, wy) => [wx * A.view.sc + A.view.ox, wy * A.view.sc + A.view.oy + 44];
+A.toS = (wx, wy) => [wx * A.view.sc + A.view.ox + (A.NW || 0), wy * A.view.sc + A.view.oy + 44];
 
 A.canPlace = (lay, k, x, y) => {
   const t = (xx, yy) => (lay.t[yy] ? lay.t[yy][xx] : undefined);

@@ -26,6 +26,7 @@ create table if not exists ev(id integer primary key, t int, w text, m text, tk 
 create table if not exists us(day text, acc int, wk int, fl int, tin int default 0, tout int default 0, usd real default 0, primary key(day, acc, wk, fl));
 create table if not exists srv(id integer primary key, fl int, nm text, host text, port int, usr text, key blob, hk text, dock int default 0, cfg text default '{}', st text default '{}', t0 int);
 create table if not exists job(id integer primary key, srv int, wk int, tk int, cmd text, st text, out text default '', ex int, lane int, t0 int, t1 int);
+create table if not exists ch(id integer primary key, nm text, k text, cfg text default '{}', sec blob, on_ int default 1, t0 int);
 create table if not exists wid(id integer primary key, k text, nm text, src text default '{}', x int, y int, w int, h int, val text default 'null', t int default 0);
 ";
 
