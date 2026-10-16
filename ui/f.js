@@ -2,7 +2,7 @@
 const A = window.A, $ = A.$, esc = A.esc, PG = A.PG;
 const pg = $("pg"), pgi = $("pgi");
 const OFK = ["office", "accounting", "server"];
-let X = {}, dr = null;
+let X = {}, dr = null, sn = new Set();
 
 const lum = (c) => { const n = parseInt((c || "#888888").slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
 const ink = (c) => (lum(c) > 0.6 ? "#1b1a18" : "#f6f4ee");
@@ -22,7 +22,7 @@ const chips = (x) => {
 
 const blk = (x, p) => {
   const c = x.tcol || "#8a8a8a", st = A.wSt(x);
-  return `<div class="fk" data-w="${x.id}" data-p="${p}" style="--c:${c};color:${ink(c)}"><div class="t"><span class="d ${st}" title="${esc(A.NST[st])}"></span><b>${esc(x.nm)}</b><small>${esc(x.tn || x.ty)}</small></div><div class="cs">${chips(x)}</div></div>`;
+  return `<div class="fk${sn.has(x.id) ? " snap" : ""}" data-w="${x.id}" data-p="${p}" style="--c:${c};color:${ink(c)}"><div class="t"><span class="d ${st}" title="${esc(A.NST[st])}"></span><b>${esc(x.nm)}</b><small>${esc(x.tn || x.ty)}</small></div><div class="cs">${chips(x)}</div></div>`;
 };
 
 const hats = (x, root) => {
@@ -60,14 +60,16 @@ PG.flows = async () => {
   if (A.pgK !== "flows" || pg.hidden || dr) return;
   X = {}; for (const r of fx) X[r.id] = r;
   const fl = A.S.fl.filter((f) => OFK.includes(f.k)).sort((a, b) => b.lvl - a.lvl);
-  pgi.innerHTML = `<div class="hd"><h1>${"Flows"}</h1></div><div class="sub">${"Who passes work to whom, as blocks. Drag a type onto a block to hire and connect, drag a block to move it, drop it on empty space to cut it loose. A trigger on a block runs it on a schedule. Click a block for its settings."}</div>` +
+  const h = `<div class="hd"><h1>${"Flows"}</h1></div><div class="sub">${"Who passes work to whom, as blocks. Drag a type onto a block to hire and connect, drag a block to move it, drop it on empty space to cut it loose. A trigger on a block runs it on a schedule. Click a block for its settings."}</div>` +
     (fl.length ? `<div class="fw">${pal()}<div class="fc">${fl.map(zone).join("")}</div></div>`
       : `<div class="emp"><p>${"Flows live in offices. Build one on an empty floor first."}</p><button class="p" data-of>${"Build an office"}</button></div>`);
+  sn.clear();
+  if (pgi._h !== h) { pgi.innerHTML = h; pgi._h = h; }
   clearTimeout(PG.ft); PG.ft = setTimeout(() => { if (A.pgK === "flows" && !pg.hidden) PG.flows(); }, 5000);
 };
 
 const save = async (id, cfg, ok) => { await A.api("/api/worker/" + id, ok ? { cfg, ok: true } : { cfg }); };
-const done = async (m) => { if (m) A.toast(m); await A.poll(true); PG.flows(); };
+const done = async (m, id) => { if (m) A.toast(m); if (id) sn.add(id); await A.poll(true); PG.flows(); };
 const desc = (a, b) => { const S = A.S, q = [a], v = new Set(); while (q.length) { const x = q.pop(); if (x === b) return true; if (v.has(x)) continue; v.add(x); for (const k of S.w) if ((k.fr || []).some((f) => fid(f) === x)) q.push(k.id); } return false; };
 
 const link = async (w, p, t) => {
@@ -78,7 +80,7 @@ const link = async (w, p, t) => {
   const fr = (x.fr || []).filter((f) => fid(f) !== p && fid(f) !== t).concat([{ w: t }]);
   if (!(await A.confirmBox("Connect", [x.nm + " carries out orders from " + y.nm + ", with its own permissions."]))) return;
   await save(w, { from: fr }, true);
-  done(x.nm + " now takes work from " + y.nm);
+  done(x.nm + " now takes work from " + y.nm, w);
 };
 
 const cut = async (w, p, fl) => {
@@ -86,11 +88,11 @@ const cut = async (w, p, fl) => {
   if (fl !== x.fl) {
     await A.api("/api/worker/" + w, { fl });
     if ((x.fr || []).length) await save(w, { from: [] }, true);
-    return done(x.nm + " moves to " + ((A.flo(fl) || {}).nm || "the other floor"));
+    return done(x.nm + " moves to " + ((A.flo(fl) || {}).nm || "the other floor"), w);
   }
   if (!p) return;
   await save(w, { from: (x.fr || []).filter((f) => fid(f) !== p) }, true);
-  done(x.nm + " no longer takes work from " + nm(p));
+  done(x.nm + " no longer takes work from " + nm(p), w);
 };
 
 const hire = async (ty, fl, t) => {
@@ -98,7 +100,7 @@ const hire = async (ty, fl, t) => {
   if (t && !(await A.confirmBox("Hire and connect", ["A new " + tn + " joins this floor.", "It carries out orders from " + nm(t) + ", with its own permissions."], "Hire"))) return;
   const r = await A.api("/api/hire", { ty, fl });
   if (t) await save(r.id, { from: [{ w: t }] }, true);
-  done(tn + " hired");
+  done(tn + " hired", r.id);
 };
 
 const trig = (k, w) => {

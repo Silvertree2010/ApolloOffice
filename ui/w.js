@@ -390,10 +390,20 @@ const pia = (f) => {
   if (q) { const by = Y - 14 + (Math.floor(A.tm * 3) % 2); px(X + 6, by, "#f4f1e8", 7, 9); K.text(w, "!", X + 8, by + 2, "#d9594c"); }
 };
 
+const RM = matchMedia("(prefers-reduced-motion: reduce)");
+const sn = document.createElement("canvas"), sx = sn.getContext("2d"), nf = document.createElement("canvas"), nx = nf.getContext("2d");
+let pf = 0, tr = null;
 A.draw = () => {
   const f = flo(A.cur);
   const nw = A.NW || 0, vw = innerWidth - nw - (A.PW || 0), vh = innerHeight - 44 - (A.FH || 0);
-  if (cv.width !== vw || cv.height !== vh) { cv.width = vw; cv.height = vh; }
+  if (f && pf && pf !== f.id && !RM.matches && cv.width && cv.height) {
+    const o = flo(pf);
+    sn.width = cv.width; sn.height = cv.height; sx.drawImage(cv, 0, 0);
+    tr = { t: performance.now(), d: o && f.lvl > o.lvl ? 1 : -1 };
+  }
+  pf = f ? f.id : 0;
+  let rs = false;
+  if (cv.width !== vw || cv.height !== vh) { cv.width = vw; cv.height = vh; rs = true; }
   if (cv.style.left !== nw + "px") cv.style.left = nw + "px";
   cx.imageSmoothingEnabled = false; cx.fillStyle = "#14161a"; cx.fillRect(0, 0, vw, vh);
   if (!f) return;
@@ -432,8 +442,28 @@ A.draw = () => {
     ox = Math.round((vw - MW * T * sc) / 2 + A.pan.x); oy = Math.round((vh - MH * T * sc) / 2 + A.pan.y);
   }
   else { sc = Math.max(1, Math.floor(Math.min(vw / (MW * T), vh / (MH * T)) * 2) / 2); ox = Math.round((vw - MW * T * sc) / 2); oy = Math.round((vh - MH * T * sc) / 2); }
+  const cs = A.cs;
+  if (cs && !rs && !tr && !RM.matches && Math.abs(cs.sc - sc) + Math.abs(cs.ox - ox) + Math.abs(cs.oy - oy) > .6) {
+    const k = .18;
+    cs.ox += (ox - cs.ox) * k; cs.oy += (oy - cs.oy) * k; cs.sc += (sc - cs.sc) * k;
+    ({ sc, ox, oy } = cs);
+  } else A.cs = { sc, ox, oy };
   cx.drawImage(wd, Math.round(ox), Math.round(oy), MW * T * sc, MH * T * sc);
   A.view = { sc, ox, oy };
+  if (tr) {
+    const p = Math.min(1, (performance.now() - tr.t) / 380), e = 1 - Math.pow(1 - p, 3);
+    if (p >= 1) tr = null;
+    else {
+      nf.width = vw; nf.height = vh; nx.drawImage(cv, 0, 0);
+      cx.fillStyle = "#14161a"; cx.fillRect(0, 0, vw, vh);
+      const dy = tr.d * vh;
+      cx.drawImage(sn, 0, Math.round(e * dy));
+      cx.drawImage(nf, 0, Math.round(-(1 - e) * dy));
+      const y = tr.d > 0 ? e * vh : (1 - e) * vh;
+      cx.fillStyle = "#2c3038"; cx.fillRect(0, Math.round(y) - 3, vw, 6);
+      cx.fillStyle = "#3a404a"; for (let x = 8; x < vw; x += 24) cx.fillRect(x, Math.round(y) - 1, 12, 2);
+    }
+  }
 };
 
 A.toW = (e) => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left - A.view.ox) / A.view.sc, (e.clientY - r.top - A.view.oy) / A.view.sc]; };

@@ -67,7 +67,7 @@ const nav = () => {
   const accErr = S.acc.filter((a) => a.st && a.st.s === "err").length, srvOff = S.srv.filter((s) => s.st && s.st.on === false).length;
   const it = (k, c, bad) => `<div class="s${!bld && A.pgK === k ? " cur" : ""}" data-p="${k}"><span>${SEC[k]}</span>${c !== undefined && c !== "" ? `<small class="${bad ? "bad" : ""}">${c}</small>` : ""}</div>`;
   const mx = Math.max(0, ...S.acc.map((a) => (a.st && a.st.pct) || 0)), usd = S.usd || 0, lim = +S.usd_day || 0;
-  n.innerHTML = `<div class="sc">
+  const h = `<div class="sc">
     <div class="h">${"Office"}</div>
     <div class="s${bld ? " cur" : ""}" data-b><span>${"Building"}</span></div>
     ${fl}${sh.length ? `<div class="f" data-f="${sh[0].id}"><b>+</b><span>${sh.length} ${"empty floors"}</span></div>` : ""}
@@ -85,6 +85,7 @@ const nav = () => {
     <div class="r"><span>${"Cost today"}</span><span>${usd.toFixed(2)} / ${esc(String(lim))} $</span></div>
     <button data-stop class="${S.stop ? "st" : ""}">${S.stop ? "Resume all workers" : "Pause all workers"}</button>
   </div>`;
+  if (n._h !== h) { const t = n.querySelector(".sc"), y = t ? t.scrollTop : 0; n.innerHTML = h; n._h = h; const t2 = n.querySelector(".sc"); if (t2) t2.scrollTop = y; }
 };
 A.nav = nav;
 $("nav").onclick = async (e) => {
@@ -117,6 +118,7 @@ const fbar = () => {
   const k = f.id + ":" + f.k;
   if (b.dataset.k === k) return;
   b.dataset.k = k;
+  b.classList.remove("sw"); void b.offsetWidth; b.classList.add("sw");
   b.innerHTML = `<b>${esc(f.nm || L(A.KN[f.k]))}</b>` + (FB[f.k] || []).filter(([a]) => !(a === "edit" && innerWidth <= 720)).map(([a, t, p]) => `<button data-fb="${a}" class="${p ? "p" : ""}">${t}</button>`).join("") + `<span class="sp"></span><button data-fb="up" title="${"Floor up (Page Up)"}">▲</button><button data-fb="dn" title="${"Floor down (Page Down)"}">▼</button>`;
 };
 A.fbar = () => { $("fb").dataset.k = ""; fbar(); };
@@ -166,11 +168,14 @@ A.page = async (k, o = {}) => {
   if (A.bld) A.setBld(false);
   A.close();
   $("dlg").hidden = true;
+  const nw = A.pgK !== k || pg.hidden;
   pg.hidden = false;
+  if (A.pgK !== k) pgi._h = null;
   if (A.pgK !== k) pgi.innerHTML = `<div class="mt">${"loading …"}</div>`;
   A.pgK = k;
   top();
   try { await PG[k](o); } catch (x) { pgi.innerHTML = `<p class="mt">${esc(x.message)}</p>`; }
+  if (nw && A.pgK === k) { pgi.classList.remove("ent"); void pgi.offsetWidth; pgi.classList.add("ent"); clearTimeout(A.pgE); A.pgE = setTimeout(() => pgi.classList.remove("ent"), 900); }
 };
 const head = (t, s, btn) => `<div class="hd"><h1>${esc(t)}</h1>${btn || ""}</div>${s ? `<div class="sub">${esc(s)}</div>` : ""}`;
 const pill = (k, t) => `<span class="pl ${k}"><i></i>${esc(t)}</span>`;

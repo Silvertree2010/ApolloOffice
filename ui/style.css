@@ -231,3 +231,43 @@ input[type=checkbox],input[type=radio]{accent-color:var(--ac)}
   .pk,.ph{margin:0;flex:none}
   .fc{width:100%}
 }
+@keyframes aoUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes aoFade{from{opacity:0}to{opacity:1}}
+@keyframes aoR{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
+@keyframes aoL{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
+@keyframes aoB{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:none}}
+@keyframes aoMid{from{opacity:0;transform:translateX(-50%) translateY(10px) scale(.97)}to{opacity:1;transform:translateX(-50%)}}
+@keyframes aoTst{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%)}}
+@keyframes aoDd{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes aoPulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes aoSnap{0%{transform:translateY(-10px) scale(1.04)}55%{transform:translateY(2px) scale(.99)}100%{transform:none}}
+.bx{animation:aoR .24s cubic-bezier(.2,.8,.2,1)}
+.bx.mid{animation:aoMid .2s cubic-bezier(.2,.8,.2,1)}
+#nav{animation:aoL .2s cubic-bezier(.2,.8,.2,1)}
+#tst{animation:aoTst .2s cubic-bezier(.2,.8,.2,1)}
+.dd{animation:aoDd .15s ease-out;transform-origin:top right}
+#fb{animation:aoFade .2s ease-out}
+#fb.sw>*{animation:aoUp .26s cubic-bezier(.2,.8,.2,1) backwards}
+#fb.sw>*:nth-child(2){animation-delay:.03s}#fb.sw>*:nth-child(3){animation-delay:.06s}#fb.sw>*:nth-child(4){animation-delay:.09s}#fb.sw>*:nth-child(5){animation-delay:.12s}#fb.sw>*:nth-child(6){animation-delay:.15s}#fb.sw>*:nth-child(n+7){animation-delay:.18s}
+#pgi.ent>*{animation:aoUp .3s cubic-bezier(.2,.8,.2,1) backwards}
+#pgi.ent>*:nth-child(2){animation-delay:.04s}#pgi.ent>*:nth-child(3){animation-delay:.08s}#pgi.ent>*:nth-child(n+4){animation-delay:.12s}
+#pgi.ent tr{animation:aoUp .28s cubic-bezier(.2,.8,.2,1) backwards}
+#pgi.ent tr:nth-child(2){animation-delay:.1s}#pgi.ent tr:nth-child(3){animation-delay:.13s}#pgi.ent tr:nth-child(4){animation-delay:.16s}#pgi.ent tr:nth-child(5){animation-delay:.19s}#pgi.ent tr:nth-child(6){animation-delay:.22s}#pgi.ent tr:nth-child(7){animation-delay:.25s}#pgi.ent tr:nth-child(n+8){animation-delay:.28s}
+#pgi.ent .fs{animation:aoUp .32s cubic-bezier(.2,.8,.2,1) backwards}
+#pgi.ent .fs:nth-child(2){animation-delay:.12s}#pgi.ent .fs:nth-child(3){animation-delay:.18s}#pgi.ent .fs:nth-child(n+4){animation-delay:.24s}
+#pgi.ent .pk,#pgi.ent .ph{animation:aoL .26s cubic-bezier(.2,.8,.2,1) backwards}
+#login .c{animation:aoUp .45s cubic-bezier(.2,.8,.2,1)}
+#top .tb,#fb button,#pg button,.bx button,#nav .s,#nav .f,#nav .w,.dd div,#pg tr[data-r] td{transition:background-color .15s,border-color .15s,color .15s,transform .1s}
+#top .tb:active,#fb button:active,#pg button:active,.bx button:active{transform:scale(.96)}
+#nav i.work,.pl.work i,.pl.run i,.fk .d.work{animation:aoPulse 1.4s ease-in-out infinite}
+#tQ,#tUp:not([hidden]){animation:aoUp .3s cubic-bezier(.2,.8,.2,1)}
+#tBn:not([hidden]){animation:aoSnap .35s ease-out}
+.fk,.pk,.ph{transition:transform .14s ease,filter .14s ease}
+.fk:hover,.pk:hover,.ph:hover{transform:translateY(-2px)}
+.fk.snap{animation:aoSnap .42s cubic-bezier(.2,.8,.2,1)}
+.fa{transition:background-color .15s,outline-color .15s}
+.fgh{transition:none}
+.bx .tabs span{transition:color .15s,border-color .15s}
+.bx details>*:not(summary){animation:aoFade .2s ease-out}
+@media (max-width:720px){.bx:not(.mid){animation:aoB .26s cubic-bezier(.2,.8,.2,1)}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
