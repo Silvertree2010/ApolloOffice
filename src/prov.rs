@@ -47,13 +47,13 @@ pub fn tier(acc: &Value, t: &str) -> String {
 
 pub fn price(acc: &Value, md: &str) -> (f64, f64) {
     if let (Some(a), Some(b)) = (acc["cfg"]["pin"].as_f64(), acc["cfg"]["pout"].as_f64()) {
-        return (a, b);
+        return (a.max(0.0), b.max(0.0));
     }
     if acc["k"] != "api" {
         return (0.0, 0.0);
     }
     let m = md.to_lowercase();
-    if acc["base"].as_str().map(|b| b.contains("127.0.0.1") || b.contains("localhost")).unwrap_or(false) {
+    if acc["base"].as_str().and_then(|b| url::Url::parse(b).ok()).map(|u| matches!(u.host_str(), Some("127.0.0.1") | Some("localhost") | Some("[::1]"))).unwrap_or(false) {
         return (0.0, 0.0);
     }
     if m.contains("opus") {
@@ -62,7 +62,7 @@ pub fn price(acc: &Value, md: &str) -> (f64, f64) {
         (3.0, 15.0)
     } else if m.contains("haiku") {
         (1.0, 5.0)
-    } else if m.contains("mini") || m.contains("flash") || m.contains("nano") {
+    } else if regex::Regex::new(r"(^|[-_/. ])(mini|flash|nano|lite)\b").unwrap().is_match(&m) {
         (0.25, 2.0)
     } else if m.contains("deepseek") {
         (0.28, 0.42)
@@ -234,6 +234,15 @@ pub fn ef(e: &str) -> &'static str {
 
 #[cfg(test)]
 mod t {
+    #[test]
+    fn prices() {
+        let a = serde_json::json!({"k": "api", "base": "https://x.example"});
+        assert_eq!(super::price(&a, "gemini-2.5-pro"), (1.25, 10.0));
+        assert_eq!(super::price(&a, "gemini-2.5-flash"), (0.25, 2.0));
+        assert_eq!(super::price(&a, "gpt-5-mini"), (0.25, 2.0));
+        assert_eq!(super::price(&a, "minimax-m2"), (1.0, 4.0));
+    }
+
     use super::*;
 
     #[test]

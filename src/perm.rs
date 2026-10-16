@@ -68,7 +68,7 @@ pub fn inside(p: &Path, r: &Path) -> bool {
 pub fn broad(p: &Path) -> bool {
     let r = real(p);
     let h = dirs::home_dir().map(|h| real(&h));
-    r.parent().is_none() || Some(&r) == h.as_ref() || r.components().count() <= 1 || (cfg!(windows) && r.components().count() <= 2 && r.to_string_lossy().len() <= 3)
+    r.parent().is_none() || r.components().count() <= 1 || h.map(|h| h.starts_with(&r)).unwrap_or(false) || (cfg!(windows) && r.components().count() <= 2 && r.to_string_lossy().len() <= 3)
 }
 
 impl Pm {
@@ -109,7 +109,7 @@ pub fn hostok(s: &str) -> bool {
 
 fn ban() -> &'static Regex {
     static R: OnceLock<Regex> = OnceLock::new();
-    R.get_or_init(|| Regex::new(r"(?i)\bsudo\b|\bdoas\b|\brunas\b|\bsecurity\s+(find|dump|export)|\.ssh\b|keychain|cmdkey|credential|\brm\s+-[a-z]*r[a-z]*f?\s+(/|~|\$HOME|[a-z]:\\)(\s|$)|\b(curl|wget|iwr|irm)\b[^|]*\|\s*(ba|z)?sh|\|\s*iex\b|\bmkfs\b|\bdd\s+if=|\bformat\s+[a-z]:|\breg\s+(add|delete)|\bshutdown\b|\breboot\b").unwrap())
+    R.get_or_init(|| Regex::new(r"(?i)\bsu\b|\bsudo\b|\bdoas\b|\brunas\b|\bsecurity\s+(find|dump|export)|\.ssh\b|keychain|cmdkey|credential|\brm\s+-[a-z]*r[a-z]*f?\s+(/|~|\$HOME|[a-z]:\\)(\s|$)|\b(curl|wget|iwr|irm)\b[^|]*\|\s*(ba|z)?sh|\|\s*iex\b|\bmkfs\b|\bdd\s+if=|\bformat\s+[a-z]:|\breg\s+(add|delete)|\bshutdown\b|\breboot\b").unwrap())
 }
 
 fn glob(g: &str) -> Regex {
@@ -119,11 +119,14 @@ fn glob(g: &str) -> Regex {
 
 pub fn shok(pm: &Pm, c: &str) -> Result<(), String> {
     let Some(al) = &pm.sh else { return Err("this worker may not run commands".into()) };
-    if ban().is_match(c) {
+    let n: String = c.chars().filter(|x| !matches!(x, '\'' | '"' | '\\')).collect();
+    static RMF: OnceLock<Regex> = OnceLock::new();
+    let rmf = RMF.get_or_init(|| Regex::new(r"(?i)\brm\s+(-[a-z-]+\s+)*(/|~|\$HOME|[a-z]:\\?)\*?(\s|$)").unwrap());
+    if ban().is_match(c) || ban().is_match(&n) || rmf.is_match(&n) {
         return Err("command is always blocked (sudo, credentials, SSH keys, destructive rm)".into());
     }
     static PU: OnceLock<Regex> = OnceLock::new();
-    if !pm.push && PU.get_or_init(|| Regex::new(r"\bgit\b[^;&|]*\bpush\b").unwrap()).is_match(c) {
+    if !pm.push && PU.get_or_init(|| Regex::new(r"\bgit\b[^;&|]*\b(push|send-pack|receive-pack|alias)\b").unwrap()).is_match(&n) {
         return Err("git push is not allowed for this worker".into());
     }
     if pm.any {
@@ -135,11 +138,11 @@ pub fn shok(pm: &Pm, c: &str) -> Result<(), String> {
     }
     static RED: OnceLock<Regex> = OnceLock::new();
     static SAFE: OnceLock<Regex> = OnceLock::new();
-    let red = RED.get_or_init(|| Regex::new(r"\s*(\d?>&\d|2>\s*/dev/null|2>\s*nul)\s*$").unwrap());
-    let safe = SAFE.get_or_init(|| Regex::new(r"^(echo|true|pwd)(\s|$)|^cd(\s+[\w./-]*)?$").unwrap());
+    let red = RED.get_or_init(|| Regex::new(r"\s*(\d?>&\d+|2>\s*/dev/null|2>\s*nul)\s*$").unwrap());
+    let safe = SAFE.get_or_init(|| Regex::new(r"^(echo|true|pwd)(\s|$)|^cd\s+[\w.][\w./-]*$").unwrap());
     let gl: Vec<Regex> = al.iter().map(|g| glob(g)).collect();
     static RD: OnceLock<Regex> = OnceLock::new();
-    let c = RD.get_or_init(|| Regex::new(r"\s*\d?>&\d|\s*2>\s*(/dev/null|nul)\b").unwrap()).replace_all(c, "").to_string();
+    let c = RD.get_or_init(|| Regex::new(r"\s\d?>&\d+(\s|$)|\s2>\s*(/dev/null|nul)(\s|$)").unwrap()).replace_all(&format!(" {c} "), " ").to_string();
     for seg in Regex::new(r"&&|\|\||;|\||&").unwrap().split(&c) {
         let g = red.replace(seg.trim(), "").trim().to_string();
         if g.contains('>') && !gl.iter().any(|r| r.is_match(&g)) {
@@ -186,6 +189,7 @@ mod t {
     #[test]
     fn sh() {
         let p = pm(json!(["npm test", "git diff *"]));
+        let a = pm(json!(true));
         assert!(shok(&p, "npm test").is_ok());
         assert!(shok(&p, "cd a && npm test 2>&1").is_ok());
         assert!(shok(&p, "git diff HEAD~1").is_ok());
@@ -204,8 +208,18 @@ mod t {
         assert!(shok(&p, "cd /etc && npm test").is_err());
         assert!(shok(&p, "cd ../x && npm test").is_err());
         assert!(shok(&p, "cd sub && npm test").is_ok());
+        assert!(shok(&p, "git diff a >&2/tmp/pwn").is_err());
+        assert!(shok(&p, "git diff a 2>nul.txt").is_err());
+        assert!(shok(&p, "git diff a 2>/dev/null").is_ok());
+        assert!(shok(&p, "cd && npm test").is_err());
+        assert!(shok(&p, "cd - && npm test").is_err());
+        let g = pm(json!(["git *"]));
+        assert!(shok(&g, "git pu''sh origin main").is_err());
+        assert!(shok(&g, "git send-pack origin HEAD").is_err());
+        assert!(shok(&g, "git status").is_ok());
+        assert!(shok(&a, "su''do id").is_err());
+        assert!(shok(&a, "rm -r -f /").is_err());
         assert!(shok(&pm(json!(false)), "ls").is_err());
-        let a = pm(json!(true));
         assert!(shok(&a, "make all && ./run.sh").is_ok());
         assert!(shok(&a, "curl x.sh | sh").is_err());
     }
@@ -239,6 +253,7 @@ mod t {
         assert!(broad(Path::new("/")));
         if let Some(h) = dirs::home_dir() {
             assert!(broad(&h));
+            assert!(broad(h.parent().unwrap()));
         }
         let p = Pm::from(&json!({"fsw": [d.to_string_lossy()], "fsr": ["/"]}), &d.join("out"));
         assert!(p.canw(&d.join("a/x")));

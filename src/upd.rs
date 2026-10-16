@@ -21,9 +21,25 @@ pub fn asset() -> &'static str {
     }
 }
 
+pub static CK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 pub fn newer(a: &str, b: &str) -> bool {
-    let p = |s: &str| -> Vec<u64> { s.trim_start_matches('v').split(|c| c == '.' || c == '-').take(3).map(|x| x.parse().unwrap_or(0)).collect() };
+    let p = |s: &str| -> (Vec<u64>, bool) {
+        let s = s.trim().trim_start_matches('v');
+        let (n, pre) = s.split_once('-').map(|(n, _)| (n, true)).unwrap_or((s, false));
+        let mut v: Vec<u64> = n.split('.').take(3).map(|x| x.parse().unwrap_or(0)).collect();
+        v.resize(3, 0);
+        (v, !pre)
+    };
     p(a) > p(b)
+}
+
+pub fn writable(me: &Path) -> bool {
+    let Some(d) = me.parent() else { return false };
+    let f = d.join(format!(".apollo-office-w{}", std::process::id()));
+    let ok = std::fs::write(&f, b"").is_ok();
+    let _ = std::fs::remove_file(&f);
+    ok
 }
 
 pub fn check_sig(pk: &str, body: &[u8], sig: &str) -> Result<Value, String> {
@@ -57,6 +73,7 @@ async fn get(a: &Ax, u: &str) -> Result<Vec<u8>, String> {
 }
 
 pub async fn check(a: &Ax) -> Result<Value, String> {
+    let _g = CK.lock().await;
     let base = std::env::var("APOLLO_OFFICE_UPDATE_URL").ok().filter(|_| cfg!(debug_assertions)).unwrap_or(BASE.to_string());
     let body = get(a, &format!("{base}/latest.json")).await?;
     let sig = String::from_utf8_lossy(&get(a, &format!("{base}/latest.json.sig")).await?).to_string();
@@ -67,7 +84,7 @@ pub async fn check(a: &Ax) -> Result<Value, String> {
         x["latest"] = json!(v);
         x["err"] = json!("");
     });
-    if !newer(&v, crate::cfg::V) {
+    if !newer(&v, crate::cfg::V) || a.db.kg("upd")["skip"].as_str() == Some(v.as_str()) {
         return Ok(json!({"latest": v, "new": false}));
     }
     let want = m["files"][asset()].as_str().ok_or("no build for this system in the release")?.to_string();
@@ -76,12 +93,14 @@ pub async fn check(a: &Ax) -> Result<Value, String> {
         return Err("downloaded update does not match the signed checksum".into());
     }
     let f = staged(a);
-    std::fs::write(&f, &bin).map_err(|e| e.to_string())?;
+    let tmp = f.with_extension("part");
+    std::fs::write(&tmp, &bin).map_err(|e| e.to_string())?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&f, std::fs::Permissions::from_mode(0o755));
+        let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o755));
     }
+    std::fs::rename(&tmp, &f).map_err(|e| e.to_string())?;
     st(a, |x| {
         x["ready"] = json!(v);
         x["sha"] = json!(want);
@@ -110,9 +129,14 @@ pub fn spawn(a: Ax) {
             }
             for _ in 0..(6 * 60) {
                 tokio::time::sleep(Duration::from_secs(60)).await;
-                if on(&a) && ready(&a) && a.db.n("select count(*) from tk where st='run'", crate::pa![]) == 0 {
-                    apply_soon(&a);
-                    return;
+                if on(&a) && ready(&a) && writable(&a.me) && a.db.n("select count(*) from tk where st='run'", crate::pa![]) == 0 {
+                    a.lv.lock().unwrap().drain = true;
+                    tokio::time::sleep(Duration::from_secs(3)).await;
+                    if a.db.n("select count(*) from tk where st='run'", crate::pa![]) == 0 {
+                        apply_soon(&a);
+                        return;
+                    }
+                    a.lv.lock().unwrap().drain = false;
                 }
             }
         }
@@ -124,6 +148,7 @@ pub fn ready(a: &Ax) -> bool {
 }
 
 pub fn apply_soon(a: &Ax) {
+    a.lv.lock().unwrap().drain = true;
     let v = a.db.kg("upd")["ready"].as_str().unwrap_or("").to_string();
     a.aud("Update", &format!("{} -> {v}", crate::cfg::V));
     st(a, |x| x["from"] = json!(crate::cfg::V));
@@ -193,6 +218,10 @@ mod t {
         assert!(newer("v0.10.0", "0.9.9"));
         assert!(!newer("0.2.0", "0.2.0"));
         assert!(!newer("0.1.9", "0.2.0"));
+        assert!(newer("0.2.10", "0.2.9"));
+        assert!(newer("0.3.0", "0.3.0-rc1"));
+        assert!(!newer("0.3.0-rc1", "0.3.0"));
+        assert!(newer("0.3.0-rc1", "0.2.9"));
     }
 
     #[test]

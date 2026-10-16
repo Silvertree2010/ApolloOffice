@@ -55,6 +55,10 @@ pub async fn probe(host: &str, port: u16) -> Result<(String, String), String> {
 }
 
 async fn exec(c: &Handle<H>, cmd: &str, input: Option<Vec<u8>>, secs: u64) -> Result<(i32, Vec<u8>), String> {
+    exec2(c, cmd, input, secs, true).await
+}
+
+async fn exec2(c: &Handle<H>, cmd: &str, input: Option<Vec<u8>>, secs: u64, se: bool) -> Result<(i32, Vec<u8>), String> {
     let mut ch = c.channel_open_session().await.map_err(|e| e.to_string())?;
     ch.exec(true, cmd).await.map_err(|e| e.to_string())?;
     if let Some(d) = input {
@@ -63,15 +67,18 @@ async fn exec(c: &Handle<H>, cmd: &str, input: Option<Vec<u8>>, secs: u64) -> Re
     ch.eof().await.map_err(|e| e.to_string())?;
     let mut o = vec![];
     let mut code = -1;
+    let mut over = false;
     let r = tokio::time::timeout(Duration::from_secs(secs), async {
         while let Some(m) = ch.wait().await {
             match m {
                 ChannelMsg::Data { ref data } => {
                     if o.len() < 60_000_000 {
                         o.extend_from_slice(data)
+                    } else {
+                        over = true;
                     }
                 }
-                ChannelMsg::ExtendedData { ref data, .. } => {
+                ChannelMsg::ExtendedData { ref data, .. } if se => {
                     if o.len() < 60_000_000 {
                         o.extend_from_slice(data)
                     }
@@ -84,6 +91,9 @@ async fn exec(c: &Handle<H>, cmd: &str, input: Option<Vec<u8>>, secs: u64) -> Re
     .await;
     if r.is_err() {
         return Err("timeout".into());
+    }
+    if over {
+        return Err("output is larger than 60 MB".into());
     }
     Ok((code, o))
 }
@@ -166,7 +176,7 @@ async fn login(a: &Ax, s: &Value) -> Result<Handle<H>, String> {
     let (mut c, _) = conn(s["host"].as_str().unwrap_or(""), s["port"].as_i64().unwrap_or(22) as u16, Some(s["hk"].as_str().unwrap_or("").to_string())).await?;
     let ks = a.db.blob("select key from srv where id=?", pa![s["id"].as_i64().unwrap_or(0)]).and_then(|b| crate::vault::dec(&a.key, &b)).ok_or("key missing")?;
     let pk = russh::keys::decode_secret_key(&ks, None).map_err(|e| e.to_string())?;
-    let ok = c.authenticate_publickey("apollo", PrivateKeyWithHashAlg::new(Arc::new(pk), None)).await.map_err(|e| e.to_string())?.success();
+    let ok = tokio::time::timeout(Duration::from_secs(20), c.authenticate_publickey("apollo", PrivateKeyWithHashAlg::new(Arc::new(pk), None))).await.map_err(|_| "login timeout".to_string())?.map_err(|e| e.to_string())?.success();
     if !ok {
         return Err("login as apollo failed".into());
     }
@@ -187,6 +197,7 @@ pub async fn poll(a: &Ax) {
         if now() - s["st"]["t"].as_i64().unwrap_or(0) < every {
             continue;
         }
+        a.db.run("update srv set st=json_set(coalesce(st,'{}'),'$.t',?) where id=?", pa![now(), id]);
         let a2 = a.clone();
         tokio::spawn(async move {
             let mut st = json!({"t": now()});
@@ -264,11 +275,15 @@ pub async fn tool(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String>
             let cmds: Vec<String> = sv["cfg"]["cmds"].as_array().map(|x| x.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default();
             shok(&Pm { sh: Some(cmds.clone()), any: false, ..Default::default() }, &cmd).map_err(|e| format!("not allowed on this server: {e}"))?;
             let sid = sv["id"].as_i64().unwrap_or(0);
-            let run = a.db.n("select count(*) from job where srv=? and st='run'", pa![sid]);
-            if run >= lanes(&sv) {
-                return Err(format!("all {} lanes are busy, try again later", lanes(&sv)));
-            }
-            let id = a.db.run("insert into job(srv,wk,tk,cmd,st,t0,t1) values(?,?,?,?,'run',?,?)", pa![sid, rc.wk, rc.tk, cmd.clone(), now(), now()]);
+            let id = {
+                static L: std::sync::Mutex<()> = std::sync::Mutex::new(());
+                let _g = L.lock().unwrap();
+                let run = a.db.n("select count(*) from job where srv=? and st in ('run','start')", pa![sid]);
+                if run >= lanes(&sv) {
+                    return Err(format!("all {} lanes are busy, try again later", lanes(&sv)));
+                }
+                a.db.run("insert into job(srv,wk,tk,cmd,st,t0,t1) values(?,?,?,?,'start',?,?)", pa![sid, rc.wk, rc.tk, cmd.clone(), now(), now()])
+            };
             let c = login(a, &sv).await.inspect_err(|e| {
                 a.db.run("update job set st='fail', out=? where id=?", pa![e.clone(), id]);
             })?;
@@ -277,29 +292,35 @@ pub async fn tool(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String>
             } else {
                 format!("cd ~/work && nohup setsid bash -c {} > ~/.ao/{id}.log 2>&1 < /dev/null & echo $! > ~/.ao/{id}.pid", q(&format!("{cmd}; echo $? > ~/.ao/{id}.exit")))
             };
-            let (code, o) = exec(&c, &rcmd, None, 120).await?;
+            let (code, o) = exec(&c, &rcmd, None, 120).await.inspect_err(|e| {
+                a.db.run("update job set st='fail', out=? where id=?", pa![e.clone(), id]);
+            })?;
             let _ = c.disconnect(russh::Disconnect::ByApplication, "", "").await;
             if code != 0 {
                 let o = String::from_utf8_lossy(&o).to_string();
                 a.db.run("update job set st='fail', out=? where id=?", pa![o.clone(), id]);
                 return Err(format!("job does not start: {}", o.chars().take(300).collect::<String>()));
             }
+            a.db.run("update job set st='run' where id=? and st='start'", pa![id]);
             a.db.run("update srv set st=json_set(st,'$.t',0) where id=?", pa![sid]);
             Ok(format!("job #{id} runs on {}", sv["nm"].as_str().unwrap_or("")))
         }
         "job_log" | "job_stop" => {
             let id = x["job"].as_i64().unwrap_or(0);
-            let j = a.db.one("select * from job where id=?", pa![id]).ok_or("unknown job")?;
+            let j = a.db.one("select * from job where id=? and wk=?", pa![id, rc.wk]).ok_or("unknown job")?;
             let sv = a.db.one("select * from srv where id=?", pa![j["srv"].as_i64().unwrap_or(0)]).ok_or("server gone")?;
             srv_for(a, rc, &sv["id"].as_i64().unwrap_or(0).to_string())?;
             if n == "job_log" {
                 return Ok(format!("status {} exit {}\n{}", j["st"].as_str().unwrap_or(""), j["ex"], j["out"].as_str().unwrap_or("")));
             }
+            if j["st"] != "run" {
+                return Ok(format!("job #{id} is not running ({})", j["st"].as_str().unwrap_or("")));
+            }
             let c = login(a, &sv).await?;
             let k = if sv["dock"].as_i64() == Some(1) { format!("docker rm -f ao-{id}") } else { format!("kill -- -$(cat ~/.ao/{id}.pid) 2>/dev/null; kill $(cat ~/.ao/{id}.pid) 2>/dev/null; echo 143 > ~/.ao/{id}.exit") };
             let _ = exec(&c, &k, None, 30).await;
-            a.db.run("update job set st='fail', ex=143, t1=? where id=?", pa![now(), id]);
-            Ok("gestoppt".into())
+            a.db.run("update job set st='fail', ex=143, t1=? where id=? and st='run'", pa![now(), id]);
+            Ok("stopped".into())
         }
         "put_file" | "get_file" => {
             let sv = srv_for(a, rc, &s("server"))?;
@@ -315,7 +336,7 @@ pub async fn tool(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String>
                 Ok(if code == 0 { format!("uploaded to ~/work/{rem}") } else { "upload failed".into() })
             } else {
                 let rem = rpath(&s("remote"))?;
-                let (code, data) = exec(&c, &format!("cat ~/work/{}", q(&rem)), None, 600).await?;
+                let (code, data) = exec2(&c, &format!("cat ~/work/{}", q(&rem)), None, 600, false).await?;
                 if code != 0 {
                     return Err("file not found".into());
                 }
@@ -327,6 +348,19 @@ pub async fn tool(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String>
 }
 
 pub async fn remove(a: &Ax, id: i64) {
+    let js = a.db.all("select id from job where srv=? and st in ('run','start')", pa![id]);
+    if !js.is_empty() {
+        if let Some(sv) = a.db.one("select * from srv where id=?", pa![id]) {
+            if let Ok(c) = login(a, &sv).await {
+                for j in js {
+                    let jid = j["id"].as_i64().unwrap_or(0);
+                    let k = if sv["dock"].as_i64() == Some(1) { format!("docker rm -f ao-{jid} >/dev/null 2>&1") } else { format!("kill -- -$(cat ~/.ao/{jid}.pid) 2>/dev/null; kill $(cat ~/.ao/{jid}.pid) 2>/dev/null") };
+                    let _ = exec(&c, &k, None, 30).await;
+                }
+                let _ = c.disconnect(russh::Disconnect::ByApplication, "", "").await;
+            }
+        }
+    }
     a.db.run("delete from job where srv=?", pa![id]);
     a.db.run("delete from srv where id=?", pa![id]);
     crate::world::sync_racks(a);

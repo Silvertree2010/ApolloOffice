@@ -19,6 +19,8 @@ pub struct Job {
     pub min: u64,
     pub rc: Option<Rc>,
     pub who: i64,
+    pub tid: i64,
+    pub fl: i64,
 }
 
 pub struct Res {
@@ -48,11 +50,25 @@ fn limtxt(s: &str) -> bool {
 
 pub async fn go(a: &Ax, j: Job) -> Result<Res, Er> {
     let k = j.acc["k"].as_str().unwrap_or("").to_string();
-    match k.as_str() {
-        "claude" | "codex" | "gemini" => cli(a, j, &k).await,
-        "api" => crate::api::run(a, j).await,
+    let (acc, md, who, fl) = (j.acc.clone(), j.md.clone(), j.who, j.fl);
+    let mut u = (0i64, 0i64);
+    let r = match k.as_str() {
+        "claude" | "codex" | "gemini" => cli(a, j, &k, &mut u).await,
+        "api" => crate::api::run(a, j, &mut u).await,
         _ => Err(Er::E("unknown account kind".into())),
+    };
+    if u.0 > 0 || u.1 > 0 {
+        crate::prov::record(a, &acc, &md, who, fl, u.0, u.1);
     }
+    r.map(|mut x| {
+        x.tin = u.0;
+        x.tout = u.1;
+        x
+    })
+}
+
+pub fn gone(a: &Ax, tid: i64) -> bool {
+    tid > 0 && a.db.one("select st from tk where id=?", crate::pa![tid]).map(|r| r["st"] != "run").unwrap_or(true)
 }
 
 fn rundir(a: &Ax) -> PathBuf {
@@ -88,7 +104,7 @@ fn untoken(a: &Ax, t: &Option<String>) {
     }
 }
 
-pub async fn cli(a: &Ax, j: Job, k: &str) -> Result<Res, Er> {
+pub async fn cli(a: &Ax, j: Job, k: &str, u: &mut (i64, i64)) -> Result<Res, Er> {
     let b = j.acc["cfg"]["bin"].as_str().filter(|s| !s.is_empty()).map(PathBuf::from).or_else(|| which(crate::prov::bin(k))).ok_or_else(|| Er::E(format!("{} is not installed", crate::prov::bin(k))))?;
     let rd = rundir(a);
     let me = a.me.display().to_string();
@@ -102,7 +118,9 @@ pub async fn cli(a: &Ax, j: Job, k: &str) -> Result<Res, Er> {
     match k {
         "claude" => {
             c.args(["-p", "--output-format", "stream-json", "--verbose", "--setting-sources", "project", "--no-session-persistence", "--strict-mcp-config"]);
-            c.args(["--system-prompt", &j.sys, "--max-turns", &j.turns.to_string()]);
+            let sf = rd.join("sys.txt");
+            let _ = std::fs::write(&sf, &j.sys);
+            c.arg("--system-prompt-file").arg(&sf).args(["--max-turns", &j.turns.to_string()]);
             if !j.md.is_empty() {
                 c.args(["--model", &j.md]);
             }
@@ -176,12 +194,20 @@ pub async fn cli(a: &Ax, j: Job, k: &str) -> Result<Res, Er> {
     c.current_dir(&rd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
     env(&mut c, &x);
     grp(&mut c);
-    let mut ch = c.spawn().map_err(|e| Er::E(format!("{} does not start: {e}", b.display())))?;
+    let mut ch = match c.spawn() {
+        Ok(x) => x,
+        Err(e) => {
+            untoken(a, &tk);
+            let _ = std::fs::remove_dir_all(&rd);
+            return Err(Er::E(format!("{} does not start: {e}", b.display())));
+        }
+    };
     let pid = ch.id().unwrap_or(0);
-    crate::tools::pid(a, j.who, pid, true);
+    crate::tools::pid(a, j.tid, pid, true);
     if let Some(mut si) = ch.stdin.take() {
-        let _ = si.write_all(stdin.as_bytes()).await;
-        drop(si);
+        tokio::spawn(async move {
+            let _ = si.write_all(stdin.as_bytes()).await;
+        });
     }
     let so = ch.stdout.take().unwrap();
     let mut se = ch.stderr.take().unwrap();
@@ -269,7 +295,7 @@ pub async fn cli(a: &Ax, j: Job, k: &str) -> Result<Res, Er> {
     }
     let _ = tokio::time::timeout(Duration::from_secs(10), ch.wait()).await;
     kill(pid);
-    crate::tools::pid(a, j.who, pid, false);
+    crate::tools::pid(a, j.tid, pid, false);
     untoken(a, &tk);
     let er = ert.await.unwrap_or_default();
     if k == "codex" && txt.is_empty() {
@@ -279,6 +305,7 @@ pub async fn cli(a: &Ax, j: Job, k: &str) -> Result<Res, Er> {
         txt = acc_txt;
     }
     let _ = std::fs::remove_dir_all(&rd);
+    *u = (tin.max(0), tout.max(0));
     if to.is_err() {
         return Err(Er::E(format!("timeout after {} min", j.min)));
     }
@@ -289,21 +316,20 @@ pub async fn cli(a: &Ax, j: Job, k: &str) -> Result<Res, Er> {
     if txt.trim().is_empty() || (!done && k != "gemini") {
         return Err(Er::E(format!("{} returned no result: {}", crate::prov::bin(k), all.trim().chars().rev().take(400).collect::<String>().chars().rev().collect::<String>())));
     }
-    if !errs.trim().is_empty() && k == "claude" && !done {
-        return Err(Er::E(errs));
+    if !errs.trim().is_empty() && k != "codex" {
+        return Err(Er::E(errs.trim().chars().take(2000).collect()));
     }
-    Ok(Res { txt, tin: tin.max(0), tout })
+    Ok(Res { txt, tin: 0, tout: 0 })
 }
 
 pub async fn test(a: &Ax, acc: &Value) -> Result<String, String> {
     let md = crate::prov::tier(acc, "small");
-    let j = Job { acc: acc.clone(), md: md.clone(), ef: "low".into(), sys: "Answer with exactly one word.".into(), p: "Say: bereit".into(), turns: 1, min: 3, rc: None, who: 0 };
+    let j = Job { acc: acc.clone(), md: md.clone(), ef: "low".into(), sys: "Answer with exactly one word.".into(), p: "Say: ready".into(), turns: 1, min: 3, rc: None, who: 0, tid: 0, fl: 0 };
     let t0 = std::time::Instant::now();
     match go(a, j).await {
         Ok(r) => {
-            crate::prov::record(a, acc, &md, 0, 0, r.tin, r.tout);
             crate::prov::ok(a, acc["id"].as_i64().unwrap_or(0));
-            Ok(format!("{} ({:.1} s, Modell {})", r.txt.trim().chars().take(60).collect::<String>(), t0.elapsed().as_secs_f64(), if md.is_empty() { "default".into() } else { md }))
+            Ok(format!("{} ({:.1} s, model {})", r.txt.trim().chars().take(60).collect::<String>(), t0.elapsed().as_secs_f64(), if md.is_empty() { "default".into() } else { md }))
         }
         Err(e) => {
             crate::prov::err(a, acc["id"].as_i64().unwrap_or(0), &e.to_string());

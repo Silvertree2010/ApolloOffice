@@ -117,6 +117,11 @@ impl Db {
         }
     }
 
+    pub fn ch(&self, s: &str, p: P) -> usize {
+        let c = self.0.lock().unwrap();
+        c.execute(s, params_from_iter(p.iter().map(|x| x.as_ref()))).unwrap_or(0)
+    }
+
     pub fn blob(&self, s: &str, p: P) -> Option<Vec<u8>> {
         let c = self.0.lock().unwrap();
         c.query_row(s, params_from_iter(p.iter().map(|x| x.as_ref())), |r| r.get::<_, Option<Vec<u8>>>(0)).ok().flatten()

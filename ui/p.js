@@ -1,7 +1,7 @@
 (() => {
 const A = window.A, L = A.L, $ = A.$, esc = A.esc;
 
-A.goFloor = (id) => { A.cur = id; A.fol = null; A.close(); A.bld && A.setBld(false); const f = A.flo(id); if (f && f.k === "accounting") loadUsage(); };
+A.goFloor = (id) => { A.bld && A.setBld(false); A.cur = id; A.fol = null; A.close(); const f = A.flo(id); if (f && f.k === "accounting") loadUsage(); };
 const loadUsage = async () => { try { A.usage = await A.api("/api/usage?d=7"); } catch {} };
 
 const dd = (html, anchor, onclick) => {
@@ -20,7 +20,7 @@ const top = () => {
   const sub = S.acc.filter((a) => a.k !== "api");
   const mx = Math.max(0, ...S.acc.map((a) => (a.st && a.st.pct) || 0));
   const usd = S.usd || 0, lim = S.usd_day || 0;
-  $("tUs").innerHTML = `<span class="hm">${S.stop ? "STOPPED" : sub.length ? "Subscription" : ""}</span><i title="${"Peak usage"}"><b style="width:${Math.min(100, mx)}%;background:${mx >= 100 ? "#d9594c" : mx >= 80 ? "#e0675a" : "#62b86f"}"></b></i><span>${usd.toFixed(2)} / ${lim} $</span>`;
+  $("tUs").innerHTML = `<span class="hm">${S.stop ? "STOPPED" : sub.length ? "Subscription" : ""}</span><i title="${"Peak usage"}"><b style="width:${Math.min(100, mx)}%;background:${mx >= 100 ? "#d9594c" : mx >= 80 ? "#e0675a" : "#62b86f"}"></b></i><span>${usd.toFixed(2)} / ${esc(String(+lim || 0))} $</span>`;
   const bell = S.bell.length + S.acc.filter((a) => a.st && a.st.s === "err").length + S.srv.filter((s) => s.st && s.st.on === false).length;
   $("tBn").hidden = !bell; $("tBn").textContent = bell;
   const o = S.owner || {};
@@ -92,6 +92,7 @@ A.page = async (k, o = {}) => {
   $("dlg").hidden = true;
   pg.hidden = false;
   pgi.innerHTML = `<div class="mt">${"loading …"}</div>`;
+  A.pgK = k;
   try { await PG[k](o); } catch (x) { pgi.innerHTML = `<p class="mt">${esc(x.message)}</p>`; }
 };
 const head = (t, s) => `<div class="row" style="justify-content:space-between"><h1>${esc(t)}</h1><button data-back>${"Back to the building"}</button></div>${s ? `<div class="sub">${esc(s)}</div>` : ""}`;
@@ -115,6 +116,7 @@ const WK = { num: "Number", list: "List", chart: "Chart", lamp: "Lamp", text: "T
 const HQ = { done_today: "Done today", fail_today: "Failed today", run: "Running tasks", wait: "Waiting tasks", workers: "Workers", usd_today: "Cost today ($)", tok_today: "Tokens today", servers_on: "Server online", accounts_ok: "All accounts running", tasks_per_day: "Done per day", usd_per_day: "Cost per day", recent_done: "Last done" };
 PG.stats = async () => {
   const ws = await A.api("/api/wid");
+  if (A.pgK !== "stats" || pg.hidden) return;
   const val = (w) => {
     const v = w.val || {};
     if (v.e) return `<div class="mt">${esc(v.e)}</div>`;
@@ -196,6 +198,7 @@ PG.lab = async () => {
 
 PG.types = async (o) => {
   const d = await A.loadTypes();
+  if (A.pgK !== "types") return;
   const own = (t) => t.own === 1;
   pgi.innerHTML = head("HR office", "Worker types define what a worker can do and how he looks. You can adjust bundled types or build your own.") +
     `<div class="row"><button class="p" data-nt>+ ${"New type"}</button><button data-ntl>+ ${"Custom tool"}</button></div>
@@ -257,6 +260,7 @@ PG.types = async (o) => {
 PG.usage = async (o = {}) => {
   const days = o.d || 7;
   const u = await A.api("/api/usage?d=" + days);
+  if (A.pgK !== "usage") return;
   A.usage = u;
   const tb = (rows, k) => `<div class="tw"><table><tr><th>${k}</th><th>Tokens ${"in"}</th><th>${"out"}</th><th>$</th></tr>${rows.map((r) => `<tr><td>${esc(r.nm || (r.wk === -1 ? "Lab" : r.wk === 0 ? "Tests" : "–"))}</td><td>${fmt(r.tin)}</td><td>${fmt(r.tout)}</td><td>${(r.usd || 0).toFixed(2)}</td></tr>`).join("") || `<tr><td class="mt" colspan="4">${"nothing yet"}</td></tr>`}</table></div>`;
   const mx = Math.max(1, ...u.day.map((d) => d.tok || 0));
@@ -269,11 +273,12 @@ PG.usage = async (o = {}) => {
 
 PG.settings = async () => {
   const [s, ses, aud] = await Promise.all([A.api("/api/set"), A.api("/api/ses"), A.api("/api/aud")]);
+  if (A.pgK !== "settings") return;
   const o = A.S.owner || {};
   pgi.innerHTML = head("Settings") + `<div class="card">
-    <div class="row"><label>${"Daily cost cap across all API keys ($)"} <input type="number" step="0.5" min="0" id="sUsd" value="${s.usd_day}" style="width:90px"></label>
+    <div class="row"><label>${"Daily cost cap across all API keys ($)"} <input type="number" step="0.5" min="0" id="sUsd" value="${+s.usd_day || 0}" style="width:90px"></label>
     <label><input type="checkbox" id="sLo"${s.lounge !== false ? " checked" : ""}> ${"Workers go to the lounge in their free time"}</label></div>
-    <div class="row" style="margin-top:10px"><label>${"Additional addresses (host:port, comma-separated)"} <input id="sHo" style="width:340px" value="${esc((s.hosts || []).join(", "))}" placeholder="office.example.com:443"></label></div>
+    <div class="row" style="margin-top:10px"><label>${"Additional addresses (host or host:port, comma-separated)"} <input id="sHo" style="width:340px" value="${esc((s.hosts || []).join(", "))}" placeholder="office.example.com"></label></div>
     <div class="row" style="margin-top:10px"><button class="p" id="sSv">${"Save"}</button></div></div>
     <h2>${"Program"}</h2><div class="card"><div class="row"><span>ApolloOffice ${esc(s.v)}</span><span class="mt">${"Address"} ${esc(s.bind)}:${s.port}</span><span class="mt">${"Data"}: ${esc(s.data)}</span></div>
     <div class="row" style="margin-top:10px"><label><input type="checkbox" id="sAu"${s.autostart ? " checked" : ""}> ${"Start when logging in to the computer"}</label><button id="sStop">${A.S.stop ? "Keep working" : "Pause everything"}</button></div></div>
@@ -360,7 +365,8 @@ const loginScreen = (me) => {
   $("lb").innerHTML = [["github", "GitHub"], ["google", "Google"], ["gitlab", "GitLab"], ["discord", "Discord"]].map(([k, n]) => `<button data-p="${k}">${"Continue with"} ${n}</button>`).join("");
   $("lb").onclick = (e) => { const b = e.target.closest("[data-p]"); if (b) location.href = "/auth/go?p=" + b.dataset.p; };
   const er = new URLSearchParams(location.search).get("e");
-  if (er) { $("le").hidden = false; $("le").textContent = er; }
+  const known = ["Login cancelled", "Link invalid or expired", "token belongs to another installation", "token was issued for another address", "token expired, please log in again", "login unknown or already used", "the login was started in another browser", "token without account", "This installation belongs to another account.", "broken token", "broken signature", "invalid signature"];
+  if (er) { $("le").hidden = false; $("le").textContent = known.includes(er) ? er : "Login failed."; }
   $("lf").textContent = "Login goes through auth.apollonet.dev. It only learns who is logging in. Everything else stays on this computer. No access? In the terminal: apollo-office login-link";
 };
 

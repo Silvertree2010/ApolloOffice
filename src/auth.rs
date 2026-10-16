@@ -48,12 +48,14 @@ pub fn verify(pk: &str, db: &Db, inst: &str, tok: &str, pre: &str, origin: &str)
     if p["aud"].as_str() != Some(origin) {
         return Err("token was issued for another address".into());
     }
-    if p["exp"].as_i64().unwrap_or(0) * 1000 < now() {
+    if p["exp"].as_i64().unwrap_or(0) * 1000 + 60_000 < now() {
         return Err("token expired, please log in again".into());
     }
     let n = p["n"].as_str().unwrap_or("").to_string();
     let r = db.one("select ck, exp from nonce where n=?", pa![n.clone()]).ok_or("login unknown or already used")?;
-    db.run("delete from nonce where n=?", pa![n]);
+    if db.ch("delete from nonce where n=?", pa![n]) == 0 {
+        return Err("login unknown or already used".into());
+    }
     if r["ck"].as_str() != Some(&h(pre)) || r["exp"].as_i64().unwrap_or(0) < now() {
         return Err("the login was started in another browser".into());
     }
@@ -68,8 +70,11 @@ pub fn bind(db: &Db, p: &Value) -> Result<(), String> {
     let o = db.kg("owner");
     let id = format!("{}:{}", p["p"].as_str().unwrap_or(""), p["sub"].as_str().unwrap_or(""));
     if o.is_null() {
-        db.ks("owner", &json!({"id": id, "p": p["p"], "nm": p["nm"], "em": p["em"], "av": p["av"], "t": now()}));
-        return Ok(());
+        let v = json!({"id": id, "p": p["p"], "nm": p["nm"], "em": p["em"], "av": p["av"], "t": now()});
+        if db.ch("insert into kv(k,v) values('owner',?) on conflict(k) do nothing", pa![v.to_string()]) == 1 {
+            return Ok(());
+        }
+        return if db.kg("owner")["id"].as_str() == Some(&id) { Ok(()) } else { Err("This installation belongs to another account.".into()) };
     }
     if o["id"].as_str() == Some(&id) {
         let mut o = o.clone();
@@ -109,7 +114,7 @@ pub fn link_new(db: &Db) -> String {
 
 pub fn link_use(db: &Db, c: &str) -> bool {
     let id = h(c);
-    let ok = db.n("select count(*) from lnk where c=? and exp>?", pa![id.clone(), now()]) > 0;
+    let ok = db.ch("delete from lnk where c=? and exp>?", pa![id.clone(), now()]) > 0;
     db.run("delete from lnk where c=?", pa![id]);
     ok
 }

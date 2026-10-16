@@ -25,7 +25,7 @@ const box = (html, at, cls) => {
   boxAt = at;
   b.style.left = "50%"; b.style.top = "56px";
   if (!cls || !cls.includes("mid")) place(b, at);
-  b.addEventListener("click", (e) => { if (e.target.closest("[data-x]")) close(); });
+  if (!b.dataset.xl) { b.dataset.xl = 1; b.addEventListener("click", (e) => { if (e.target.closest("[data-x]")) close(); }); }
   return b;
 };
 const close = () => { $("bx").hidden = true; A.sel = null; boxAt = null; };
@@ -140,19 +140,19 @@ A.wSet = async (id, at) => {
       <div class="rw"><span>${"Subscription only, never API key"}</span><span><input type="checkbox" data-c="sub"${c.sub ? " checked" : ""}></span></div>
       <div class="rw"><span>${"Switch to API when the subscription is full"}</span><span><input type="checkbox" data-c="fb"${c.fb ? " checked" : ""}></span></div>
       <div class="rw"><span>${"Working time"}</span><span><select id="sHr"><option value="">${"all day"}</option><option value="z"${hrs ? " selected" : ""}>${"on schedule"}</option></select></span></div>
-      ${hrs ? `<div class="rw"><span>${"from – to (time)"}</span><span><input type="number" id="sHv" min="0" max="23" value="${hrs.from ?? 22}" style="width:52px"> – <input type="number" id="sHb" min="0" max="24" value="${hrs.to ?? 7}" style="width:52px"></span></div>` : ""}
+      ${hrs ? `<div class="rw"><span>${"from – to (time)"}</span><span><input type="number" id="sHv" min="0" max="23" value="${+(hrs.from ?? 22) || 0}" style="width:52px"> – <input type="number" id="sHb" min="0" max="24" value="${+(hrs.to ?? 7) || 0}" style="width:52px"></span></div>` : ""}
       <div class="rw"><span>${"Priority"}</span><span><select data-c="prio" data-n>${[1, 2, 3, 4, 5].map((p) => `<option${(c.prio || 3) === p ? " selected" : ""}>${p}</option>`).join("")}</select></span></div>
       <details><summary>${"Advanced"}</summary>
         <div class="rw"><span>${"At the same time"}</span><span><select data-c="par" data-n>${[1, 2, 3, 4].map((p) => `<option${(c.par || 1) === p ? " selected" : ""}>${p}</option>`).join("")}</select></span></div>
-        <div class="rw"><span>${"Tasks per day (0 = any)"}</span><span><input type="number" data-c="perday" data-n min="0" value="${c.perday || 0}" style="width:70px"></span></div>
+        <div class="rw"><span>${"Tasks per day (0 = any)"}</span><span><input type="number" data-c="perday" data-n min="0" value="${+c.perday || 0}" style="width:70px"></span></div>
         <div class="rw"><span>${"Pause at subscription usage"}</span><span><select data-c="cut" data-n>${[50, 60, 70, 80, 90, 100].map((p) => `<option value="${p}"${(c.cut || 100) === p ? " selected" : ""}>${p === 100 ? "never" : p + " %"}</option>`).join("")}</select></span></div>
-        <div class="rw"><span>${"Tokens per day (0 = any)"}</span><span><input type="number" data-c="tokd" data-n min="0" step="10000" value="${c.tokd || 0}" style="width:90px"></span></div>
-        <div class="rw"><span>${"Time limit per task (min)"}</span><span><input type="number" data-c="min" data-n min="1" max="600" value="${c.min || 30}" style="width:70px"></span></div>
+        <div class="rw"><span>${"Tokens per day (0 = any)"}</span><span><input type="number" data-c="tokd" data-n min="0" step="10000" value="${+c.tokd || 0}" style="width:90px"></span></div>
+        <div class="rw"><span>${"Time limit per task (min)"}</span><span><input type="number" data-c="min" data-n min="1" max="600" value="${+c.min || 30}" style="width:70px"></span></div>
         <div class="rw"><span>${"Check afterwards"}</span><span><input type="text" data-c="chk" value="${esc(c.chk || "")}" placeholder="sh:npm test"></span></div>
         <div class="mt">${"Tools"}</div>
         <div>${A.types.base.map((t) => `<label style="display:inline-flex;margin-right:8px"><input type="checkbox" data-tool="${t.id}"${tools.includes(t.id) ? " checked" : ""}>${esc(t.id)}</label>`).join("")}${A.types.tools.map((t) => `<label style="display:inline-flex;margin-right:8px"><input type="checkbox" data-tool="x:${esc(t.id)}"${tools.includes("x:" + t.id) ? " checked" : ""}>${esc(t.id)}</label>`).join("")}</div>
         <div class="mt" style="margin-top:6px">${"Recurring tasks"}</div>
-        <div>${(c.sched || []).map((s, i) => `<span class="chip">${esc(s.ti)} · ${s.at ? s.at : "all" + " " + s.every + " min"}<b data-rs="${i}">✕</b></span>`).join("")}</div>
+        <div>${(c.sched || []).map((s, i) => `<span class="chip">${esc(s.ti)} · ${s.at ? esc(s.at) : "every " + (+s.every || 0) + " min"}<b data-rs="${i}">✕</b></span>`).join("")}</div>
         <div class="row" style="display:flex;gap:4px;margin-top:4px"><input type="text" id="sSt" placeholder="${"Title"}" style="flex:1"><input type="text" id="sSe" placeholder="${"08:00 or 60"}" style="width:90px"><button class="l" data-as>+</button></div>
       </details>
       <details${A.permOpen ? " open" : ""}><summary>${"Permissions"}</summary>
@@ -165,7 +165,7 @@ A.wSet = async (id, at) => {
         ${A.S.srv.length ? `<div class="mt">${"Servers in the server room"}</div><div>${A.S.srv.map((s) => `<label style="display:inline-flex;margin-right:8px"><input type="checkbox" data-srv="${s.id}"${(c.srv || []).includes(s.id) ? " checked" : ""}>${esc(s.nm)}</label>`).join("")}</div>` : ""}
         ${w.ty === "ceo" ? `<div class="rw"><span>${"May hire workers"}</span><span><input type="checkbox" data-c="ceo_hire"${c.ceo_hire ? " checked" : ""}></span></div><div class="rw"><span>${"May connect workers"}</span><span><input type="checkbox" data-c="ceo_conn"${c.ceo_conn ? " checked" : ""}></span></div>` : ""}
         <div class="mt">${"Accepts tasks from"}</div>
-        <div>${others.map((o) => { const r = (c.from || []).find((f) => (f.w ?? f) === o.id); return `<label style="display:flex;justify-content:space-between"><span><input type="checkbox" data-from="${o.id}"${r ? " checked" : ""}> ${esc(o.nm)} <span class="mt">${esc(o.tn || "")}</span></span>${r ? `<input type="number" min="0" data-fmax="${o.id}" value="${r.max || 0}" title="${"max. per day, 0 = any"}" style="width:50px">` : ""}</label>`; }).join("") || `<span class="mt">${"no other workers yet"}</span>`}</div>
+        <div>${others.map((o) => { const r = (c.from || []).find((f) => (f.w ?? f) === o.id); return `<label style="display:flex;justify-content:space-between"><span><input type="checkbox" data-from="${o.id}"${r ? " checked" : ""}> ${esc(o.nm)} <span class="mt">${esc(o.tn || "")}</span></span>${r ? `<input type="number" min="0" data-fmax="${o.id}" value="${+r.max || 0}" title="${"max. per day, 0 = any"}" style="width:50px">` : ""}</label>`; }).join("") || `<span class="mt">${"no other workers yet"}</span>`}</div>
       </details>
       <div class="acts"><button data-sv>${"Save"}</button><button class="l" data-mv>${"Move"}</button><button class="d" data-fire>${"Dismiss"}</button></div>`, at, "wide");
     b.oninput = (e) => { if (e.target.id === "sNm") nm = e.target.value; };
@@ -206,12 +206,12 @@ A.wSet = async (id, at) => {
         const body = { cfg: c, nm, col };
         try {
           if (lines.length) {
-            if (!(await confirmBox("Change permissions", lines))) return;
+            if (!(await confirmBox("Change permissions", lines))) return render();
             body.ok = true;
           }
           await A.api("/api/worker/" + id, body);
           toast("saved"); A.permOpen = 0; close(); A.poll();
-        } catch (x) { fail(x); }
+        } catch (x) { fail(x); render(); }
       }
     };
   };
@@ -234,6 +234,11 @@ const perms = (nm, o, n) => {
   if (n.chk && n.chk !== o.chk) l.push(`The check "${n.chk}" runs after every task.`);
   if (n.fb && !o.fb) l.push(`${nm} may switch to API keys when the subscription is full (costs money).`);
   if (n.tools && JSON.stringify(n.tools) !== JSON.stringify(o.tools)) l.push(`${nm} gets these tools: ${n.tools.join(", ")}.`);
+  if (!!n.sub !== !!o.sub) l.push(n.sub ? `${nm} only uses subscriptions, never API keys.` : `${nm} may also use API keys (costs money).`);
+  const dk = ["fsr", "fsw", "sh", "net", "push", "ceo_hire", "ceo_conn", "srv", "from", "chk", "tools", "fb", "sub"];
+  const j = (v) => JSON.stringify(v ?? null);
+  const ch = dk.filter((k) => n[k] !== undefined && n[k] !== null && j(n[k]) !== j(o[k]));
+  if (ch.length && !l.length) l.push(`Permissions of ${nm} get narrower (${ch.join(", ")}).`);
   return l;
 };
 
@@ -302,7 +307,7 @@ A.genBox = (u) => {
       if ("sv" in D) {
         const k = $("gKey") && $("gKey").value.trim();
         const body = { cfg: cf };
-        if (k) { if (!(await confirmBox("Replace key", ["The old key will be overwritten. The new one is stored encrypted on this computer."]))) return; body.key = k; body.ok = true; }
+        if (k) { if (!(await confirmBox("Replace key", ["The old key will be overwritten. The new one is stored encrypted on this computer."]))) return A.genBox(u); body.key = k; body.ok = true; }
         await A.api("/api/acc/" + a.id, body); toast("saved"); A.poll();
       }
       if ("del" in D) { if (!(await confirmBox("Disconnect account?", [a.nm + " " + "will be deleted. Workers tied to it will wait afterwards."], "Yes, disconnect"))) return; await A.api(`/api/acc/${a.id}/del`, {}); toast("disconnected"); A.poll(); }
@@ -310,7 +315,7 @@ A.genBox = (u) => {
   };
 };
 
-const PRE = [["anthropic", "Anthropic"], ["openai", "OpenAI"], ["deepseek", "DeepSeek"], ["mistral", "Mistral"], ["openrouter", "OpenRouter"], ["groq", "Groq"], ["gemini", "Google Gemini"], ["ollama", "Ollama (lokal)"], ["lmstudio", "LM Studio (lokal)"], ["custom", "Own address"]];
+const PRE = [["anthropic", "Anthropic"], ["openai", "OpenAI"], ["deepseek", "DeepSeek"], ["mistral", "Mistral"], ["openrouter", "OpenRouter"], ["groq", "Groq"], ["gemini", "Google Gemini"], ["ollama", "Ollama (local)"], ["lmstudio", "LM Studio (local)"], ["custom", "Own address"]];
 A.addAcc = async (at) => {
   const b = box(`<h3>${"Connect power"}</h3><div class="mt">${"Looking for programs on this computer …"}</div>`, at, "wide");
   let det = {};
@@ -358,7 +363,9 @@ A.addAcc = async (at) => {
       A.poll();
     } catch (x) { $("aMsg").innerHTML = `<span class="er">✕ ${esc(x.message)}</span>`; }
   };
-  b.addEventListener("click", async (e) => { const t = e.target.dataset.tt; if (!t) return; try { const r = await A.api(`/api/acc/${t}/test`, {}); toast("✓ " + r.msg); close(); A.poll(); } catch (x) { $("aMsg").innerHTML += `<div class="er">${esc(x.message)}</div>`; } });
+  if (A._tt) b.removeEventListener("click", A._tt);
+  A._tt = async (e) => { const t = e.target.dataset.tt; if (!t) return; try { const r = await A.api(`/api/acc/${t}/test`, {}); toast("✓ " + r.msg); close(); A.poll(); } catch (x) { $("aMsg").innerHTML += `<div class="er">${esc(x.message)}</div>`; } };
+  b.addEventListener("click", A._tt);
 };
 
 A.rackBox = async (u) => {
@@ -400,7 +407,7 @@ A.rackBox = async (u) => {
           const body = { cfg: { ...nc, cmds } };
           const added = cmds.filter((x) => !(c.cmds || []).includes(x));
           if (JSON.stringify(cmds) !== JSON.stringify(c.cmds || [])) {
-            if (!(await confirmBox("Commands on the server", added.length ? added.map((x) => `Workers with server access may run "${x}" on ${s.nm}.`) : ["Allowed commands will be restricted."]))) return;
+            if (!(await confirmBox("Commands on the server", added.length ? added.map((x) => `Workers with server access may run "${x}" on ${s.nm}.`) : ["Allowed commands will be restricted."]))) return render();
             body.ok = true;
           }
           await A.api("/api/srv/" + s.id, body); toast("saved"); A.poll(); close();
@@ -597,6 +604,7 @@ cv.addEventListener("pointermove", (e) => {
 });
 addEventListener("pointerup", (e) => { down = null; if (drag && !drag.mv && e.target === cv) A.click(e); drag = null; });
 addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) { e.target.blur(); if (!$("bx").hidden) return close(); if (!$("pg").hidden) return A.page(null); return; }
   if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
   if (e.key === "Escape") { if (!$("pg").hidden) return A.page(null); close(); A.fol = null; $("dd").hidden = true; if (A.bld) A.setBld(false); }
   if (e.key === "b" && $("pg").hidden && innerWidth > 720) A.setBld(!A.bld);

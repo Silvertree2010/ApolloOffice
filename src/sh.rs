@@ -105,6 +105,26 @@ pub fn kill(pid: u32) {
     }
 }
 
+pub fn age(pid: u32) -> Option<i64> {
+    if cfg!(windows) || pid == 0 {
+        return None;
+    }
+    let o = std::process::Command::new("ps").args(["-o", "etime=", "-p", &pid.to_string()]).stderr(Stdio::null()).output().ok()?;
+    let t = String::from_utf8_lossy(&o.stdout).trim().to_string();
+    if t.is_empty() {
+        return None;
+    }
+    let (d, r) = match t.split_once('-') {
+        Some((d, r)) => (d.parse::<i64>().ok()?, r.to_string()),
+        None => (0, t),
+    };
+    let mut s = 0;
+    for x in r.split(':') {
+        s = s * 60 + x.parse::<i64>().ok()?;
+    }
+    Some(d * 86_400 + s)
+}
+
 pub struct Out {
     pub c: i32,
     pub o: String,

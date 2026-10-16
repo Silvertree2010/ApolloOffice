@@ -57,9 +57,16 @@ enum C {
 
 fn open(dd: &std::path::Path) -> anyhow::Result<db::Db> {
     std::fs::create_dir_all(dd)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(dd, std::fs::Permissions::from_mode(0o700));
+    }
     let f = dd.join("office.db");
     let d = db::Db::open(&f)?;
-    vault::tight(&f);
+    for x in ["office.db", "office.db-wal", "office.db-shm"] {
+        vault::tight(&dd.join(x));
+    }
     Ok(d)
 }
 
@@ -77,7 +84,14 @@ async fn main() -> anyhow::Result<()> {
             let d = open(&dd)?;
             let c = auth::link_new(&d);
             let p = d.kg("port").as_u64().unwrap_or(a.port as u64);
-            println!("One-time login link (valid 10 minutes):\nhttp://127.0.0.1:{p}/auth/link?c={c}");
+            let b = d.kg("bind").as_str().map(String::from).unwrap_or_else(|| "127.0.0.1".into());
+            let h = match b.as_str() {
+                "0.0.0.0" | "" => "127.0.0.1".to_string(),
+                "::" => "[::1]".to_string(),
+                x if x.contains(':') => format!("[{x}]"),
+                x => x.to_string(),
+            };
+            println!("One-time login link (valid 10 minutes):\nhttp://{h}:{p}/auth/link?c={c}");
             return Ok(());
         }
         Some(C::ResetOwner) => {
@@ -89,7 +103,7 @@ async fn main() -> anyhow::Result<()> {
             return Ok(());
         }
         Some(C::Autostart { on }) => {
-            println!("{}", sys::autostart(on == "on", &me, &dd).map_err(anyhow::Error::msg)?);
+            println!("{}", sys::autostart(on == "on", &me, &dd, a.port, &a.bind).map_err(anyhow::Error::msg)?);
             return Ok(());
         }
         Some(C::Export { file }) => {
@@ -100,6 +114,10 @@ async fn main() -> anyhow::Result<()> {
         }
         Some(C::Import { file }) => {
             let d = open(&dd)?;
+            let p = d.kg("port").as_u64().unwrap_or(a.port as u64) as u16;
+            if std::net::TcpStream::connect_timeout(&std::net::SocketAddr::from(([127, 0, 0, 1], p)), std::time::Duration::from_millis(500)).is_ok() {
+                anyhow::bail!("ApolloOffice is running on port {p}. Stop it first or import in the settings.");
+            }
             let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&file)?)?;
             println!("{}", sys::import(&d, &v).map_err(anyhow::Error::msg)?);
             return Ok(());
@@ -118,8 +136,26 @@ async fn main() -> anyhow::Result<()> {
     let d = open(&dd)?;
     world::init(&d);
     let inst = auth::inst(&d);
-    let key = vault::key(&dd, &inst);
+    let has = d.n("select (select count(*) from acc where sec is not null) + (select count(*) from srv where key is not null)", pa![]) > 0;
+    let key = match vault::key(&dd, &inst, has) {
+        Ok(k) => k,
+        Err(e) => {
+            eprintln!("ApolloOffice can not open its vault: {e}");
+            std::process::exit(1);
+        }
+    };
+    if has && std::env::var("APOLLO_OFFICE_VAULT_RESET").map(|v| v == "1").unwrap_or(false) {
+        for (t, c) in [("acc", "sec"), ("srv", "key")] {
+            for r in d.all(&format!("select id from {t} where {c} is not null"), pa![]) {
+                let id = r["id"].as_i64().unwrap_or(0);
+                if d.blob(&format!("select {c} from {t} where id=?"), pa![id]).and_then(|b| vault::dec(&key, &b)).is_none() {
+                    d.run(&format!("update {t} set {c}=null where id=?"), pa![id]);
+                }
+            }
+        }
+    }
     d.ks("port", &serde_json::json!(a.port));
+    d.ks("bind", &serde_json::json!(a.bind));
     let ax = Arc::new(cfg::App {
         db: d,
         dd: dd.clone(),
@@ -143,6 +179,9 @@ async fn main() -> anyhow::Result<()> {
             ax.db.ks("updated", &serde_json::json!({"from": f, "to": cfg::V, "t": db::now()}));
         }
         let mut u = ax.db.kg("upd");
+        if f == cfg::V {
+            u["skip"] = u["ready"].clone();
+        }
         u["from"] = serde_json::Value::Null;
         u["ready"] = serde_json::Value::Null;
         ax.db.ks("upd", &u);
@@ -174,7 +213,7 @@ async fn main() -> anyhow::Result<()> {
         }
         println!("  Stop with Ctrl+C\n");
     }
-    let app = axum::Router::new().fallback(web::h).with_state(ax.clone());
+    let app = axum::Router::new().fallback(web::h).layer(axum::extract::DefaultBodyLimit::max(256 << 20)).with_state(ax.clone());
     let ax2 = ax.clone();
     let sv = axum::serve(l, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).with_graceful_shutdown(async move {
         tokio::select! {
@@ -187,12 +226,19 @@ async fn main() -> anyhow::Result<()> {
     for p in ps {
         sh::kill(p);
     }
-    if *ax.restart.lock().unwrap() {
+    let rs = *ax.restart.lock().unwrap();
+    if rs {
+        let _g = upd::CK.lock().await;
         let sha = ax.db.kg("upd")["sha"].as_str().unwrap_or("").to_string();
-        match upd::install(&ax.me, &ax.dd, &sha) {
-            Ok(()) => upd::relaunch(&ax.me),
-            Err(e) => eprintln!("update failed: {e}"),
+        if let Err(e) = upd::install(&ax.me, &ax.dd, &sha) {
+            eprintln!("update failed: {e}");
+            let mut u = ax.db.kg("upd");
+            u["err"] = serde_json::json!(format!("install failed: {e}"));
+            u["ready"] = serde_json::Value::Null;
+            u["from"] = serde_json::Value::Null;
+            ax.db.ks("upd", &u);
         }
+        upd::relaunch(&ax.me);
     }
     Ok(())
 }

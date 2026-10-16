@@ -74,7 +74,7 @@ fn hosts(a: &Ax) -> Vec<String> {
     let p = a.port;
     let mut v = vec![format!("127.0.0.1:{p}"), format!("localhost:{p}"), format!("[::1]:{p}")];
     if a.bind != "127.0.0.1" && a.bind != "0.0.0.0" && a.bind != "::" {
-        v.push(format!("{}:{p}", a.bind));
+        v.push(format!("{}:{p}", if a.bind.contains(':') { format!("[{}]", a.bind) } else { a.bind.clone() }));
     }
     for h in a.set()["hosts"].as_array().cloned().unwrap_or_default() {
         if let Some(s) = h.as_str() {
@@ -82,6 +82,20 @@ fn hosts(a: &Ax) -> Vec<String> {
         }
     }
     v
+}
+
+fn nh(h: &str, https: bool) -> String {
+    let d = if https { ":443" } else { ":80" };
+    h.strip_suffix(d).unwrap_or(h).to_string()
+}
+
+fn cip(ip: SocketAddr, hd: &HeaderMap) -> String {
+    if ip.ip().is_loopback() {
+        if let Some(x) = hd.get("x-forwarded-for").and_then(|v| v.to_str().ok()).and_then(|v| v.split(',').next()).map(|v| v.trim()).filter(|v| v.parse::<std::net::IpAddr>().is_ok()) {
+            return x.to_string();
+        }
+    }
+    ip.ip().to_string()
 }
 
 fn limited(a: &Ax, k: &str, n: u32) -> bool {
@@ -124,20 +138,22 @@ async fn route(a: &Ax, ip: SocketAddr, m: Method, u: Uri, hd: HeaderMap, b: Byte
         }
         return hook(a, sec, &b);
     }
-    if !hosts(a).contains(&host) {
+    let https = hd.get("x-forwarded-proto").and_then(|v| v.to_str().ok()) == Some("https");
+    let host = nh(&host, https);
+    if !hosts(a).iter().any(|h| nh(h, https) == host) {
         return er(StatusCode::FORBIDDEN, "unknown host. Add it under addresses in the settings.");
     }
-    let https = hd.get("x-forwarded-proto").and_then(|v| v.to_str().ok()) == Some("https");
     let origin = format!("{}://{host}", if https { "https" } else { "http" });
     if m != Method::GET && m != Method::HEAD {
-        let og = hd.get(header::ORIGIN).and_then(|v| v.to_str().ok());
+        let og = hd.get(header::ORIGIN).and_then(|v| v.to_str().ok()).map(|o| url::Url::parse(o).map(|u| u.origin().ascii_serialization()).unwrap_or_else(|_| o.to_string()));
         if hd.get("x-ao").and_then(|v| v.to_str().ok()) != Some("1") || og.map(|o| o != origin).unwrap_or(false) {
-            return er(StatusCode::FORBIDDEN, "verboten");
+            return er(StatusCode::FORBIDDEN, "forbidden");
         }
     }
+    let rk = cip(ip, &hd);
     let ua = hd.get(header::USER_AGENT).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
     if p.starts_with("/auth/") {
-        if limited(a, &format!("auth:{}", ip.ip()), 30) {
+        if limited(a, &format!("auth:{rk}"), 30) {
             return er(StatusCode::TOO_MANY_REQUESTS, "too many attempts, wait a minute");
         }
         return auth(a, &p, &u, &hd, &ua, ip, https, &origin);
@@ -149,7 +165,7 @@ async fn route(a: &Ax, ip: SocketAddr, m: Method, u: Uri, hd: HeaderMap, b: Byte
     }
     if p.starts_with("/api/") {
         let Some(sid) = sid else { return er(StatusCode::UNAUTHORIZED, "not logged in") };
-        if limited(a, &format!("api:{}", ip.ip()), 1200) {
+        if limited(a, &format!("api:{rk}"), 1200) {
             return er(StatusCode::TOO_MANY_REQUESTS, "too many requests");
         }
         let body: Value = if b.is_empty() { json!({}) } else { serde_json::from_slice(&b).unwrap_or(json!({})) };
@@ -220,7 +236,7 @@ fn auth(a: &Ax, p: &str, u: &Uri, hd: &HeaderMap, ua: &str, ip: SocketAddr, http
         "/auth/link" => {
             let c = q.get("c").cloned().unwrap_or_default();
             if !crate::auth::link_use(&a.db, &c) {
-                return redir("/?e=Link%20ung%C3%BCltig%20oder%20abgelaufen");
+                return redir("/?e=Link%20invalid%20or%20expired");
             }
             a.aud("Login via emergency link", &format!("from {}", ip.ip()));
             let s = crate::auth::ses_new(&a.db, ua, &ip.ip().to_string());
@@ -250,6 +266,14 @@ fn hook(a: &Ax, s: &str, b: &Bytes) -> Response {
     let wk = v["worker"].as_str().and_then(|n| crate::tools::wk_by_name(a, fl, n)).filter(|w| w["fl"].as_i64() == Some(fl)).and_then(|w| w["id"].as_i64());
     let id = a.db.run("insert into tk(ti,tx,src,wk,fl,st,mk,t0,t1) values(?,?,'hook',?,?,'wait',1,?,?)", pa![crate::tools::cut_s(&ti, 300), crate::tools::cut_s(&tx, 20000), wk, fl, now(), now()]);
     js(json!({"ok": true, "task": id}))
+}
+
+fn baseok(base: &str) -> Result<(), String> {
+    let bu = url::Url::parse(base).map_err(|_| "invalid address")?;
+    if bu.scheme() != "https" && !(bu.scheme() == "http" && matches!(bu.host_str(), Some("127.0.0.1") | Some("localhost") | Some("[::1]"))) {
+        return Err("API addresses need https (except local ones)".into());
+    }
+    Ok(())
 }
 
 fn n(v: &Value, k: &str) -> i64 {
@@ -287,7 +311,7 @@ pub fn state(a: &Ax) -> Value {
     let accs = crate::prov::list(a);
     let srv = a.db.all("select id,fl,nm,host,dock,cfg,st from srv", pa![]);
     let cnt = a.db.all("select fl, st, count(*) n from tk where st in ('wait','run') group by fl, st", pa![]);
-    let d0 = chrono::Local::now().date_naive().and_hms_opt(0, 0, 0).unwrap().and_local_timezone(chrono::Local).unwrap().timestamp_millis();
+    let d0 = crate::eng::d0();
     let done = a.db.all("select fl, count(*) n from tk where st='done' and t1>=? group by fl", pa![d0]);
     let bell = a.db.all("select id,ti,st,res,wk,fl,t1 from tk where st in ('fail','rej') and t1>? order by t1 desc limit 20", pa![now() - 86_400_000]);
     let st = a.set();
@@ -315,15 +339,24 @@ fn sane_lay(old: &Value, l: &Value) -> Result<Value, String> {
         return Err("too much furniture".into());
     }
     let ok: Vec<&str> = crate::world::FS.iter().map(|x| x.0).collect();
-    let mut nx = l["nx"].as_i64().unwrap_or(1);
+    let mut nx = old["nx"].as_i64().unwrap_or(1).max(1);
+    for u in old["fu"].as_array().into_iter().flatten().chain(fu.iter()) {
+        nx = nx.max(u["id"].as_i64().unwrap_or(0) + 1);
+    }
+    let mut seen = std::collections::HashSet::new();
     let mut out = vec![];
     for u in fu {
         let k = u["k"].as_str().unwrap_or("");
         if !ok.contains(&k) {
             return Err(format!("unknown furniture {k}"));
         }
-        let mut x = json!({"id": u["id"], "k": k, "x": u["x"].as_i64().unwrap_or(0), "y": u["y"].as_i64().unwrap_or(0)});
-        if let Some(o) = old["fu"].as_array().and_then(|a| a.iter().find(|o| o["id"] == u["id"] && o["k"] == k)) {
+        let (px, py) = (u["x"].as_i64().unwrap_or(0), u["y"].as_i64().unwrap_or(0));
+        if !(0..crate::world::MW).contains(&px) || !(0..crate::world::MH).contains(&py) {
+            return Err(format!("{k} is outside the floor"));
+        }
+        let uid = u["id"].as_i64().filter(|i| *i > 0 && !seen.contains(i));
+        let mut x = json!({"id": uid, "k": k, "x": px, "y": py});
+        if let Some(o) = old["fu"].as_array().and_then(|a| a.iter().find(|o| uid.is_some() && o["id"] == x["id"] && o["k"] == k)) {
             for kk in ["acc", "srv"] {
                 if !o[kk].is_null() {
                     x[kk] = o[kk].clone();
@@ -334,13 +367,12 @@ fn sane_lay(old: &Value, l: &Value) -> Result<Value, String> {
             x["id"] = json!(nx);
             nx += 1;
         }
-        nx = nx.max(x["id"].as_i64().unwrap_or(0) + 1);
+        seen.insert(x["id"].as_i64().unwrap_or(0));
         out.push(x);
     }
     for (k, key) in [("gen", "acc"), ("rack", "srv")] {
-        let before = old["fu"].as_array().map(|a| a.iter().filter(|u| u["k"] == k).count()).unwrap_or(0);
-        let after = out.iter().filter(|u| u["k"] == k && !u[key].is_null()).count();
-        if after < before {
+        let gone = old["fu"].as_array().into_iter().flatten().filter(|u| u["k"] == k && !u[key].is_null()).any(|o| !out.iter().any(|u| u["id"] == o["id"] && u[key] == o[key]));
+        if gone {
             return Err(if k == "gen" { "Remove generators through their account, not in build mode".into() } else { "Remove racks through their server, not in build mode".into() });
         }
     }
@@ -459,6 +491,14 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             let fl = n(b, "fl");
             let need = tm["ws"].as_array().unwrap().len();
             let f = crate::world::floor(&a.db, fl).ok_or("no such floor")?;
+            if f["k"] != "office" && f["k"] != "accounting" && f["k"] != "server" {
+                return Err("Workers work in an office (or in accounting and the server room)".into());
+            }
+            for t in tm["ws"].as_array().unwrap() {
+                if a.db.one("select id from ty where id=?", pa![t.as_str().unwrap_or("").to_string()]).is_none() {
+                    return Err("unknown worker type".into());
+                }
+            }
             let mut l = f["lay"].clone();
             let used: Vec<i64> = a.db.all("select desk from wk where fl=?", pa![fl]).iter().filter_map(|r| r["desk"].as_i64()).collect();
             let mut free = crate::world::desks(&l).into_iter().filter(|d| !used.contains(d)).count();
@@ -585,6 +625,9 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             ok()
         }
         ("task", "retry", true) => {
+            if a.lv.lock().unwrap().w.values().any(|x| x.tk.contains(&id)) {
+                return Err("the last attempt is still stopping, try again in a moment".into());
+            }
             a.db.run("update tk set st='wait', n=0, nx=0, fb='', res='', t1=? where id=? and st in ('fail','rej')", pa![now(), id]);
             ok()
         }
@@ -626,16 +669,22 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
                 }
                 if let Some(nc) = b["cfg"].as_object() {
                     for (k, v) in nc {
+                        if ["pin", "pout", "tok_day", "usd_day"].contains(&k.as_str()) && v.as_f64().map(|x| x < 0.0).unwrap_or(!v.is_null()) {
+                            return Err(format!("{k} must be a number of 0 or more"));
+                        }
                         c[k] = v.clone();
                     }
                 }
-                a.db.run("update acc set cfg=?, nm=coalesce(nullif(?,''),nm), md=coalesce(nullif(?,''),md), base=coalesce(nullif(?,''),base) where id=?", pa![c.to_string(), s(b, "nm").to_string(), s(b, "md").to_string(), s(b, "base").to_string(), id]);
+                if !s(b, "key").is_empty() && b["ok"].as_bool() != Some(true) {
+                    return Err("confirmation needed".into());
+                }
+                if !s(b, "base").is_empty() {
+                    baseok(s(b, "base").trim())?;
+                }
+                a.db.run("update acc set cfg=?, nm=coalesce(nullif(?,''),nm), md=coalesce(nullif(?,''),md), base=coalesce(nullif(?,''),base) where id=?", pa![c.to_string(), s(b, "nm").to_string(), s(b, "md").to_string(), s(b, "base").trim().to_string(), id]);
                 if !s(b, "key").is_empty() {
-                    if b["ok"].as_bool() != Some(true) {
-                        return Err("confirmation needed".into());
-                    }
                     a.db.run("update acc set sec=? where id=?", pa![crate::vault::enc(&a.key, s(b, "key").trim()), id]);
-                    a.aud("Zugangsdaten ersetzt", r["nm"].as_str().unwrap_or(""));
+                    a.aud("Credentials replaced", r["nm"].as_str().unwrap_or(""));
                 }
                 return ok();
             }
@@ -652,10 +701,7 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
                 fmt = if s(b, "fmt").is_empty() { pre.1.to_string() } else { s(b, "fmt").to_string() };
                 base = if s(b, "base").is_empty() { pre.2.to_string() } else { s(b, "base").trim().to_string() };
                 md = if s(b, "md").is_empty() { pre.3.to_string() } else { s(b, "md").trim().to_string() };
-                let bu = url::Url::parse(&base).map_err(|_| "invalid address")?;
-                if bu.scheme() != "https" && !matches!(bu.host_str(), Some("127.0.0.1") | Some("localhost") | Some("::1")) {
-                    return Err("API addresses need https (except local ones)".into());
-                }
+                baseok(&base)?;
                 if s(b, "key").is_empty() && !matches!(s(b, "pre"), "ollama" | "lmstudio" | "custom") {
                     return Err("API key missing".into());
                 }
@@ -664,7 +710,7 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
                 }
             }
             let same = a.db.n("select count(*) from acc where k=?", pa![k.to_string()]);
-            let nm = if s(b, "nm").trim().is_empty() { match k { "claude" => "Claude Abo".to_string(), "codex" => "ChatGPT Abo".into(), "gemini" => "Gemini".into(), _ => s(b, "pre").to_string() } } else { s(b, "nm").trim().chars().take(32).collect() };
+            let nm = if s(b, "nm").trim().is_empty() { match k { "claude" => "Claude subscription".to_string(), "codex" => "ChatGPT subscription".into(), "gemini" => "Gemini".into(), _ => s(b, "pre").to_string() } } else { s(b, "nm").trim().chars().take(32).collect() };
             let mut cfg = json!({});
             if !s(b, "bin").is_empty() {
                 cfg["bin"] = json!(s(b, "bin"));
@@ -779,11 +825,13 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             for k in ["usd_day", "hosts", "api_fallback", "lounge", "updates"] {
                 if !b[k].is_null() {
                     if k == "hosts" {
-                        let hs: Vec<String> = b[k].as_array().cloned().unwrap_or_default().iter().filter_map(|h| h.as_str()).map(|h| h.trim().to_lowercase()).filter(|h| crate::perm::hostok(h) && h.contains(':')).collect();
+                        let hs = crate::sys::hostsv(&b[k]);
                         a.aud("Addresses changed", &hs.join(", "));
                         st[k] = json!(hs);
+                    } else if let Some(v) = crate::sys::setv(k, &b[k]) {
+                        st[k] = v;
                     } else {
-                        st[k] = b[k].clone();
+                        return Err(format!("invalid value for {k}"));
                     }
                 }
             }
@@ -826,7 +874,7 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             crate::world::sync_racks(a);
             Ok(js(json!({"ok": true, "msg": m})))
         }
-        ("autostart", _, true) => Ok(js(json!({"ok": true, "msg": crate::sys::autostart(b["on"].as_bool() == Some(true), &a.me, &a.dd)?}))),
+        ("autostart", _, true) => Ok(js(json!({"ok": true, "msg": crate::sys::autostart(b["on"].as_bool() == Some(true), &a.me, &a.dd, a.port, &a.bind)?}))),
         ("usage", _, false) => {
             let days = q.get("d").and_then(|x| x.parse::<i64>().ok()).unwrap_or(7).clamp(1, 90);
             let from = (chrono::Local::now() - chrono::Duration::days(days - 1)).format("%Y-%m-%d").to_string();
@@ -842,6 +890,9 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             if s(b, "a") == "now" {
                 if !crate::upd::ready(a) {
                     return Err("no update downloaded yet".into());
+                }
+                if !crate::upd::writable(&a.me) {
+                    return Err(format!("can not replace the program file: {} is not writable", a.me.parent().map(|p| p.display().to_string()).unwrap_or_default()));
                 }
                 if a.db.n("select count(*) from tk where st='run'", pa![]) > 0 && b["ok"].as_bool() != Some(true) {
                     return Err("tasks are running; they will be restarted after the update".into());

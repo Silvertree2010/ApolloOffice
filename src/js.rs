@@ -32,6 +32,9 @@ fn exec(h: tokio::runtime::Handle, a: Ax, rc: Rc, src: &str, entry: &str, arg: V
     rt.set_max_stack_size(1 << 20);
     let dl = Instant::now() + Duration::from_secs(10 * 60);
     rt.set_interrupt_handler(Some(Box::new(move || Instant::now() > dl)));
+    let mut rc = rc;
+    let e = crate::db::now() + 10 * 60_000;
+    rc.dl = Some(rc.dl.map(|d| d.min(e)).unwrap_or(e));
     let cx = Context::full(&rt).map_err(|e| e.to_string())?;
     cx.with(|c| -> Result<String, String> {
         let (a2, rc2, h2) = (a.clone(), rc.clone(), h.clone());
@@ -40,6 +43,9 @@ fn exec(h: tokio::runtime::Handle, a: Ax, rc: Rc, src: &str, entry: &str, arg: V
                 return json!({"e": "not allowed"}).to_string();
             }
             let v: Value = serde_json::from_str(&x).unwrap_or(json!({}));
+            if Instant::now() > dl {
+                return json!({"e": "time is up"}).to_string();
+            }
             if n == "log" {
                 a2.say(rc2.wk, v["m"].as_str().unwrap_or(""), Some(rc2.tk));
                 return json!({"ok": ""}).to_string();

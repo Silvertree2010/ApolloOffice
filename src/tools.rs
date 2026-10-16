@@ -17,6 +17,7 @@ pub struct Rc {
     pub tools: Vec<String>,
     pub wc: Value,
     pub nm: String,
+    pub dl: Option<i64>,
 }
 
 pub fn wrap(id: &str, t: &str) -> String {
@@ -291,8 +292,9 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
             shok(&rc.pm, c)?;
             let d = cwd(rc);
             let _ = std::fs::create_dir_all(&d);
-            let (a2, w) = (a.clone(), rc.wk);
-            let o = sh(c, &d, x["min"].as_u64().unwrap_or(20).clamp(1, 180), env(rc), move |p, on| pid(&a2, w, p, on)).await;
+            let (a2, w) = (a.clone(), rc.tk);
+            let mx = rc.dl.map(|d| ((d - now()) / 60_000).max(1) as u64).unwrap_or(180);
+            let o = sh(c, &d, x["min"].as_u64().unwrap_or(20).clamp(1, 180).min(mx), env(rc), move |p, on| pid(&a2, w, p, on)).await;
             Ok(format!("{}\n[exit {}]", o.o, o.c))
         }
         "web" => {
@@ -317,7 +319,7 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
             }
             accepts(a, &to, rc.wk)?;
             let (ti, tx) = if n == "ask" { (format!("Question from {}", rc.nm), s(x, "question").to_string()) } else { (s(x, "title").to_string(), s(x, "text").to_string()) };
-            let mk = a.db.n("select mk from tk where id=?", pa![rc.tk]);
+            let mk = a.db.n("select mk from tk where id=?", pa![rc.tk]).min(1);
             let id = a.db.run(
                 "insert into tk(ti,tx,src,wk,fl,st,kind,par,mk,t0,t1) values(?,?,?,?,?,'wait',?,?,?,?,?)",
                 pa![cut_s(&ti, 300), cut_s(&tx, 20000), format!("w:{}", rc.wk), tid, to["fl"].as_i64().unwrap_or(rc.fl), if n == "ask" { "ask" } else { "task" }.to_string(), rc.tk, mk, now(), now()],
@@ -411,7 +413,22 @@ pub fn pid(a: &Ax, w: i64, p: u32, on: bool) {
     }
     let all: Vec<u32> = l.pids.values().flatten().cloned().collect();
     drop(l);
-    a.db.ks("pids", &json!(all));
+    let old = a.db.kg("pids");
+    let t = |x: u32| old.as_array().and_then(|o| o.iter().find(|y| y["p"] == x)).and_then(|y| y["t"].as_i64()).unwrap_or_else(now);
+    a.db.ks("pids", &json!(all.iter().map(|x| json!({"p": x, "t": t(*x)})).collect::<Vec<_>>()));
+}
+
+pub async fn capped(r: reqwest::Response, mx: usize) -> Result<Vec<u8>, String> {
+    let mut r = r;
+    let mut b = vec![];
+    while let Some(c) = r.chunk().await.map_err(|e| e.to_string())? {
+        b.extend_from_slice(&c);
+        if b.len() >= mx {
+            b.truncate(mx);
+            break;
+        }
+    }
+    Ok(b)
 }
 
 pub fn file(a: &Ax, tk: i64, f: &Path) {
@@ -455,8 +472,8 @@ pub async fn web(a: &Ax, pm: &Pm, x: &Value) -> Result<String, String> {
         return Ok(format!("status {st}\nredirect to {full}{}", if netok(pm, &full) { "" } else { " (not in the allowed domains)" }));
     }
     let ct = r.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
-    let b = r.bytes().await.map_err(|e| e.to_string())?;
-    let mut t = String::from_utf8_lossy(&b[..b.len().min(3_000_000)]).to_string();
+    let b = capped(r, 3_000_000).await?;
+    let mut t = String::from_utf8_lossy(&b).to_string();
     if ct.contains("html") && x["raw"].as_bool() != Some(true) {
         t = strip(&t);
     }

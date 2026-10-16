@@ -28,10 +28,63 @@ pub fn export(db: &Db) -> Value {
     for t in TABS {
         o[*t] = json!(db.all(&format!("select * from {t}"), pa![]));
     }
+    if let Some(f) = o["fl"].as_array_mut() {
+        for x in f {
+            x["hook"] = Value::Null;
+        }
+    }
     o["srv"] = json!(db.all("select id,fl,nm,host,port,usr,dock,cfg from srv", pa![]));
     o["acc"] = json!(db.all("select id,k,fmt,nm,base,md,cfg from acc", pa![]));
     o["set"] = db.kg("set");
     o
+}
+
+const WKD: &[&str] = &["fsr", "fsw", "net", "srv"];
+
+pub fn hostsv(v: &Value) -> Vec<String> {
+    v.as_array().cloned().unwrap_or_default().iter().filter_map(|h| h.as_str()).map(|h| h.trim().to_lowercase()).filter(|h| crate::perm::hostok(h) && !h.starts_with("*.")).collect()
+}
+
+pub fn setv(k: &str, v: &Value) -> Option<Value> {
+    match k {
+        "usd_day" => v.as_f64().filter(|x| *x >= 0.0 && x.is_finite()).map(|x| json!(x)),
+        "api_fallback" | "lounge" => v.as_bool().map(|x| json!(x)),
+        "updates" => v.as_str().filter(|x| *x == "auto" || *x == "off").map(|x| json!(x)),
+        "hosts" => Some(json!(hostsv(v))),
+        _ => None,
+    }
+}
+
+fn clean(t: &str, r: &mut Value) {
+    match t {
+        "wk" => {
+            let mut c: Value = match &r["cfg"] {
+                Value::String(s) => serde_json::from_str(s).unwrap_or(json!({})),
+                Value::Object(_) => r["cfg"].clone(),
+                _ => json!({}),
+            };
+            for k in WKD {
+                c[*k] = json!([]);
+            }
+            for k in ["sh", "push", "fb", "ceo_hire", "ceo_conn"] {
+                c[k] = json!(false);
+            }
+            c["chk"] = json!("");
+            c["acct"] = json!(0);
+            r["cfg"] = json!(c.to_string());
+        }
+        "ty" => r["chk"] = json!(""),
+        "fl" => r["hook"] = Value::Null,
+        "tk" => {
+            if r["st"] == "run" {
+                r["st"] = json!("wait");
+            }
+            r["lk"] = json!(0);
+            r["nx"] = json!(0);
+            r["mk"] = json!(r["mk"].as_i64().unwrap_or(0).min(1));
+        }
+        _ => {}
+    }
 }
 
 pub fn import(db: &Db, v: &Value) -> Result<String, String> {
@@ -42,7 +95,11 @@ pub fn import(db: &Db, v: &Value) -> Result<String, String> {
     db.tx(|c| {
         for t in TABS {
             c.execute(&format!("delete from {t}"), [])?;
-            for r in v[*t].as_array().cloned().unwrap_or_default() {
+            for mut r in v[*t].as_array().cloned().unwrap_or_default() {
+                if !r.is_object() {
+                    continue;
+                }
+                clean(t, &mut r);
                 let Some(m) = r.as_object() else { continue };
                 let ks: Vec<&String> = m.keys().filter(|k| k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')).collect();
                 let q = format!("insert into {t}({}) values({})", ks.iter().map(|k| k.as_str()).collect::<Vec<_>>().join(","), vec!["?"; ks.len()].join(","));
@@ -60,20 +117,51 @@ pub fn import(db: &Db, v: &Value) -> Result<String, String> {
         Ok(())
     })
     .map_err(|e| e.to_string())?;
-    if v["set"].is_object() {
-        db.ks("set", &v["set"]);
+    if let Some(m) = v["set"].as_object() {
+        let mut st = db.kg("set");
+        if !st.is_object() {
+            st = json!({});
+        }
+        for (k, x) in m {
+            if k == "hosts" {
+                continue;
+            }
+            if let Some(y) = setv(k, x) {
+                st[k.as_str()] = y;
+            }
+        }
+        db.ks("set", &st);
     }
-    Ok(format!("{n} entries imported. Accounts and servers have no credentials: please connect them again."))
+    let _ = db.ch("delete from kv where k like 'pd:%'", pa![]);
+    db.run("insert into aud(t,who,what,det) values(?,?,?,?)", pa![crate::db::now(), "import".to_string(), "Import".to_string(), format!("{n} entries; worker permissions, checks and webhooks reset")]);
+    Ok(format!("{n} entries imported. Worker permissions, result checks, webhooks and allowed addresses were not taken over: set them again. Accounts and servers have no credentials: please connect them again."))
 }
 
-pub fn autostart(on: bool, me: &Path, dd: &Path) -> Result<String, String> {
+#[allow(dead_code)]
+fn xq(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+}
+
+#[allow(dead_code)]
+fn sq(s: &str) -> String {
+    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\"").replace('%', "%%").replace('$', "$$"))
+}
+
+pub fn autostart(on: bool, me: &Path, dd: &Path, port: u16, bind: &str) -> Result<String, String> {
     let exe = me.display().to_string();
+    let mut av: Vec<String> = vec!["--data".into(), dd.display().to_string(), "--quiet".into()];
+    if port != 47300 {
+        av.extend(["--port".into(), port.to_string()]);
+    }
+    if bind != "127.0.0.1" {
+        av.extend(["--bind".into(), bind.to_string()]);
+    }
     #[cfg(windows)]
     {
         use winreg::enums::HKEY_CURRENT_USER;
         let k = winreg::RegKey::predef(HKEY_CURRENT_USER).open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Run", winreg::enums::KEY_SET_VALUE).map_err(|e| e.to_string())?;
         if on {
-            k.set_value("ApolloOffice", &format!("\"{exe}\" --data \"{}\" --quiet", dd.display())).map_err(|e| e.to_string())?;
+            k.set_value("ApolloOffice", &format!("\"{exe}\" {}", av.iter().map(|x| if x.starts_with("--") { x.clone() } else { format!("\"{x}\"") }).collect::<Vec<_>>().join(" "))).map_err(|e| e.to_string())?;
             return Ok("Starts at login from now on.".into());
         }
         let _ = k.delete_value("ApolloOffice");
@@ -84,9 +172,10 @@ pub fn autostart(on: bool, me: &Path, dd: &Path) -> Result<String, String> {
         let p = dirs::home_dir().ok_or("no home folder")?.join("Library/LaunchAgents/dev.apollonet.office.plist");
         if on {
             let x = format!(
-                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>dev.apollonet.office</string><key>ProgramArguments</key><array><string>{exe}</string><string>--data</string><string>{}</string><string>--quiet</string></array><key>RunAtLoad</key><true/><key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict><key>StandardErrorPath</key><string>{}</string></dict></plist>\n",
-                dd.display(),
-                dd.join("apollo-office.log").display()
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>dev.apollonet.office</string><key>ProgramArguments</key><array><string>{}</string>{}</array><key>RunAtLoad</key><true/><key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict><key>StandardErrorPath</key><string>{}</string></dict></plist>\n",
+                xq(&exe),
+                av.iter().map(|x| format!("<string>{}</string>", xq(x))).collect::<String>(),
+                xq(&dd.join("apollo-office.log").display().to_string())
             );
             std::fs::create_dir_all(p.parent().unwrap()).map_err(|e| e.to_string())?;
             std::fs::write(&p, x).map_err(|e| e.to_string())?;
@@ -101,7 +190,7 @@ pub fn autostart(on: bool, me: &Path, dd: &Path) -> Result<String, String> {
         let p = d.join("apollo-office.service");
         if on {
             std::fs::create_dir_all(&d).map_err(|e| e.to_string())?;
-            std::fs::write(&p, format!("[Unit]\nDescription=ApolloOffice\n\n[Service]\nExecStart={exe} --data {} --quiet\nRestart=on-failure\n\n[Install]\nWantedBy=default.target\n", dd.display())).map_err(|e| e.to_string())?;
+            std::fs::write(&p, format!("[Unit]\nDescription=ApolloOffice\n\n[Service]\nExecStart={} {}\nRestart=on-failure\n\n[Install]\nWantedBy=default.target\n", sq(&exe), av.iter().map(|x| sq(x)).collect::<Vec<_>>().join(" "))).map_err(|e| e.to_string())?;
             let _ = std::process::Command::new("systemctl").args(["--user", "daemon-reload"]).status();
             let _ = std::process::Command::new("systemctl").args(["--user", "enable", "apollo-office"]).status();
             return Ok("Starts at login from now on (systemd --user).".into());

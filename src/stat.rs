@@ -4,7 +4,7 @@ use crate::pa;
 use serde_json::{json, Value};
 
 pub fn house(a: &Ax, q: &str) -> Value {
-    let d0 = chrono::Local::now().date_naive().and_hms_opt(0, 0, 0).unwrap().and_local_timezone(chrono::Local).unwrap().timestamp_millis();
+    let d0 = crate::eng::d0();
     match q {
         "done_today" => json!(a.db.n("select count(*) from tk where st='done' and t1>=?", pa![d0])),
         "fail_today" => json!(a.db.n("select count(*) from tk where st in ('fail','rej') and t1>=?", pa![d0])),
@@ -37,8 +37,8 @@ async fn get(a: &Ax, u: &str) -> Result<(u16, String), String> {
     }
     let r = a.hc.get(u).header("user-agent", "ApolloOffice").timeout(std::time::Duration::from_secs(20)).send().await.map_err(|e| e.to_string())?;
     let s = r.status().as_u16();
-    let b = r.bytes().await.map_err(|e| e.to_string())?;
-    Ok((s, String::from_utf8_lossy(&b[..b.len().min(2_000_000)]).to_string()))
+    let b = crate::tools::capped(r, 2_000_000).await?;
+    Ok((s, String::from_utf8_lossy(&b).to_string()))
 }
 
 pub async fn val(a: &Ax, s: &Value) -> Result<Value, String> {
@@ -90,7 +90,7 @@ pub async fn val(a: &Ax, s: &Value) -> Result<Value, String> {
             let v: Vec<String> = re.captures_iter(&b).take(8).map(|c| crate::tools::strip(&c[1].replace("<![CDATA[", "").replace("]]>", ""))).collect();
             Ok(json!(v))
         }
-        _ => Err("unbekannte Quelle".into()),
+        _ => Err("unknown source".into()),
     }
 }
 
