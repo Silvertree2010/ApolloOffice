@@ -181,10 +181,14 @@ async fn gate(mut c: tokio::net::TcpStream, net: Vec<String>) {
         let Some((h, pt)) = tg.rsplit_once(':') else { return deny(&mut c) };
         let h = h.trim_start_matches('[').trim_end_matches(']').to_lowercase();
         let hu = if h.contains(':') { format!("[{h}]") } else { h.clone() };
-        if pt.parse::<u16>().is_err() || !crate::perm::netok(&pm, &format!("https://{hu}:{pt}/")) {
+        let Ok(pn) = pt.parse::<u16>() else { return deny(&mut c) };
+        let cu = format!("https://{hu}:{pn}/");
+        let Ok(pu) = url::Url::parse(&cu) else { return deny(&mut c) };
+        let Some(ph) = pu.host_str().map(String::from) else { return deny(&mut c) };
+        if ph != hu || !crate::perm::netok(&pm, &cu) {
             return deny(&mut c);
         }
-        let Ok(Ok(mut up)) = tokio::time::timeout(Duration::from_secs(15), tokio::net::TcpStream::connect(format!("{hu}:{pt}"))).await else { return deny(&mut c) };
+        let Ok(Ok(mut up)) = tokio::time::timeout(Duration::from_secs(15), tokio::net::TcpStream::connect(format!("{ph}:{pn}"))).await else { return deny(&mut c) };
         if c.write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n").await.is_err() {
             return;
         }
@@ -197,6 +201,9 @@ async fn gate(mut c: tokio::net::TcpStream, net: Vec<String>) {
         return deny(&mut c);
     }
     let Some(h) = u.host_str().map(String::from) else { return deny(&mut c) };
+    if !tg.to_lowercase().starts_with(&format!("http://{h}")) {
+        return deny(&mut c);
+    }
     let pt = u.port_or_known_default().unwrap_or(80);
     let Ok(Ok(mut up)) = tokio::time::timeout(Duration::from_secs(15), tokio::net::TcpStream::connect(format!("{h}:{pt}"))).await else { return deny(&mut c) };
     let path = format!("{}{}", u.path(), u.query().map(|q| format!("?{q}")).unwrap_or_default());
@@ -330,7 +337,7 @@ mod t {
                 tokio::spawn(super::gate(c, vec!["example.com".into(), "localhost:3000".into()]));
             }
         });
-        for r in ["CONNECT evil.com:443 HTTP/1.1\r\n\r\n", "CONNECT 127.0.0.1:47300 HTTP/1.1\r\n\r\n", "CONNECT localhost:47300 HTTP/1.1\r\n\r\n", "GET http://localhost:47300/api/me HTTP/1.1\r\nHost: localhost\r\n\r\n", "GET http://sub.example.com/ HTTP/1.1\r\n\r\n"] {
+        for r in ["CONNECT evil.com:443 HTTP/1.1\r\n\r\n", "CONNECT 127.0.0.1:47300 HTTP/1.1\r\n\r\n", "CONNECT localhost:47300 HTTP/1.1\r\n\r\n", "GET http://localhost:47300/api/me HTTP/1.1\r\nHost: localhost\r\n\r\n", "GET http://sub.example.com/ HTTP/1.1\r\n\r\n", "CONNECT 2130706433:3000 HTTP/1.1\r\n\r\n", "CONNECT EXAMPLE.COM.:443 HTTP/1.1\r\n\r\n", "GET http://user@localhost:47300/ HTTP/1.1\r\n\r\n"] {
             let mut c = tokio::net::TcpStream::connect(("127.0.0.1", p)).await.unwrap();
             c.write_all(r.as_bytes()).await.unwrap();
             let mut b = vec![];
