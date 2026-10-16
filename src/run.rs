@@ -141,6 +141,17 @@ pub async fn cli(a: &Ax, j: Job, k: &str, u: &mut (i64, i64)) -> Result<Res, Er>
             if !dir.is_empty() {
                 x.insert("CLAUDE_CONFIG_DIR".into(), dir.clone());
             }
+            if let Some(n) = j.acc["cfg"]["kc"].as_str().filter(|x| !x.is_empty()) {
+                match crate::prov::kc(n).await {
+                    Ok(t) => {
+                        x.insert("CLAUDE_CODE_OAUTH_TOKEN".into(), t);
+                    }
+                    Err(e) => {
+                        untoken(a, &tk);
+                        return Err(Er::E(e));
+                    }
+                }
+            }
             if cfg!(windows) {
                 if let Some(bb) = crate::sh::bash() {
                     x.insert("CLAUDE_CODE_GIT_BASH_PATH".into(), bb.display().to_string());

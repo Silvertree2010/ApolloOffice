@@ -183,6 +183,87 @@ async fn login(a: &Ax, s: &Value) -> Result<Handle<H>, String> {
     Ok(c)
 }
 
+pub fn via(s: &Value) -> bool {
+    s["cfg"]["via"].as_str() == Some("ssh")
+}
+
+const SO: &[&str] = &["-o", "ControlMaster=auto", "-o", "ControlPersist=10m", "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=4", "-o", "BatchMode=yes"];
+
+pub fn alias_ok(h: &str) -> bool {
+    !h.is_empty() && !h.starts_with('-') && h.chars().all(|c| c.is_ascii_alphanumeric() || "._-@:".contains(c))
+}
+
+pub async fn rx(a: &Ax, sv: &Value, sc: &str, secs: u64) -> Result<(i32, String, String), String> {
+    let c = &sv["cfg"];
+    let pre = c["pre"].as_str().unwrap_or("");
+    let body = format!("{pre}\n{sc}");
+    if via(sv) {
+        let h = sv["host"].as_str().unwrap_or("");
+        if !alias_ok(h) {
+            return Err("invalid ssh alias".into());
+        }
+        let cp = dirs::home_dir().map(|x| x.join(".ssh")).filter(|x| x.is_dir()).unwrap_or_else(std::env::temp_dir);
+        let _ = a;
+        let mut cmd = tokio::process::Command::new("ssh");
+        cmd.args(SO).arg("-o").arg(format!("ControlPath={}/ao-%C", cp.display())).arg(h);
+        match c["ct"].as_str().filter(|x| !x.is_empty()) {
+            Some(ct) => {
+                if !alias_ok(ct) {
+                    return Err("invalid container name".into());
+                }
+                cmd.args(["docker", "exec", "-i", ct, "timeout", "-k", "10", &(secs + 5).to_string()]);
+                if c["nice"].as_bool() != Some(false) {
+                    cmd.args(["nice", "-n", "19"]);
+                }
+                cmd.args(["bash", "-s"]);
+            }
+            None => {
+                cmd.args(["bash", "-s"]);
+            }
+        }
+        cmd.stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).kill_on_drop(true);
+        let mut ch = cmd.spawn().map_err(|e| format!("ssh: {e}"))?;
+        if let Some(mut i) = ch.stdin.take() {
+            use tokio::io::AsyncWriteExt;
+            let _ = i.write_all(body.as_bytes()).await;
+            drop(i);
+        }
+        let r = tokio::time::timeout(Duration::from_secs(secs + 30), ch.wait_with_output()).await.map_err(|_| "timeout".to_string())?.map_err(|e| e.to_string())?;
+        return Ok((r.status.code().unwrap_or(-1), String::from_utf8_lossy(&r.stdout).to_string(), String::from_utf8_lossy(&r.stderr).to_string()));
+    }
+    let cn = login(a, sv).await?;
+    let (code, o) = exec2(&cn, "bash -s", Some(format!("cd ~/work 2>/dev/null; {body}").into_bytes()), secs, false).await?;
+    let _ = cn.disconnect(russh::Disconnect::ByApplication, "", "").await;
+    Ok((code, String::from_utf8_lossy(&o).to_string(), String::new()))
+}
+
+pub async fn alias_add(a: &Ax, b: &Value) -> Result<i64, String> {
+    let h = b["host"].as_str().unwrap_or("").trim().to_string();
+    let fl = b["fl"].as_i64().unwrap_or(0);
+    if !alias_ok(&h) {
+        return Err("enter the name of a host from your ssh config".into());
+    }
+    if a.db.one("select id from fl where id=? and k='server'", pa![fl]).is_none() {
+        return Err("servers go into a server room".into());
+    }
+    let ct = b["ct"].as_str().unwrap_or("").trim().to_string();
+    if !ct.is_empty() && !alias_ok(&ct) {
+        return Err("invalid container name".into());
+    }
+    let bd = b["bd"].as_str().unwrap_or("").trim().to_string();
+    let cfg = json!({"via": "ssh", "ct": ct, "bd": bd, "pre": b["pre"].as_str().unwrap_or(""), "lanes": b["lanes"].as_i64().unwrap_or(1), "cmds": [], "hours": {}, "every": 60});
+    let sv = json!({"host": h, "cfg": cfg});
+    let (c, o, e) = rx(a, &sv, "echo OKAY; uname -s", 40).await?;
+    if c != 0 || !o.contains("OKAY") {
+        return Err(format!("ssh {h} does not work: {}", crate::sh::cut(&format!("{o}{e}"), 300)));
+    }
+    let nm = b["nm"].as_str().filter(|s| !s.trim().is_empty()).unwrap_or(&h).chars().take(24).collect::<String>();
+    let id = a.db.run("insert into srv(fl,nm,host,port,usr,hk,dock,cfg,st,t0) values(?,?,?,22,'','',0,?,'{}',?)", pa![fl, nm.clone(), h.clone(), cfg.to_string(), now()]);
+    a.aud("Server added", &format!("{nm} via ssh alias {h}{}", if ct.is_empty() { String::new() } else { format!(", container {ct}") }));
+    crate::world::sync_racks(a);
+    Ok(id)
+}
+
 fn lanes(s: &Value) -> i64 {
     let h = chrono::Local::now().format("%H").to_string().parse::<i64>().unwrap_or(0).to_string();
     s["cfg"]["hours"][&h].as_i64().unwrap_or(s["cfg"]["lanes"].as_i64().unwrap_or(2))
@@ -199,6 +280,28 @@ pub async fn poll(a: &Ax) {
         }
         a.db.run("update srv set st=json_set(coalesce(st,'{}'),'$.t',?) where id=?", pa![now(), id]);
         let a2 = a.clone();
+        if via(&s) {
+            tokio::spawn(async move {
+                let bd = s["cfg"]["bd"].as_str().filter(|x| !x.is_empty()).unwrap_or(".").to_string();
+                let mon = format!("cat /proc/loadavg 2>/dev/null || sysctl -n vm.loadavg | tr -d '{{}}'; nproc 2>/dev/null || sysctl -n hw.ncpu; free -b 2>/dev/null | awk '/^Mem:/{{print $2, $7}}' || echo; df -Pk \"{bd}\" 2>/dev/null | tail -1 | awk '{{print $2*1024, $4*1024}}'");
+                let st = match rx(&a2, &s, &mon, 30).await {
+                    Ok((0, o, _)) => {
+                        let l: Vec<&str> = o.lines().collect();
+                        let ld: f64 = l.first().and_then(|x| x.split_whitespace().next()).and_then(|x| x.parse().ok()).unwrap_or(0.0);
+                        let n: f64 = l.get(1).and_then(|x| x.trim().parse().ok()).unwrap_or(1.0);
+                        let m: Vec<f64> = l.get(2).map(|x| x.split_whitespace().filter_map(|v| v.parse().ok()).collect()).unwrap_or_default();
+                        let d: Vec<f64> = l.last().map(|x| x.split_whitespace().filter_map(|v| v.parse().ok()).collect()).unwrap_or_default();
+                        json!({"t": now(), "on": true, "load": ld, "cpu": (ld / n.max(1.0) * 100.0).min(100.0), "cores": n,
+                            "ram": if m.len() == 2 && m[0] > 0.0 { (1.0 - m[1] / m[0]) * 100.0 } else { 0.0 }, "ramt": m.first().cloned().unwrap_or(0.0),
+                            "disk": if d.len() == 2 && d[0] > 0.0 { (1.0 - d[1] / d[0]) * 100.0 } else { 0.0 }, "diskf": d.get(1).cloned().unwrap_or(0.0), "jobs": 0, "lanes": lanes(&s)})
+                    }
+                    Ok((c, o, e)) => json!({"t": now(), "on": false, "why": crate::sh::cut(&format!("exit {c}: {o}{e}"), 200)}),
+                    Err(e) => json!({"t": now(), "on": false, "why": e}),
+                };
+                a2.db.run("update srv set st=? where id=?", pa![st.to_string(), id]);
+            });
+            continue;
+        }
         tokio::spawn(async move {
             let mut st = json!({"t": now()});
             match login(&a2, &s).await {
@@ -271,6 +374,9 @@ pub async fn tool(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String>
         }
         "job_start" => {
             let sv = srv_for(a, rc, &s("server"))?;
+            if via(&sv) {
+                return Err("jobs need a server that ApolloOffice set up itself".into());
+            }
             let cmd = s("cmd");
             let cmds: Vec<String> = sv["cfg"]["cmds"].as_array().map(|x| x.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default();
             shok(&Pm { sh: Some(cmds.clone()), any: false, ..Default::default() }, &cmd).map_err(|e| format!("not allowed on this server: {e}"))?;
@@ -324,6 +430,9 @@ pub async fn tool(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String>
         }
         "put_file" | "get_file" => {
             let sv = srv_for(a, rc, &s("server"))?;
+            if via(&sv) {
+                return Err("file copies need a server that ApolloOffice set up itself".into());
+            }
             let c = login(a, &sv).await?;
             if n == "put_file" {
                 let rem = rpath(&if s("remote").is_empty() { std::path::Path::new(&s("path")).file_name().map(|x| x.to_string_lossy().to_string()).unwrap_or_default() } else { s("remote") })?;
@@ -349,7 +458,8 @@ pub async fn tool(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String>
 
 pub async fn remove(a: &Ax, id: i64) {
     let js = a.db.all("select id from job where srv=? and st in ('run','start')", pa![id]);
-    if !js.is_empty() {
+    let al = a.db.one("select cfg from srv where id=?", pa![id]).map(|r| r["cfg"]["via"] == "ssh").unwrap_or(false);
+    if !js.is_empty() && !al {
         if let Some(sv) = a.db.one("select * from srv where id=?", pa![id]) {
             if let Ok(c) = login(a, &sv).await {
                 for j in js {

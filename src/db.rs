@@ -32,6 +32,12 @@ create table if not exists wid(id integer primary key, k text, nm text, src text
 
 pub type P = Vec<Box<dyn ToSql + Send>>;
 
+fn mig(c: &Connection) {
+    for q in ["alter table tk add column ctx text default '{}'", "alter table tk add column ov text default '{}'", "alter table tk add column key text", "create index if not exists tk_key on tk(key)"] {
+        let _ = c.execute_batch(q);
+    }
+}
+
 #[macro_export]
 macro_rules! pa {
     ($($x:expr),* $(,)?) => { { let v: $crate::db::P = vec![$(Box::new($x)),*]; v } };
@@ -51,6 +57,7 @@ impl Db {
     pub fn open(f: &Path) -> anyhow::Result<Db> {
         let c = Connection::open(f)?;
         c.execute_batch(SCH)?;
+        mig(&c);
         Ok(Db(Arc::new(Mutex::new(c))))
     }
 
@@ -58,6 +65,7 @@ impl Db {
     pub fn mem() -> Db {
         let c = Connection::open_in_memory().unwrap();
         c.execute_batch(SCH).unwrap();
+        mig(&c);
         Db(Arc::new(Mutex::new(c)))
     }
 
@@ -76,7 +84,7 @@ impl Db {
             for (i, k) in n.iter().enumerate() {
                 let mut v = cv(r.get_ref(i)?);
                 if let Value::String(s) = &v {
-                    if (k == "cfg" || k == "st" && s.starts_with('{') || k == "lay" || k == "tools" || k == "files" || k == "src" && s.starts_with('{') || k == "val" || k == "sch") && !s.is_empty() {
+                    if (k == "cfg" || k == "ctx" || k == "ov" || k == "st" && s.starts_with('{') || k == "lay" || k == "tools" || k == "files" || k == "src" && s.starts_with('{') || k == "val" || k == "sch") && !s.is_empty() {
                         if let Ok(j) = serde_json::from_str::<Value>(s) {
                             v = j;
                         }

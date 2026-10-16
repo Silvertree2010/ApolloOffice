@@ -47,7 +47,7 @@ A.wBox = async (e) => {
     ${cur ? `<div class="rw"><span>${"Task"}</span><span>${esc(cur.ti)}</span></div>` : ""}
     ${lv.say ? `<div class="rw"><span>${"Last"}</span><span>${esc(lv.say.slice(0, 120))}</span></div>` : ""}
     <div class="rw"><span>${"Today"}</span><span>${(d.us && d.us.tok) || 0} Tokens${d.us && d.us.usd ? " · " + d.us.usd.toFixed(2) + " $" : ""}</span></div>
-    <div class="rw"><span>${"Takes tasks from"}</span><span>${(w.cfg.from || []).map((f) => esc(wName(f.w ?? f))).join(", ") || "only from you"}</span></div>
+    ${w.ty === "script" ? `<div class="rw"><span>${"Program"}</span><span>${w.cfg.run ? esc(w.cfg.run) : "none (puppet)"}</span></div>` : `<div class="rw"><span>${"Takes tasks from"}</span><span>${(w.cfg.from || []).map((f) => esc(wName(f.w ?? f))).join(", ") || "only from you"}</span></div>`}
     <div class="rw"><span>${"Folders"}</span><span>${[...(w.cfg.fsw || []).map((x) => esc(x) + " (rw)"), ...(w.cfg.fsr || []).map((x) => esc(x) + " (r)")].join("<br>") || `<span class="er">${"none yet"}</span>`}</span></div>
     <div class="rw"><span>${"Commands"}</span><span>${w.cfg.sh === true ? "any" : Array.isArray(w.cfg.sh) && w.cfg.sh.length ? w.cfg.sh.map(esc).join(", ") : "none"}${w.cfg.push ? " · git push" : ""}</span></div>
     ${(w.cfg.net || []).length ? `<div class="rw"><span>${"Websites"}</span><span>${w.cfg.net.map(esc).join(", ")}</span></div>` : ""}
@@ -126,10 +126,16 @@ A.wSet = async (id, at) => {
   const tools = c.tools || ty.tools || [];
   let col = w.col, nm = w.nm;
   const hrs = c.hrs && typeof c.hrs === "object" ? c.hrs : null;
+  const scr = w.ty === "script";
   const render = () => {
     const b = box(`<h3>${esc(nm)} <small>${esc(ty.nm || w.ty)}</small></h3>${tabs(0)}
       <div class="rw"><span>${"Name"}</span><span><input type="text" id="sNm" value="${esc(nm)}"></span></div>
       <div class="rw"><span>${"Color"}</span><span>${COLS.map((x) => `<span class="sw" data-col="${x}" style="background:${x};${x === col ? "outline:2px solid #2a2723" : ""}"></span>`).join(" ")}</span></div>
+      ${scr ? `<div class="mt">${"A script runs your own program instead of a model. Without a command it is a puppet that a script moves."}</div>
+      <div class="rw"><span>${"Command"}</span><span><input type="text" data-c="run" value="${esc(c.run || "")}" placeholder="node main.js"></span></div>
+      <div class="rw"><span>${"Folder"}</span><span><input type="text" data-c="dir" value="${esc(c.dir || "")}" placeholder="/Users/you/my-script"></span></div>
+      <div class="mt">${"It gets AO_URL and AO_TOKEN to give tasks to workers that take orders from it."}</div>
+      <div class="acts"><button data-sv>${"Save"}</button><button class="l" data-mv>${"Move"}</button><button class="d" data-fire>${"Dismiss"}</button></div>` : `
       <div class="rw"><span>${"Model"}</span><span><select data-c="md">${["", "small", "medium", "large"].map((m) => `<option value="${m}"${(c.md || "") === m ? " selected" : ""}>${m ? L(m) : "Type default" + " (" + L(ty.md || "medium") + ")"}</option>`).join("")}${c.md && !["small", "medium", "large"].includes(c.md) ? `<option selected>${esc(c.md)}</option>` : ""}</select></span></div>
       <div class="rw"><span>${"Own model"}</span><span><input type="text" data-c="md" value="${esc(["small", "medium", "large"].includes(c.md) ? "" : c.md || "")}" placeholder="e.g. claude-opus-5-5"></span></div>
       <div class="rw"><span>${"Thinking effort"}</span><span><select data-c="ef">${["low", "medium", "high", "max"].map((m) => `<option value="${m}"${(c.ef || "medium") === m ? " selected" : ""}>${L(m)}</option>`).join("")}</select></span></div>
@@ -141,7 +147,7 @@ A.wSet = async (id, at) => {
       ${hrs ? `<div class="rw"><span>${"from – to (time)"}</span><span><input type="number" id="sHv" min="0" max="23" value="${+(hrs.from ?? 22) || 0}" style="width:52px"> – <input type="number" id="sHb" min="0" max="24" value="${+(hrs.to ?? 7) || 0}" style="width:52px"></span></div>` : ""}
       <div class="rw"><span>${"Priority"}</span><span><select data-c="prio" data-n>${[1, 2, 3, 4, 5].map((p) => `<option${(c.prio || 3) === p ? " selected" : ""}>${p}</option>`).join("")}</select></span></div>
       <details><summary>${"Advanced"}</summary>
-        <div class="rw"><span>${"At the same time"}</span><span><select data-c="par" data-n>${[1, 2, 3, 4].map((p) => `<option${(c.par || 1) === p ? " selected" : ""}>${p}</option>`).join("")}</select></span></div>
+        <div class="rw"><span>${"At the same time"}</span><span><select data-c="par" data-n>${[1, 2, 3, 4, 6, 8, 12].map((p) => `<option${(c.par || 1) === p ? " selected" : ""}>${p}</option>`).join("")}</select></span></div>
         <div class="rw"><span>${"Tasks per day (0 = any)"}</span><span><input type="number" data-c="perday" data-n min="0" value="${+c.perday || 0}" style="width:70px"></span></div>
         <div class="rw"><span>${"Pause at subscription usage"}</span><span><select data-c="cut" data-n>${[50, 60, 70, 80, 90, 100].map((p) => `<option value="${p}"${(c.cut || 100) === p ? " selected" : ""}>${p === 100 ? "never" : p + " %"}</option>`).join("")}</select></span></div>
         <div class="rw"><span>${"Tokens per day (0 = any)"}</span><span><input type="number" data-c="tokd" data-n min="0" step="10000" value="${+c.tokd || 0}" style="width:90px"></span></div>
@@ -167,7 +173,7 @@ A.wSet = async (id, at) => {
         <div class="mt">${"Accepts tasks from"}</div>
         <div>${others.map((o) => { const r = (c.from || []).find((f) => (f.w ?? f) === o.id); return `<label style="display:flex;justify-content:space-between"><span><input type="checkbox" data-from="${o.id}"${r ? " checked" : ""}> ${esc(o.nm)} <span class="mt">${esc(o.tn || "")}</span></span>${r ? `<input type="number" min="0" data-fmax="${o.id}" value="${+r.max || 0}" title="${"max. per day, 0 = any"}" style="width:50px">` : ""}</label>`; }).join("") || `<span class="mt">${"no other workers yet"}</span>`}</div>
       </details>
-      <div class="acts"><button data-sv>${"Save"}</button><button class="l" data-mv>${"Move"}</button><button class="d" data-fire>${"Dismiss"}</button></div>`, at, "wide");
+      <div class="acts"><button data-sv>${"Save"}</button><button class="l" data-mv>${"Move"}</button><button class="d" data-fire>${"Dismiss"}</button></div>`}`, at, "wide");
     b.oninput = (e) => { if (e.target.id === "sNm") nm = e.target.value; };
     b.onchange = (e) => {
       const t = e.target, D = t.dataset;
@@ -221,6 +227,8 @@ A.wSet = async (id, at) => {
 
 const perms = (nm, o, n) => {
   const l = [];
+  if (n.run && n.run !== o.run) l.push(`${nm} runs "${n.run}" on this computer, with your user's rights, as long as it is not paused.`);
+  if (n.dir && n.dir !== o.dir && n.run) l.push(`It runs in ${n.dir}.`);
   const add = (k) => (n[k] || []).filter((x) => !(o[k] || []).includes(x));
   for (const p of add("fsr")) l.push(`${nm} may read all files in ${p}.`);
   for (const p of add("fsw")) l.push(`${nm} may read, change and delete all files in ${p}.`);
@@ -238,7 +246,7 @@ const perms = (nm, o, n) => {
   if (n.fb && !o.fb) l.push(`${nm} may switch to API keys when the subscription is full (costs money).`);
   if (n.tools && JSON.stringify(n.tools) !== JSON.stringify(o.tools)) l.push(`${nm} gets these tools: ${n.tools.join(", ")}.`);
   if (!!n.sub !== !!o.sub) l.push(n.sub ? `${nm} only uses subscriptions, never API keys.` : `${nm} may also use API keys (costs money).`);
-  const dk = ["fsr", "fsw", "sh", "net", "push", "ceo_hire", "ceo_conn", "srv", "from", "chk", "tools", "fb", "sub", "route", "pause"];
+  const dk = ["run", "dir", "fsr", "fsw", "sh", "net", "push", "ceo_hire", "ceo_conn", "srv", "from", "chk", "tools", "fb", "sub", "route", "pause"];
   const j = (v) => JSON.stringify(v ?? null);
   const ch = dk.filter((k) => n[k] !== undefined && n[k] !== null && j(n[k]) !== j(o[k]));
   if (ch.length && !l.length) l.push(`Permissions of ${nm} get narrower (${ch.join(", ")}).`);
@@ -295,15 +303,17 @@ A.genBox = (u) => {
     ${s.err ? `<div class="er">${esc(s.err)}</div>` : ""}
     <div class="rw"><span>${a.k === "api" ? "Daily limit" : "Subscription window"}</span><span>${a.k === "api" && !(a.cfg && (a.cfg.tok_day || a.cfg.usd_day)) ? "no limit of its own" : pct + " %"}</span></div><div class="bar"><i style="width:${pct}%;background:${pct >= 100 ? "#d9594c" : pct >= 80 ? "#e0675a" : "#62b86f"}"></i></div>
     <div class="rw"><span>${"Today"}</span><span>${(a.today.tin || 0) + (a.today.tout || 0)} Tokens${a.today.usd ? " · " + a.today.usd.toFixed(2) + " $" : ""}</span></div>
-    ${a.k === "api" ? `<div class="rw"><span>${"Key"}</span><span>${esc(a.sec || "–")}</span></div><div class="rw"><span>${"Address"}</span><span>${esc(a.base)}</span></div>` : `<div class="rw"><span>${"Login"}</span><span>${a.dir ? "own folder" : "Default login of this computer"}</span></div>`}
+    ${a.k === "api" ? `<div class="rw"><span>${"Key"}</span><span>${esc(a.sec || "–")}</span></div><div class="rw"><span>${"Address"}</span><span>${esc(a.base)}</span></div>` : `<div class="rw"><span>${"Login"}</span><span>${a.cfg && a.cfg.kc ? "token from keychain item" + " " + esc(a.cfg.kc) : a.dir ? "own folder" : "Default login of this computer"}</span></div>`}
+    ${a.cfg && a.cfg.only ? `<div class="rw"><span>${"Used by"}</span><span>${"only workers that choose it"}</span></div>` : ""}
     <details><summary>${"Advanced"}</summary>
       ${["small", "medium", "large"].map((t) => `<div class="rw"><span>${"Model"} "${L(t)}"</span><span><input type="text" data-tier="${t}" value="${esc(tiers[t] || "")}" placeholder="${a.k === "api" ? esc(a.md) : "Default"}"></span></div>`).join("")}
       ${a.k === "api" ? `<div class="rw"><span>${"Max. tokens per day"}</span><span><input type="number" data-cf="tok_day" value="${(a.cfg && a.cfg.tok_day) || 0}"></span></div><div class="rw"><span>${"Max. $ per day"}</span><span><input type="number" step="0.5" data-cf="usd_day" value="${(a.cfg && a.cfg.usd_day) || 0}"></span></div><div class="rw"><span>${"Price $/M in / out"}</span><span><input type="number" step="0.01" data-cf="pin" value="${(a.cfg && a.cfg.pin) ?? ""}" style="width:60px"> <input type="number" step="0.01" data-cf="pout" value="${(a.cfg && a.cfg.pout) ?? ""}" style="width:60px"></span></div><div class="rw"><span>${"New key"}</span><span><input type="password" id="gKey" autocomplete="off"></span></div>` : ""}
+      <div class="rw"><span>${"Only for workers that choose it"}</span><span><input type="checkbox" data-only${a.cfg && a.cfg.only ? " checked" : ""}></span></div>
       <div class="acts"><button class="l" data-sv>${"Save"}</button></div>
     </details>
-    <div class="acts"><button data-t>${"Test"}</button>${a.k !== "api" ? `<button class="l" data-lg>${"Log in"}</button>` : ""}<button class="d" data-del>${"Disconnect"}</button></div><div id="gMsg" class="mt"></div>`, u);
+    <div class="acts"><button data-t>${"Test"}</button>${a.k !== "api" && !(a.cfg && a.cfg.kc) ? `<button class="l" data-lg>${"Log in"}</button>` : ""}<button class="d" data-del>${"Disconnect"}</button></div><div id="gMsg" class="mt"></div>`, u);
   const cf = {};
-  b.onchange = (e) => { const D = e.target.dataset; if (D.tier) { cf.tiers = { ...(cf.tiers || tiers), [D.tier]: e.target.value.trim() }; } if (D.cf) cf[D.cf] = e.target.value === "" ? null : +e.target.value; };
+  b.onchange = (e) => { const D = e.target.dataset; if (D.tier) { cf.tiers = { ...(cf.tiers || tiers), [D.tier]: e.target.value.trim() }; } if (D.cf) cf[D.cf] = e.target.value === "" ? null : +e.target.value; if ("only" in D) cf.only = e.target.checked; };
   b.onclick = async (e) => {
     const D = (e.target.closest("button") || {}).dataset || {};
     try {
@@ -335,6 +345,8 @@ A.addAcc = async (at) => {
         ${dk.found ? `<div class="rw"><span>${"Program"}</span><span>${esc(dk.ver || dk.path || "")}</span></div>` : `<div class="er">${esc(k === "claude" ? "Claude Code is not installed: claude.com/claude-code" : k === "codex" ? "Codex CLI is not installed: npm i -g @openai/codex" : "Gemini CLI is not installed: npm i -g @google/gemini-cli")}</div>`}
         <div class="rw"><span>${"Name"}</span><span><input type="text" id="aNm" placeholder="${"e.g. private"}"></span></div>
         <div class="rw"><span>${"Own login (second account)"}</span><span><input type="checkbox" id="aOwn"${same ? " checked disabled" : ""}></span></div>
+        ${k === "claude" && navigator.platform.startsWith("Mac") ? `<details><summary>${"Token from the keychain"}</summary><div class="mt">${"Name of a keychain item that holds a token from claude setup-token. ApolloOffice reads it for each run and never stores it."}</div><div class="rw"><span>${"Keychain item"}</span><span><input type="text" id="aKc" placeholder="my-claude-token"></span></div></details>` : ""}
+        <div class="rw"><span>${"Only for workers that choose it"}</span><span><input type="checkbox" id="aOnly"></span></div>
         ${same ? `<div class="er">${"Note: Using several subscription accounts with the same provider to get around limits may violate its terms of use. Your call."}</div>` : ""}
         ${det.bash === null && navigator.platform.startsWith("Win") ? `<div class="er">${"Git for Windows is missing (git-scm.com). Without it, workers cannot run commands."}</div>` : ""}
       ` : `
@@ -356,7 +368,8 @@ A.addAcc = async (at) => {
     if (!e.target.closest("[data-go]")) return;
     const body = { k, nm: $("aNm").value.trim(), ok: true };
     if (k === "api") Object.assign(body, { pre: $("aPre").value, key: $("aKey").value.trim(), base: $("aBase").value.trim(), md: $("aMd").value.trim(), fmt: $("aFmt").value });
-    else body.own = $("aOwn").checked;
+    else { body.kc = ($("aKc") || {}).value ? $("aKc").value.trim() : ""; body.own = $("aOwn").checked && !body.kc; }
+    body.only = !!($("aOnly") && $("aOnly").checked);
     try {
       $("aMsg").textContent = "connecting …";
       const r = await A.api("/api/acc", body);
@@ -386,7 +399,7 @@ A.rackBox = async (u) => {
       <div class="rw"><span>${"Status"}</span><span>${st.t === undefined ? "is being checked" : st.on ? "online" : "offline" + (st.why ? ": " + esc(st.why) : "")}</span></div>
       ${st.on ? `<div class="rw"><span>CPU</span><span>${Math.round(st.cpu || 0)} %</span></div>${bar(st.cpu)}<div class="rw"><span>RAM</span><span>${Math.round(st.ram || 0)} %</span></div>${bar(st.ram)}<div class="rw"><span>Disk</span><span>${Math.round(st.disk || 0)} %</span></div>${bar(st.disk)}` : ""}
       <div class="rw"><span>${"Lanes"}</span><span>${st.jobs || 0} / ${st.lanes || c.lanes} ${"occupied"}</span></div>
-      <div class="rw"><span>Docker</span><span>${s.dock ? "yes, jobs in containers" : "no, jobs directly"}</span></div>
+      ${c.via === "ssh" ? `<div class="rw"><span>${"Connection"}</span><span>ssh ${esc(s.host)}${c.ct ? " · " + "container" + " " + esc(c.ct) : ""}</span></div>${c.bd ? `<div class="rw"><span>${"Base folder"}</span><span>${esc(c.bd)}</span></div>` : ""}` : `<div class="rw"><span>Docker</span><span>${s.dock ? "yes, jobs in containers" : "no, jobs directly"}</span></div>`}
       <details><summary>${"Jobs"}</summary><div class="li">${jobs.map((j) => `<div><span>#${j.id} ${esc(j.cmd.slice(0, 40))}</span><span class="mt">${L(j.st)}${j.ex != null ? " " + j.ex : ""}</span></div>`).join("") || `<span class="mt">${"none yet"}</span>`}</div></details>
       <details><summary>${"Settings"}</summary>
         <div class="rw"><span>${"Lanes"}</span><span><input type="number" min="1" max="32" data-c="lanes" value="${c.lanes || 2}" style="width:60px"></span></div>
@@ -417,7 +430,7 @@ A.rackBox = async (u) => {
           }
           await A.api("/api/srv/" + s.id, body); toast("saved"); A.poll(); close();
         }
-        if ("del" in D) { if (!(await confirmBox("Remove server?", [s.nm + " " + "disappears from the server room. The user apollo stays on the server until you delete it there."], "Yes, remove"))) return; await A.api(`/api/srv/${s.id}/del`, {}); A.poll(); }
+        if ("del" in D) { if (!(await confirmBox("Remove server?", [s.nm + " " + "disappears from the server room." + (c.via === "ssh" ? "" : " The user apollo stays on the server until you delete it there.")], "Yes, remove"))) return; await A.api(`/api/srv/${s.id}/del`, {}); A.poll(); }
       } catch (x) { fail(x); }
     };
   };
@@ -433,7 +446,16 @@ A.addSrv = (fl, at) => {
     <div class="rw"><span>${"Password"}</span><span><input type="password" id="sPw" autocomplete="off"></span></div>
     <details><summary>${"or private key"}</summary><textarea id="sKy" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea><div class="rw"><span>${"Passphrase"}</span><span><input type="password" id="sKp" autocomplete="off"></span></div></details>
     <div class="rw"><span>${"Use Docker if available"}</span><span><input type="checkbox" id="sDo" checked></span></div>
-    <div class="acts"><button data-pr>${"Connect"}</button></div><div id="sMsg" class="mt"></div>`, at, "wide");
+    <div class="acts"><button data-pr>${"Connect"}</button></div>
+    <details><summary>${"or use my SSH config"}</summary>
+      <div class="mt">${"For hosts you already reach with ssh from this computer. Nothing is set up on the server. Workers only get server workspaces from scripts, never a free shell."}</div>
+      <div class="rw"><span>${"SSH host (alias)"}</span><span><input type="text" id="xHo" placeholder="node-1"></span></div>
+      <div class="rw"><span>${"Run inside container"}</span><span><input type="text" id="xCt" placeholder="${"optional, e.g. builder"}"></span></div>
+      <div class="rw"><span>${"Base folder"}</span><span><input type="text" id="xBd" placeholder="/work"></span></div>
+      <div class="rw"><span>${"Lanes"}</span><span><input type="number" id="xLn" value="1" min="1" max="32" style="width:60px"></span></div>
+      <div class="mt">${"Shell prefix (environment, ulimit)"}</div><textarea id="xPr" placeholder="export PATH=$HOME/.cargo/bin:$PATH"></textarea>
+      <div class="acts"><button data-al>${"Add via SSH config"}</button></div>
+    </details><div id="sMsg" class="mt"></div>`, at, "wide");
   b.onclick = async (e) => {
     const D = e.target.dataset;
     try {
@@ -441,6 +463,15 @@ A.addSrv = (fl, at) => {
         $("sMsg").textContent = "connecting …";
         const r = await A.api("/api/srvprobe", { host: $("sHo").value.trim(), port: +$("sPo").value || 22 });
         $("sMsg").innerHTML = `${"Server fingerprint"}:<pre>${esc(r.fp)}</pre>${"Does it match the server (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub)?"}<div class="acts"><button data-ok="${esc(r.fp)}">${"Yes, set up"}</button></div>`;
+      }
+      if ("al" in D) {
+        const h = $("xHo").value.trim(), ct = $("xCt").value.trim();
+        if (!h) return toast("Enter the SSH host", 1);
+        if (!(await confirmBox("Add server via SSH config", ["ApolloOffice runs commands on " + h + " with your own ssh login" + (ct ? ", inside the container " + ct : "") + ".", "Only workers you allow get workspaces there, and only from scripts."]))) return A.addSrv(fl, at);
+        A.toast("checking ssh …");
+        await A.api("/api/srv", { ok: true, via: "ssh", fl, nm: $("sNm").value, host: h, ct, bd: $("xBd").value.trim(), pre: $("xPr").value, lanes: +$("xLn").value || 1 });
+        toast("Server is in the rack"); close(); A.poll();
+        return;
       }
       if (D.ok) {
         const dock = $("sDo").checked;

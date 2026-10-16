@@ -18,6 +18,7 @@ pub struct Rc {
     pub wc: Value,
     pub nm: String,
     pub dl: Option<i64>,
+    pub ctx: Value,
 }
 
 pub fn wrap(id: &str, t: &str) -> String {
@@ -199,6 +200,9 @@ pub async fn call(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String>
 }
 
 pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> {
+    if crate::rws::on(rc) && ["read", "write", "edit", "grep", "ls", "sh", "delete"].contains(&n) {
+        return crate::rws::call(a, rc, n, x).await;
+    }
     match n {
         "exists" => Ok(rp(rc, s(x, "path")).map(|f| f.exists()).unwrap_or(false).to_string()),
         "read_bytes" => {

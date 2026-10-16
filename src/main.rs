@@ -9,6 +9,8 @@ mod ntf;
 mod perm;
 mod prov;
 mod run;
+mod rws;
+mod scr;
 mod sh;
 mod ssh;
 mod stat;
@@ -217,12 +219,22 @@ async fn main() -> anyhow::Result<()> {
     let app = axum::Router::new().fallback(web::h).layer(axum::extract::DefaultBodyLimit::disable()).with_state(ax.clone());
     let ax2 = ax.clone();
     let sv = axum::serve(l, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).with_graceful_shutdown(async move {
+        #[cfg(unix)]
+        let mut tm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).unwrap();
+        #[cfg(unix)]
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {}
+            _ = ax2.quit.notified() => {}
+            _ = tm.recv() => {}
+        }
+        #[cfg(not(unix))]
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {}
             _ = ax2.quit.notified() => {}
         }
     });
     sv.await?;
+    scr::stop_all();
     let ps: Vec<u32> = ax.lv.lock().unwrap().pids.values().flatten().cloned().collect();
     for p in ps {
         sh::kill(p);

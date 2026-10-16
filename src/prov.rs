@@ -211,9 +211,10 @@ pub fn pick(a: &Ax, wc: &Value, tdef: &str) -> Result<(Value, String), String> {
         }
         return Ok((x.clone(), tier(x, &md)));
     }
-    let mut c: Vec<&Value> = all.iter().filter(|x| (pk.is_empty() || x["k"] == pk) && (!sub || cli_kind(x["k"].as_str().unwrap_or(""))) && avail(x)).collect();
+    let free = |x: &Value| x["cfg"]["only"].as_bool() != Some(true);
+    let mut c: Vec<&Value> = all.iter().filter(|x| free(x) && (pk.is_empty() || x["k"] == pk) && (!sub || cli_kind(x["k"].as_str().unwrap_or(""))) && avail(x)).collect();
     if c.is_empty() && !sub && wc["fb"].as_bool() == Some(true) {
-        c = all.iter().filter(|x| x["k"] == "api" && avail(x)).collect();
+        c = all.iter().filter(|x| free(x) && x["k"] == "api" && avail(x)).collect();
     }
     c.sort_by(|x, y| {
         let p = |v: &Value| (if cli_kind(v["k"].as_str().unwrap_or("")) { 0.0 } else { 1000.0 }) + v["st"]["pct"].as_f64().unwrap_or(0.0);
@@ -221,6 +222,18 @@ pub fn pick(a: &Ax, wc: &Value, tdef: &str) -> Result<(Value, String), String> {
     });
     let x = c.first().ok_or("All matching accounts are full or off")?;
     Ok(((*x).clone(), tier(x, &md)))
+}
+
+pub async fn kc(n: &str) -> Result<String, String> {
+    if !cfg!(target_os = "macos") {
+        return Err("keychain tokens only work on macOS".into());
+    }
+    let o = tokio::process::Command::new("/usr/bin/security").args(["find-generic-password", "-s", n, "-w"]).output().await.map_err(|e| e.to_string())?;
+    let t = String::from_utf8_lossy(&o.stdout).trim().to_string();
+    if !o.status.success() || t.is_empty() {
+        return Err(format!("keychain item {n} not found"));
+    }
+    Ok(t)
 }
 
 pub fn ef(e: &str) -> &'static str {

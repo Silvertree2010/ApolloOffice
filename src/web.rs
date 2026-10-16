@@ -138,6 +138,17 @@ async fn route(a: &Ax, ip: SocketAddr, m: Method, u: Uri, hd: HeaderMap, b: Byte
         let v: Value = serde_json::from_slice(&b).unwrap_or(json!({}));
         return js(crate::mcp::handle(a, t, &v).await);
     }
+    if p == "/int/s" && m == Method::POST {
+        if !ip.ip().is_loopback() {
+            return er(StatusCode::FORBIDDEN, "local only");
+        }
+        let t = hd.get("x-run").and_then(|v| v.to_str().ok()).unwrap_or("");
+        let v: Value = serde_json::from_slice(&b).unwrap_or(json!({}));
+        return match crate::scr::api(a, t, &v).await {
+            Ok(x) => js(x),
+            Err(e) => er(StatusCode::BAD_REQUEST, &e),
+        };
+    }
     if let Some(sec) = p.strip_prefix("/hook/") {
         if m != Method::POST {
             return er(StatusCode::METHOD_NOT_ALLOWED, "POST");
@@ -307,7 +318,7 @@ fn s<'a>(v: &'a Value, k: &str) -> &'a str {
     v[k].as_str().unwrap_or("")
 }
 
-const DANGER: &[&str] = &["fsr", "fsw", "sh", "net", "push", "ceo_hire", "ceo_conn", "srv", "from", "chk", "tools", "fb", "sub", "route", "pause"];
+const DANGER: &[&str] = &["run", "dir", "fsr", "fsw", "sh", "net", "push", "ceo_hire", "ceo_conn", "srv", "from", "chk", "tools", "fb", "sub", "route", "pause"];
 
 fn danger(old: &Value, new: &Value) -> Vec<String> {
     let mut o = vec![];
@@ -592,6 +603,12 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
                     return Err(format!("confirmation needed for: {}", d.join(", ")));
                 }
                 for (k, v) in nc {
+                    if k == "dir" && !v.as_str().unwrap_or("").is_empty() {
+                        let pth = std::path::PathBuf::from(v.as_str().unwrap_or(""));
+                        if !pth.is_absolute() || !pth.is_dir() {
+                            return Err(format!("folder {} does not exist", pth.display()));
+                        }
+                    }
                     if k == "fsr" || k == "fsw" {
                         for x in v.as_array().cloned().unwrap_or_default() {
                             let pth = std::path::PathBuf::from(x.as_str().unwrap_or(""));
@@ -734,7 +751,7 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
                         c[k] = v.clone();
                     }
                 }
-                if !s(b, "key").is_empty() && b["ok"].as_bool() != Some(true) {
+                if (!s(b, "key").is_empty() || b["cfg"]["kc"].as_str().map(|x| x != r["cfg"]["kc"].as_str().unwrap_or("")).unwrap_or(false)) && b["ok"].as_bool() != Some(true) {
                     return Err("confirmation needed".into());
                 }
                 if !s(b, "base").is_empty() {
@@ -774,8 +791,17 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             if !s(b, "bin").is_empty() {
                 cfg["bin"] = json!(s(b, "bin"));
             }
+            if k == "claude" && !s(b, "kc").trim().is_empty() {
+                if !crate::ssh::alias_ok(s(b, "kc").trim()) {
+                    return Err("invalid keychain item name".into());
+                }
+                cfg["kc"] = json!(s(b, "kc").trim());
+            }
+            if b["only"].as_bool() == Some(true) {
+                cfg["only"] = json!(true);
+            }
             let aid = a.db.run("insert into acc(k,fmt,nm,base,md,sec,dir,cfg,st,t0) values(?,?,?,?,?,?,'',?,'{}',?)", pa![k.to_string(), fmt, nm.clone(), base, md, if s(b, "key").is_empty() { None } else { Some(crate::vault::enc(&a.key, s(b, "key").trim())) }, cfg.to_string(), now()]);
-            if crate::prov::cli_kind(k) && (b["own"].as_bool() == Some(true) || same > 0) {
+            if crate::prov::cli_kind(k) && cfg["kc"].is_null() && (b["own"].as_bool() == Some(true) || same > 0) {
                 let d = a.adir(aid);
                 a.db.run("update acc set dir=? where id=?", pa![d.display().to_string(), aid]);
             }
@@ -813,14 +839,14 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             if b["ok"].as_bool() != Some(true) {
                 return Err("confirmation needed".into());
             }
-            let sid = crate::ssh::setup(a, b).await?;
+            let sid = if b["via"] == "ssh" { crate::ssh::alias_add(a, b).await? } else { crate::ssh::setup(a, b).await? };
             Ok(js(json!({"ok": true, "id": sid})))
         }
         ("srv", "", true) => {
             let r = a.db.one("select * from srv where id=?", pa![id]).ok_or("unknown server")?;
             let mut c = r["cfg"].clone();
             if let Some(nc) = b["cfg"].as_object() {
-                if nc.contains_key("cmds") && nc["cmds"] != c["cmds"] {
+                if ["cmds", "ct", "pre", "bd"].iter().any(|k| nc.contains_key(*k) && nc[*k] != c[*k]) {
                     if b["ok"].as_bool() != Some(true) {
                         return Err("confirmation needed".into());
                     }

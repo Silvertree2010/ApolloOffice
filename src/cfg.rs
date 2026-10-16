@@ -16,6 +16,8 @@ pub struct Ws {
     pub busy: i64,
     pub tk: Vec<i64>,
     pub to: Option<i64>,
+    pub xs: String,
+    pub xt: i64,
 }
 
 #[derive(Default)]

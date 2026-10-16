@@ -75,6 +75,7 @@ pub fn hire(a: &Ax, ty: &str, fl: i64, desk: Option<i64>, nm: &str, cfg: Value) 
 }
 
 pub fn recover(a: &Ax) {
+    crate::scr::reap(a);
     if let Some(p) = a.db.kg("pids").as_array() {
         for x in p {
             if let (Some(i), Some(t)) = (x["p"].as_u64(), x["t"].as_i64()) {
@@ -142,12 +143,17 @@ pub fn avail(a: &Ax, w: &Value) -> Result<(), String> {
 }
 
 pub fn live(a: &Ax) {
-    let ws = a.db.all("select id,hold,cfg from wk", pa![]);
+    let ws = a.db.all("select id,ty,hold,cfg from wk", pa![]);
     let mut l = a.lv.lock().unwrap();
+    let n = now();
     for w in ws {
         let id = w["id"].as_i64().unwrap_or(0);
         let x = l.w.entry(id).or_default();
-        if x.busy > 0 {
+        if !x.xs.is_empty() && n - x.xt < 20 * 60_000 && w["hold"].as_i64() != Some(1) {
+            x.st = x.xs.clone();
+        } else if w["ty"] == "script" && w["hold"].as_i64() != Some(1) && !w["cfg"]["run"].as_str().unwrap_or("").is_empty() {
+            x.st = if crate::scr::up(id) { "work" } else { "idle" }.into();
+        } else if x.busy > 0 {
             if x.st != "wait" {
                 x.st = "work".into();
             }
@@ -195,7 +201,7 @@ fn sched(a: &Ax) {
 }
 
 fn pick_worker(a: &Ax, fl: i64) -> Option<Value> {
-    let mut ws: Vec<Value> = a.db.all("select * from wk where fl=?", pa![fl]).into_iter().filter(|w| avail(a, w).is_ok()).collect();
+    let mut ws: Vec<Value> = a.db.all("select * from wk where fl=? and ty!='script'", pa![fl]).into_iter().filter(|w| avail(a, w).is_ok()).collect();
     if let Some(c) = ws.iter().find(|w| w["ty"] == "ceo") {
         return Some(c.clone());
     }
@@ -239,7 +245,7 @@ fn dispatch(a: &Ax) {
             },
         };
         let wid = w["id"].as_i64().unwrap_or(0);
-        if avail(a, &w).is_err() {
+        if w["ty"] == "script" || avail(a, &w).is_err() {
             no.insert(wid);
             continue;
         }
@@ -284,7 +290,7 @@ pub fn rc_of(a: &Ax, w: &Value, tk: i64) -> Rc {
         pm.wr.push(lib.clone());
     }
     pm.rd.push(lib);
-    Rc { wk: w["id"].as_i64().unwrap_or(0), tk, fl, out: out.clone(), pm, tools, wc: w["cfg"].clone(), nm: w["nm"].as_str().unwrap_or("").to_string(), dl: None }
+    Rc { wk: w["id"].as_i64().unwrap_or(0), tk, fl, out: out.clone(), pm, tools, wc: w["cfg"].clone(), nm: w["nm"].as_str().unwrap_or("").to_string(), dl: None, ctx: json!({}) }
 }
 
 fn sys(a: &Ax, w: &Value, t: &Value, rc: &Rc) -> String {
@@ -322,6 +328,20 @@ Rules:\n- Work only on the task you are given. Use only your tools. Do the work 
         net = if rc.pm.net.is_empty() { "none".into() } else { rc.pm.net.join(", ") },
         outf = t["outf"].as_str().filter(|s| !s.is_empty()).map(|s| format!("\n- What a good result looks like: {s}")).unwrap_or_default(),
     )
+}
+
+fn sys_ov(a: &Ax, rc: &Rc, o: &str) -> String {
+    let tl = crate::tools::defs(a, rc).iter().map(|d| d.0.clone()).filter(|n| n != "deliver").collect::<Vec<_>>().join(", ");
+    if tl.is_empty() {
+        return o.to_string();
+    }
+    let ws = if crate::rws::on(rc) {
+        let sv = a.db.one("select nm from srv where id=?", crate::pa![rc.ctx["srv"].as_i64().unwrap_or(0)]).and_then(|r| r["nm"].as_str().map(String::from)).unwrap_or_default();
+        format!(" They work in your workspace {} on the server {sv}; paths are relative to it.", rc.ctx["dir"].as_str().unwrap_or(""))
+    } else {
+        String::new()
+    };
+    format!("{o}\n\nYour tools come from the MCP server \"office\": {tl}.{ws}")
 }
 
 async fn guard(a: &Ax, acc: &Value, wid: i64, tk: &Value) -> Result<(bool, String), Er> {
@@ -400,7 +420,12 @@ async fn work(a: &Ax, tid: i64, w: &Value) {
         }
     }
     let mut rc = rc_of(a, w, tid);
-    rc.dl = Some(now() + w["cfg"]["min"].as_i64().unwrap_or(30).clamp(1, 600) * 60_000 + 25 * 60_000);
+    let ov = if tk["ov"].is_object() { tk["ov"].clone() } else { json!({}) };
+    if tk["ctx"].is_object() {
+        rc.ctx = tk["ctx"].clone();
+    }
+    let mins = ov["min"].as_i64().or(w["cfg"]["min"].as_i64()).unwrap_or(30).clamp(1, 600);
+    rc.dl = Some(now() + mins * 60_000 + 25 * 60_000);
     let src = tk["src"].as_str().unwrap_or("user");
     let from = if let Some(x) = src.strip_prefix("w:") { a.db.one("select nm from wk where id=?", pa![x.parse::<i64>().unwrap_or(0)]).and_then(|r| r["nm"].as_str().map(String::from)).unwrap_or("a colleague".into()) } else { match src { "sched" => "your schedule".into(), "hook" => "a webhook".into(), _ => "the user".into() } };
     let (ti, tx) = (tk["ti"].as_str().unwrap_or(""), tk["tx"].as_str().unwrap_or(""));
@@ -412,7 +437,15 @@ async fn work(a: &Ax, tid: i64, w: &Value) {
         p.push_str("\n\nAnswer the question briefly. Your answer goes back to the colleague who asked.");
     }
     a.say(wid, &format!("working on: {}", cut_s(ti, 80)), Some(tid));
-    let j = Job { acc: acc.clone(), md: md.clone(), ef: w["cfg"]["ef"].as_str().unwrap_or("medium").to_string(), sys: sys(a, w, &t, &rc), p, turns: w["cfg"]["turns"].as_u64().unwrap_or(60) as u32, min: w["cfg"]["min"].as_u64().unwrap_or(30).clamp(1, 600), rc: Some(rc.clone()), who: wid, tid, fl };
+    let md = ov["md"].as_str().filter(|x| !x.is_empty()).map(String::from).unwrap_or(md);
+    let sy = match ov["sys"].as_str().filter(|x| !x.is_empty()) {
+        Some(o) => sys_ov(a, &rc, o),
+        None => sys(a, w, &t, &rc),
+    };
+    if !ov["sys"].is_null() {
+        p = format!("{}{}", tx, tk["fb"].as_str().filter(|s| !s.is_empty()).map(|f| format!("\n\nFEEDBACK from the last attempt (fix this):\n{f}")).unwrap_or_default());
+    }
+    let j = Job { acc: acc.clone(), md: md.clone(), ef: ov["ef"].as_str().or(w["cfg"]["ef"].as_str()).unwrap_or("medium").to_string(), sys: sy, p, turns: ov["turns"].as_u64().or(w["cfg"]["turns"].as_u64()).unwrap_or(60) as u32, min: mins as u64, rc: Some(rc.clone()), who: wid, tid, fl };
     let r = crate::run::go(a, j).await;
     if crate::run::gone(a, tid) {
         return;
@@ -530,6 +563,7 @@ pub fn spawn(a: Ax) {
                 crate::sys::daily(&a);
                 crate::ntf::poll(&a);
             }
+            crate::scr::tick(&a);
             dispatch(&a);
             i += 1;
             tokio::time::sleep(Duration::from_secs(1)).await;

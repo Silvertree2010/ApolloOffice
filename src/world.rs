@@ -147,6 +147,8 @@ pub fn types() -> Vec<Value> {
           "You check backups with the commands you may run: are they there, recent, complete and readable. Test a restore into a scratch folder when you can. Report problems clearly.", "Backup state per source and the restore test result."),
         t("notifier", "Notifier", "operations", "headset", "#3fb6a8", "small", &["read", "notify", "deliver"], "Sends summaries and alerts to Discord, ntfy, Telegram, e-mail or the desktop.",
           "You prepare notifications: short summaries and alerts for the user. Send them with the notify tool over the channel named in the task, or the best fitting one. Keep them short: one line title, a few lines text. If no channel is set up, deliver the text as a file in the result tray.", "The notification text and the channel it went to."),
+        t("script", "Script", "operations", "headset", "#8a8a8a", "", &[], "Runs your own program instead of a model, or is a puppet a script moves.",
+          "", ""),
         t("accountant", "Accountant", "office", "tie", "#62b86f", "small", &["usage", "read", "order", "ask", "pause"], "Estimates costs before, watches them after, pauses workers over budget.",
           "You look after costs. Before a big task, estimate what it will cost from the prices and past usage. Afterwards, compare spending with the limits, point out workers or models that cost more than they bring and suggest cheaper models. If you may pause workers, pause only those that are over their budget, and say so.", "Costs per worker and account, estimate if asked, actions taken."),
         t("coach", "Coach", "office", "cap", "#c75b8a", "medium", &["read", "grep", "ls", "type_propose"], "Learns from failed tasks and suggests better roles.",
