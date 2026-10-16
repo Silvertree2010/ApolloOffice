@@ -253,7 +253,7 @@ pub async fn alias_add(a: &Ax, b: &Value) -> Result<i64, String> {
     let bd = b["bd"].as_str().unwrap_or("").trim().to_string();
     let cfg = json!({"via": "ssh", "ct": ct, "bd": bd, "pre": b["pre"].as_str().unwrap_or(""), "lanes": b["lanes"].as_i64().unwrap_or(1), "cmds": [], "hours": {}, "every": 60});
     let sv = json!({"host": h, "cfg": cfg});
-    let (c, o, e) = rx(a, &sv, "echo OKAY; uname -s", 40).await?;
+    let (c, o, e) = if b["nocheck"].as_bool() == Some(true) { (0, "OKAY".to_string(), String::new()) } else { rx(a, &sv, "echo OKAY; uname -s", 40).await? };
     if c != 0 || !o.contains("OKAY") {
         return Err(format!("ssh {h} does not work: {}", crate::sh::cut(&format!("{o}{e}"), 300)));
     }

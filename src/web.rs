@@ -850,7 +850,7 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
                     if b["ok"].as_bool() != Some(true) {
                         return Err("confirmation needed".into());
                     }
-                    a.aud("Server commands changed", &format!("{}: {}", r["nm"].as_str().unwrap_or(""), nc["cmds"]));
+                    a.aud("Server settings changed", &format!("{}: {}", r["nm"].as_str().unwrap_or(""), serde_json::Value::Object(nc.clone())));
                 }
                 for (k, v) in nc {
                     c[k] = v.clone();
