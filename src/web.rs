@@ -91,7 +91,7 @@ fn nh(h: &str, https: bool) -> String {
 
 fn cip(ip: SocketAddr, hd: &HeaderMap) -> String {
     if ip.ip().is_loopback() {
-        if let Some(x) = hd.get("x-forwarded-for").and_then(|v| v.to_str().ok()).and_then(|v| v.split(',').next()).map(|v| v.trim()).filter(|v| v.parse::<std::net::IpAddr>().is_ok()) {
+        if let Some(x) = hd.get("x-forwarded-for").and_then(|v| v.to_str().ok()).and_then(|v| v.rsplit(',').next()).map(|v| v.trim()).filter(|v| v.parse::<std::net::IpAddr>().is_ok()) {
             return x.to_string();
         }
     }
@@ -112,7 +112,16 @@ fn limited(a: &Ax, k: &str, n: u32) -> bool {
     m.get(k).map(|x| x.1 > n).unwrap_or(false)
 }
 
-pub async fn h(State(a): State<Ax>, ConnectInfo(ip): ConnectInfo<SocketAddr>, m: Method, u: Uri, hd: HeaderMap, b: Bytes) -> Response {
+pub async fn h(State(a): State<Ax>, ConnectInfo(ip): ConnectInfo<SocketAddr>, m: Method, u: Uri, hd: HeaderMap, bd: Body) -> Response {
+    let big = u.path() == "/api/import" && ck(&hd, "ao_s").and_then(|t| crate::auth::ses_ok(&a.db, &t)).is_some();
+    let b = match axum::body::to_bytes(bd, if big { 256 << 20 } else { 2 << 20 }).await {
+        Ok(b) => b,
+        Err(_) => {
+            let mut r = er(StatusCode::PAYLOAD_TOO_LARGE, "request too large");
+            sec(&mut r);
+            return r;
+        }
+    };
     let mut r = route(&a, ip, m, u, hd, b).await;
     sec(&mut r);
     r

@@ -213,7 +213,7 @@ async fn main() -> anyhow::Result<()> {
         }
         println!("  Stop with Ctrl+C\n");
     }
-    let app = axum::Router::new().fallback(web::h).layer(axum::extract::DefaultBodyLimit::max(256 << 20)).with_state(ax.clone());
+    let app = axum::Router::new().fallback(web::h).layer(axum::extract::DefaultBodyLimit::disable()).with_state(ax.clone());
     let ax2 = ax.clone();
     let sv = axum::serve(l, app.into_make_service_with_connect_info::<std::net::SocketAddr>()).with_graceful_shutdown(async move {
         tokio::select! {
