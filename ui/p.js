@@ -1,7 +1,7 @@
 (() => {
 const A = window.A, L = A.L, $ = A.$, esc = A.esc;
 
-A.goFloor = (id) => { A.bld && A.setBld(false); A.cur = id; A.fol = null; A.close(); nav(); const f = A.flo(id); if (f && f.k === "accounting") loadUsage(); };
+A.goFloor = (id) => { A.bld && A.setBld(false); if (!$("pg").hidden) A.page(null); A.cur = id; A.fol = null; A.close(); nav(); const f = A.flo(id); if (f && f.k === "accounting") loadUsage(); };
 const loadUsage = async () => { try { A.usage = await A.api("/api/usage?d=7"); } catch {} };
 
 const dd = (html, anchor, onclick) => {
@@ -12,15 +12,14 @@ const dd = (html, anchor, onclick) => {
   d.style.left = Math.max(8, Math.min(innerWidth - d.offsetWidth - 8, r.right - d.offsetWidth)) + "px";
   d.onclick = (e) => { const x = e.target.closest("[data-a]"); if (!x) return; d.hidden = true; onclick(x.dataset.a, x); };
 };
-addEventListener("pointerdown", (e) => { if (!e.target.closest("#dd") && !e.target.closest(".tb,.us,.me,.fl")) $("dd").hidden = true; });
+addEventListener("pointerdown", (e) => { if (!e.target.closest("#dd") && !e.target.closest(".tb,.me")) $("dd").hidden = true; });
+
+const SEC = { tasks: "Tasks", workers: "Workers", accounts: "Accounts", servers: "Servers", notify: "Notifications", stats: "Statistics", usage: "Costs", types: "Worker types", lab: "Lab", settings: "Settings" };
+const run = (S, st) => (S.cnt || []).filter((c) => c.st === st).reduce((a, b) => a + b.n, 0);
 
 const top = () => {
   const S = A.S, f = A.flo(A.cur);
-  $("tFl").innerHTML = f ? `<b>${A.lvlName(f.lvl)}</b> · ${esc(f.nm)}${A.fol && A.fol.i ? " · " + "follows" + " " + esc(A.fol.i.nm) : ""}` : "";
-  const sub = S.acc.filter((a) => a.k !== "api");
-  const mx = Math.max(0, ...S.acc.map((a) => (a.st && a.st.pct) || 0));
-  const usd = S.usd || 0, lim = S.usd_day || 0;
-  $("tUs").innerHTML = `<span class="hm">${S.stop ? "STOPPED" : sub.length ? "Subscription" : ""}</span><i title="${"Peak usage"}"><b style="width:${Math.min(100, mx)}%;background:${mx >= 100 ? "#d9594c" : mx >= 80 ? "#e0675a" : "#62b86f"}"></b></i><span>${usd.toFixed(2)} / ${esc(String(+lim || 0))} $</span>`;
+  $("tTi").innerHTML = !$("pg").hidden ? `<b>${esc(SEC[A.pgK] || "")}</b>` : f ? `<b>${A.lvlName(f.lvl)}</b> · ${esc(f.nm || L(A.KN[f.k]))}${A.fol && A.fol.i ? " · " + "follows" + " " + esc(A.fol.i.nm) : ""}` : "";
   const bell = S.bell.length + S.acc.filter((a) => a.st && a.st.s === "err").length + S.srv.filter((s) => s.st && s.st.on === false).length;
   $("tBn").hidden = !bell; $("tBn").textContent = bell;
   const o = S.owner || {};
@@ -37,112 +36,219 @@ const top = () => {
 
 let nvOn = innerWidth > 720;
 try { const v = localStorage.getItem("nav"); if (v && innerWidth > 720) nvOn = v === "1"; } catch {}
-const NST = { work: "working", wait: "waiting for an answer", off: "in the lounge", hold: "paused" };
+const NST = { work: "working", wait: "waiting for an answer", off: "in the lounge", hold: "paused", idle: "waiting for work" };
+A.wSt = (x) => (x.hold ? "hold" : (x.live && x.live.st) || "idle");
+A.NST = NST;
+
+A.lay = () => {
+  const bq = $("bx"), wide = innerWidth > 720;
+  A.NW = nvOn && wide ? 220 : 0;
+  A.PW = wide && !bq.hidden && !bq.classList.contains("mid") ? bq.offsetWidth : 0;
+  A.FH = !$("pal").hidden ? $("pal").offsetHeight + 24 : $("fb").hidden ? 0 : $("fb").offsetHeight;
+  $("pal").style.left = A.NW + (innerWidth - A.NW - A.PW) / 2 + "px";
+  $("pg").style.left = A.NW + "px"; $("pg").style.right = A.PW + "px";
+  $("fb").style.left = A.NW + "px"; $("fb").style.right = A.PW + "px";
+};
+
 const nav = () => {
   const n = $("nav"), S = A.S;
   if (!S) return;
   n.hidden = !nvOn;
-  A.NW = nvOn && innerWidth > 720 ? 220 : 0;
-  $("pg").style.left = A.NW + "px";
+  fbar();
+  A.lay();
   if (!nvOn) return;
-  const sel = A.sel && A.sel.i ? A.sel.i.id : 0;
+  const bld = $("pg").hidden, sel = A.sel && A.sel.i ? A.sel.i.id : 0;
   const sh = S.fl.filter((f) => f.k === "shell");
   const fl = [...S.fl].reverse().filter((f) => f.k !== "shell" || f.id === A.cur).map((f) => {
     const ws = S.w.filter((x) => x.fl === f.id);
-    return `<div class="f${f.id === A.cur ? " cur" : ""}" data-f="${f.id}"><b>${esc(A.lvlName(f.lvl))}</b><span>${esc(f.nm || L(A.KN[f.k]))}</span><small>${f.k === "shell" ? "+" : ws.length || ""}</small></div>` +
-      ws.map((x) => { const st = x.hold ? "hold" : (x.live && x.live.st) || "idle"; return `<div class="w${x.id === sel ? " cur" : ""}" data-w="${x.id}" title="${esc(NST[st] || "waiting for work")}"><i class="${st}"></i><span>${esc(x.nm)}</span><small>${esc(x.tn || x.ty)}</small></div>`; }).join("");
+    return `<div class="f${bld && f.id === A.cur ? " cur" : ""}" data-f="${f.id}"><b>${esc(A.lvlName(f.lvl))}</b><span>${esc(f.nm || L(A.KN[f.k]))}</span><small>${ws.length || ""}</small></div>` +
+      ws.map((x) => { const st = A.wSt(x); return `<div class="w${x.id === sel ? " cur" : ""}" data-w="${x.id}" title="${esc(NST[st])}"><i class="${st}"></i><span>${esc(x.nm)}</span><small>${esc(x.tn || x.ty)}</small></div>`; }).join("");
   }).join("");
-  n.innerHTML = `<div class="h">${"Building"}</div>${fl}${sh.length ? `<div class="f" data-f="${sh[0].id}"><b>+</b><span>${sh.length} ${"empty floors"}</span></div>` : ""}<div class="h">${"Pages"}</div>` +
-    [["house", "Building overview"], ["stats", "Control room"], ["lab", "Lab"], ["types", "HR office"], ["usage", "Accounting"], ["settings", "Settings"]].map(([k, t]) => `<div class="a" data-p="${k}">${t}</div>`).join("");
+  const accErr = S.acc.filter((a) => a.st && a.st.s === "err").length, srvOff = S.srv.filter((s) => s.st && s.st.on === false).length;
+  const it = (k, c, bad) => `<div class="s${!bld && A.pgK === k ? " cur" : ""}" data-p="${k}"><span>${SEC[k]}</span>${c !== undefined && c !== "" ? `<small class="${bad ? "bad" : ""}">${c}</small>` : ""}</div>`;
+  const mx = Math.max(0, ...S.acc.map((a) => (a.st && a.st.pct) || 0)), usd = S.usd || 0, lim = +S.usd_day || 0;
+  n.innerHTML = `<div class="sc">
+    <div class="h">${"Office"}</div>
+    <div class="s${bld ? " cur" : ""}" data-b><span>${"Building"}</span></div>
+    ${fl}${sh.length ? `<div class="f" data-f="${sh[0].id}"><b>+</b><span>${sh.length} ${"empty floors"}</span></div>` : ""}
+    ${it("tasks", run(S, "run") + run(S, "wait") || "")}${it("workers", S.w.length)}
+    <div class="h">${"Resources"}</div>
+    ${it("accounts", accErr ? accErr + " " + "error" : S.acc.length || "", accErr)}${it("servers", srvOff ? srvOff + " " + "offline" : S.srv.length || "", srvOff)}${it("notify")}
+    <div class="h">${"Insights"}</div>
+    ${it("stats")}${it("usage")}
+    <div class="h">${"Setup"}</div>
+    ${it("types")}${it("lab")}${it("settings")}
+  </div>
+  <div class="ft">
+    <div class="r"><span>${S.stop ? "Everything paused" : "Peak usage"}</span><span>${Math.round(mx)} %</span></div>
+    <div class="ub"><b style="width:${Math.min(100, mx)}%;background:${mx >= 100 ? "#d9594c" : mx >= 80 ? "#e0675a" : "#62b86f"}"></b></div>
+    <div class="r"><span>${"Cost today"}</span><span>${usd.toFixed(2)} / ${esc(String(lim))} $</span></div>
+    <button data-stop class="${S.stop ? "st" : ""}">${S.stop ? "Resume all workers" : "Pause all workers"}</button>
+  </div>`;
 };
 A.nav = nav;
-$("nav").onclick = (e) => {
-  const f = e.target.closest("[data-f]"), w = e.target.closest("[data-w]"), p = e.target.closest("[data-p]");
-  if (innerWidth <= 720 && (f || w || p)) { nvOn = false; nav(); }
+$("nav").onclick = async (e) => {
+  const f = e.target.closest("[data-f]"), w = e.target.closest("[data-w]"), p = e.target.closest("[data-p]"), b = e.target.closest("[data-b]");
+  if (e.target.closest("[data-stop]")) { await A.api("/api/stop", { on: !A.S.stop }); return A.poll(); }
+  if (innerWidth <= 720 && (f || w || p || b)) nvOn = false;
   if (p) return A.page(p.dataset.p);
-  A.page(null);
+  if (b) { A.page(null); return nav(); }
   if (f) A.goFloor(+f.dataset.f);
-  if (w) { const e2 = A.E[+w.dataset.w]; if (e2) { A.goFloor(e2.fl); A.wBox(e2); } }
+  if (w) A.openW(+w.dataset.w);
 };
+A.openW = (id) => { const e2 = A.E[id]; if (!e2) return; A.goFloor(e2.fl); A.wBox(e2); };
 $("tNav").onclick = () => { nvOn = !nvOn; try { if (innerWidth > 720) localStorage.setItem("nav", nvOn ? "1" : "0"); } catch {} nav(); };
 addEventListener("resize", () => nav());
 
-$("tUp").onclick = async () => {
-  const run = (A.S.cnt || []).filter((c) => c.st === "run").reduce((a, b) => a + b.n, 0);
-  if (!(await A.confirmBox("Install update", ["ApolloOffice installs version " + ((A.S.upd || {}).v || "") + " and restarts. This takes a few seconds.", run ? run + " running task(s) stop and start again after the restart." : "No task is running right now."], "Install now"))) return;
-  try { await A.api("/api/update", { a: "now", ok: true }); A.toast("Restarting …"); setTimeout(() => location.reload(), 8000); } catch (x) { A.fail(x); }
+const FB = {
+  office: [["task", "Give task", 1], ["hire", "Hire worker"], ["team", "Hire team"], ["out", "Outbox"], ["edit", "Edit layout"], ["set", "Floor settings"]],
+  accounting: [["usage", "Open costs", 1], ["hire", "Hire worker"], ["edit", "Edit layout"], ["set", "Floor settings"]],
+  server: [["srv", "Add server", 1], ["hire", "Hire worker"], ["edit", "Edit layout"], ["set", "Floor settings"]],
+  lounge: [["edit", "Edit layout"], ["set", "Floor settings"]],
+  basement: [["acc", "Connect account", 1], ["accs", "All accounts"]],
+  lobby: [["pia", "Reception"], ["edit", "Edit layout"]],
+  shell: [["build", "Build out this floor", 1]],
 };
-$("tLg").onclick = () => { A.page(null); const l = A.S.fl.find((f) => f.k === "lobby"); if (l) A.goFloor(l.id); };
-$("tFl").onclick = (e) => A.page("house");
-$("tUs").onclick = (e) => {
-  const S = A.S;
-  dd(S.acc.map((a) => `<div data-a="acc:${a.id}"><span>${esc(a.nm)}</span><small>${Math.round((a.st && a.st.pct) || 0)} %</small></div>`).join("") + (S.acc.length ? "<hr>" : "") + `<div data-a="usage"><span>${"Accounting"}</span><small>${(S.usd || 0).toFixed(2)} $ ${"today"}</small></div><div data-a="stop"><span>${S.stop ? "Keep working" : "Pause everything"}</span></div>`, $("tUs"), async (a) => {
-    if (a === "usage") return A.page("usage");
-    if (a === "stop") { await A.api("/api/stop", { on: !S.stop }); return A.poll(); }
-    if (a.startsWith("acc:")) { const k = A.S.fl.find((f) => f.k === "basement"); if (k) A.goFloor(k.id); const g = (A.flo(k.id).lay.fu || []).find((u) => u.acc === +a.slice(4)); if (g) setTimeout(() => A.genBox(g), 60); }
-  });
+const fbar = () => {
+  const b = $("fb"), f = A.flo(A.cur);
+  const on = !!(f && $("pg").hidden && !A.bld);
+  if (b.hidden === on) b.hidden = !on;
+  if (!on) return;
+  const k = f.id + ":" + f.k;
+  if (b.dataset.k === k) return;
+  b.dataset.k = k;
+  b.innerHTML = `<b>${esc(f.nm || L(A.KN[f.k]))}</b>` + (FB[f.k] || []).filter(([a]) => !(a === "edit" && innerWidth <= 720)).map(([a, t, p]) => `<button data-fb="${a}" class="${p ? "p" : ""}">${t}</button>`).join("") + `<span class="sp"></span><button data-fb="up" title="${"Floor up (Page Up)"}">▲</button><button data-fb="dn" title="${"Floor down (Page Down)"}">▼</button>`;
+};
+A.fbar = () => { $("fb").dataset.k = ""; fbar(); };
+$("fb").onclick = (e) => {
+  const x = e.target.closest("[data-fb]"); if (!x) return;
+  const S = A.S, f = A.flo(A.cur), a = x.dataset.fb, fl = S.fl, i = fl.findIndex((y) => y.id === A.cur);
+  if (a === "up" && i < fl.length - 1) return A.goFloor(fl[i + 1].id);
+  if (a === "dn" && i > 0) return A.goFloor(fl[i - 1].id);
+  if (a === "task") return A.taskBox({ fl: f.id, nm: f.nm });
+  if (a === "hire") return A.hireBox(f, null);
+  if (a === "team") return A.teamBox(f.id);
+  if (a === "out") return A.trayBox(f);
+  if (a === "edit") return A.setBld(true);
+  if (a === "set") return A.signBox(f);
+  if (a === "usage") return A.page("usage");
+  if (a === "srv") return A.addSrv(f.id);
+  if (a === "acc") return A.addAcc();
+  if (a === "accs") return A.page("accounts");
+  if (a === "pia") return A.piaClick();
+  if (a === "build") return A.shellBox(f);
+};
+
+$("tUp").onclick = async () => {
+  const r = run(A.S, "run");
+  if (!(await A.confirmBox("Install update", ["ApolloOffice installs version " + ((A.S.upd || {}).v || "") + " and restarts. This takes a few seconds.", r ? r + " running task(s) stop and start again after the restart." : "No task is running right now."], "Install now"))) return;
+  try { await A.api("/api/update", { a: "now", ok: true }); A.toast("Restarting …"); setTimeout(() => location.reload(), 8000); } catch (x) { A.fail(x); }
 };
 $("tBell").onclick = () => {
   const S = A.S;
   const it = [
     ...S.acc.filter((a) => a.st && a.st.s === "err").map((a) => `<div data-a="acc:${a.id}"><span>⚡ ${esc(a.nm)}: ${esc((a.st.err || "").slice(0, 60))}</span></div>`),
-    ...S.srv.filter((s) => s.st && s.st.on === false).map((s) => `<div data-a="srv:${s.fl}"><span>▣ ${esc(s.nm)} ${"is offline"}</span></div>`),
+    ...S.srv.filter((s) => s.st && s.st.on === false).map((s) => `<div data-a="srv:${s.id}"><span>▣ ${esc(s.nm)} ${"is offline"}</span></div>`),
     ...S.bell.map((t) => `<div data-a="tk:${t.id}"><span>${t.st === "rej" ? "⛔" : "✕"} ${esc(t.ti.slice(0, 50))}</span><small>${new Date(t.t1).toLocaleTimeString().slice(0, 5)}</small></div>`),
   ];
   dd(it.join("") || `<div><span class="mt">${"All quiet."}</span></div>`, $("tBell"), (a) => {
     if (a.startsWith("tk:")) A.taskView(+a.slice(3));
-    if (a.startsWith("srv:")) A.goFloor(+a.slice(4));
-    if (a.startsWith("acc:")) { const k = A.S.fl.find((f) => f.k === "basement"); if (k) A.goFloor(k.id); }
+    if (a.startsWith("srv:")) A.rackBox({ srv: +a.slice(4) });
+    if (a.startsWith("acc:")) A.genBox({ acc: +a.slice(4) });
   });
-};
-$("tPlus").onclick = () => {
-  dd(`<div data-a="floor"><span>${"Build out floor"}</span></div><div data-a="acc"><span>${"Connect account"}</span><small>${"Basement"}</small></div><div data-a="type"><span>${"Build worker type"}</span><small>${"HR office"}</small></div><div data-a="team"><span>${"Ready-made team"}</span></div><div data-a="srv"><span>${"Add server"}</span></div><hr><div data-a="task"><span>${"Give task"}</span></div>`, $("tPlus"), (a) => {
-    A.page(null);
-    const S = A.S;
-    if (a === "floor") { const r = S.fl.find((f) => f.k === "shell"); if (!r) return A.toast("No shell floor free, build another floor in the elevator"); A.goFloor(r.id); setTimeout(() => A.shellBox(A.flo(r.id), { sx: innerWidth / 2, sy: 100 }), 50); }
-    if (a === "acc") { const k = S.fl.find((f) => f.k === "basement"); A.goFloor(k.id); setTimeout(() => A.addAcc({ sx: innerWidth / 2, sy: 100 }), 50); }
-    if (a === "type") A.page("types", { nu: 1 });
-    if (a === "team") A.teamBox((S.fl.find((f) => f.id === A.cur && f.k === "office") || {}).id, { sx: innerWidth / 2, sy: 100 });
-    if (a === "srv") { const s = S.fl.find((f) => f.k === "server"); if (!s) return A.toast("First build out a shell floor into a server room", 1); A.goFloor(s.id); setTimeout(() => A.addSrv(s.id, { sx: innerWidth / 2, sy: 100 }), 50); }
-    if (a === "task") {
-      const ws = S.w;
-      if (!ws.length) return A.toast("No workers yet. Hire someone first.", 1);
-      const b = A.box(`<h3>${"Task for whom?"}</h3><div class="li">${S.fl.filter((f) => f.k === "office").map((f) => `<div data-o="${f.id}"><span>${esc(f.nm)}</span><span class="mt">${"to the office"}</span></div>` + ws.filter((w) => w.fl === f.id).map((w) => `<div data-w="${w.id}"><span>&nbsp;&nbsp;${esc(w.nm)}</span><span class="mt">${esc(w.tn || "")}</span></div>`).join("")).join("")}</div>`, { sx: innerWidth / 2, sy: 100 });
-      b.onclick = (e) => { const o = e.target.closest("[data-o]"), w = e.target.closest("[data-w]"); if (o) A.taskBox({ fl: +o.dataset.o, nm: (A.flo(+o.dataset.o) || {}).nm }, { sx: innerWidth / 2, sy: 100 }); if (w) A.taskBox({ wk: +w.dataset.w, nm: A.wInfo(+w.dataset.w).nm }, { sx: innerWidth / 2, sy: 100 }); };
-    }
-  });
-};
-$("tPg").onclick = () => {
-  dd(`<div data-a="house"><span>${"Building overview"}</span></div><div data-a="stats"><span>${"Control room"}</span><small>${"Statistics"}</small></div><div data-a="lab"><span>${"Lab"}</span><small>${"Test prompts"}</small></div><div data-a="types"><span>${"HR office"}</span><small>${"Worker types"}</small></div><div data-a="usage"><span>${"Accounting"}</span></div><hr><div data-a="settings"><span>${"Settings"}</span></div>`, $("tPg"), (a) => A.page(a));
 };
 $("tMe").onclick = () => dd(`<div data-a="settings"><span>${"Settings"}</span></div><div data-a="out"><span>${"Log out"}</span></div>`, $("tMe"), async (a) => { if (a === "out") { await A.api("/api/logout", {}); location.href = "/"; } else A.page(a); });
 
 const pg = $("pg"), pgi = $("pgi");
 A.page = async (k, o = {}) => {
   $("dd").hidden = true;
-  if (!k) { pg.hidden = true; history.replaceState(null, "", "/"); return; }
+  if (!k) { pg.hidden = true; A.pgK = null; history.replaceState(null, "", "/"); if (A.S) top(); return; }
+  if (A.bld) A.setBld(false);
   A.close();
   $("dlg").hidden = true;
   pg.hidden = false;
-  pgi.innerHTML = `<div class="mt">${"loading …"}</div>`;
+  if (A.pgK !== k) pgi.innerHTML = `<div class="mt">${"loading …"}</div>`;
   A.pgK = k;
+  top();
   try { await PG[k](o); } catch (x) { pgi.innerHTML = `<p class="mt">${esc(x.message)}</p>`; }
 };
-const head = (t, s) => `<div class="row" style="justify-content:space-between"><h1>${esc(t)}</h1><button data-back>${"Back to the building"}</button></div>${s ? `<div class="sub">${esc(s)}</div>` : ""}`;
-pg.addEventListener("click", (e) => { if (e.target.closest("[data-back]")) A.page(null); });
+const head = (t, s, btn) => `<div class="hd"><h1>${esc(t)}</h1>${btn || ""}</div>${s ? `<div class="sub">${esc(s)}</div>` : ""}`;
+const pill = (k, t) => `<span class="pl ${k}"><i></i>${esc(t)}</span>`;
+const emp = (t, btn) => `<div class="emp"><p>${esc(t)}</p>${btn || ""}</div>`;
+const ago = (t) => { if (!t) return ""; const d = (Date.now() - t) / 1000; return d < 60 ? "just now" : d < 3600 ? Math.round(d / 60) + " min ago" : d < 86400 ? Math.round(d / 3600) + " h ago" : new Date(t).toLocaleDateString(); };
 
 const fmt = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + " M" : n >= 1e3 ? (n / 1e3).toFixed(1) + " k" : String(n || 0));
 const PG = {};
+A.PG = PG;
 
-PG.house = () => {
+const TST = { wait: "waiting", run: "running", done: "done", fail: "failed", rej: "rejected" };
+PG.tasks = async (o = {}) => {
+  const st = o.st ?? PG.tasks.st ?? "";
+  PG.tasks.st = st;
+  const ts = await A.api("/api/tasks" + (st ? "?st=" + st : ""));
+  if (A.pgK !== "tasks" || pg.hidden) return;
+  const S = A.S, wn = (id) => (A.wInfo(id) || {}).nm || "", fn = (id) => (A.flo(id) || {}).nm || "";
+  pgi.innerHTML = head("Tasks", "Everything your workers do, newest first. Click a task for details and the result.", `<button class="p" data-new>${"New task"}</button>`) +
+    `<div class="flt">${[["", "All"], ["wait", "Waiting"], ["run", "Running"], ["done", "Done"], ["fail", "Failed"], ["rej", "Rejected"]].map(([k, t]) => `<button data-st="${k}" class="${st === k ? "on" : ""}">${t}</button>`).join("")}</div>` +
+    (ts.length ? `<div class="tw"><table><tr><th>#</th><th>${"Title"}</th><th>${"Worker"}</th><th>${"Floor"}</th><th>${"Status"}</th><th>${"When"}</th></tr>${ts.map((t) => `<tr data-r="${t.id}"><td class="mt">${t.id}</td><td>${esc(t.ti.slice(0, 80))}</td><td>${esc(wn(t.wk)) || `<span class="mt">${"next free"}</span>`}</td><td class="mt">${esc(fn(t.fl))}</td><td>${pill(t.st, TST[t.st] || t.st)}</td><td class="mt">${ago(t.t1 || t.t0)}</td></tr>`).join("")}</table></div>`
+      : emp(S.w.length ? "No tasks here yet." : "No workers yet. Hire one first, then give it a task.", S.w.length ? `<button class="p" data-new>${"New task"}</button>` : `<button class="p" data-go="workers">${"Go to workers"}</button>`));
+  pgi.onclick = (e) => {
+    const r = e.target.closest("[data-r]"), f = e.target.closest("[data-st]");
+    if (e.target.closest("[data-new]")) return A.newTask();
+    if (e.target.closest("[data-go]")) return A.page(e.target.closest("[data-go]").dataset.go);
+    if (f) return PG.tasks({ st: f.dataset.st });
+    if (r) A.taskView(+r.dataset.r);
+  };
+  clearTimeout(PG.tt); PG.tt = setTimeout(() => { if (A.pgK === "tasks" && !pg.hidden) PG.tasks(); }, 5000);
+};
+A.newTask = () => {
+  const S = A.S, ws = S.w;
+  if (!ws.length) return A.toast("No workers yet. Hire someone first.", 1);
+  const b = A.box(`<h3>${"New task"}</h3><div class="mt">${"Who should do it?"}</div><div class="li">${S.fl.filter((f) => ["office", "accounting", "server"].includes(f.k)).map((f) => `<div class="gh">${esc(f.nm)}</div><div data-o="${f.id}"><span>${"Next free worker"}</span><span class="mt">${"on this floor"}</span></div>` + ws.filter((w) => w.fl === f.id).map((w) => `<div data-w="${w.id}"><span>${esc(w.nm)}</span><span class="mt">${esc(w.tn || "")}</span></div>`).join("")).join("")}</div>`);
+  b.onclick = (e) => { const o = e.target.closest("[data-o]"), w = e.target.closest("[data-w]"); if (o) A.taskBox({ fl: +o.dataset.o, nm: (A.flo(+o.dataset.o) || {}).nm }); if (w) A.taskBox({ wk: +w.dataset.w, nm: A.wInfo(+w.dataset.w).nm }); };
+};
+
+const offices = () => A.S.fl.filter((f) => ["office", "accounting", "server"].includes(f.k));
+const buildFirst = (k) => { const r = A.S.fl.find((f) => f.k === "shell"); if (!r) return A.toast("No empty floor left. Add one in Settings → Building.", 1); A.page(null); A.goFloor(r.id); A.shellBox(A.flo(r.id), k); };
+A.buildFirst = buildFirst;
+PG.workers = () => {
+  const S = A.S, of = offices();
+  const btn = of.length ? `<button class="p" data-hire>${"Hire worker"}</button>` : "";
+  pgi.innerHTML = head("Workers", "Everyone in your building. Click a worker to see what it does, change its settings or permissions.", btn) +
+    (S.w.length ? `<div class="tw"><table><tr><th>${"Name"}</th><th>${"Type"}</th><th>${"Floor"}</th><th>${"Status"}</th><th>${"Takes tasks from"}</th></tr>${S.w.map((x) => { const st = A.wSt(x); return `<tr data-r="${x.id}"><td>${esc(x.nm)}</td><td class="mt">${esc(x.tn || x.ty)}</td><td class="mt">${esc((A.flo(x.fl) || {}).nm || "")}</td><td>${pill(st, NST[st])}</td><td class="mt">${(x.fr || []).map((f) => esc((A.wInfo(f.w ?? f) || {}).nm || "")).join(", ") || "you"}</td></tr>`; }).join("")}</table></div>`
+      : of.length ? emp("Nobody works here yet.", btn) : emp("Workers need an office. Build one on an empty floor first.", `<button class="p" data-office>${"Build an office"}</button>`));
+  pgi.onclick = (e) => {
+    if (e.target.closest("[data-office]")) return buildFirst("office");
+    if (e.target.closest("[data-hire]")) { const f = of.find((x) => x.id === A.cur) || of[0]; return A.hireBox(f, null, true); }
+    const r = e.target.closest("[data-r]"); if (r) A.openW(+r.dataset.r);
+  };
+};
+
+const ACCK = { claude: "Claude subscription", codex: "ChatGPT subscription", gemini: "Gemini CLI", api: "API key" };
+PG.accounts = () => {
   const S = A.S;
-  const rows = [...S.fl].reverse().map((f) => {
-    const ws = S.w.filter((w) => w.fl === f.id), run = (S.cnt || []).filter((c) => c.fl === f.id && c.st === "run").reduce((a, b) => a + b.n, 0), wait = (S.cnt || []).filter((c) => c.fl === f.id && c.st === "wait").reduce((a, b) => a + b.n, 0);
-    const st = f.k === "basement" ? `${S.acc.length} ${"generators"}` : f.k === "server" ? `${S.srv.filter((s) => s.fl === f.id).length} ${"servers"}` : ws.length ? `${ws.length} ${"workers"} · ${run} ${"running"} · ${wait} ${"waiting"}` : "";
-    return `<div data-f="${f.id}" class="${f.k === "shell" ? "rb" : ""}"><b>${A.lvlName(f.lvl)}</b><span class="k">${L(A.KN[f.k])}</span><span>${esc(f.nm)}</span><span class="s">${st}</span></div>`;
-  });
-  pgi.innerHTML = head("Building overview", `${S.fl.length} ${"floors"}, ${S.w.length} ${"workers"}, ${S.acc.length} ${"accounts"}`) + `<div class="house">${rows.join("")}</div>`;
-  pgi.onclick = (e) => { const r = e.target.closest("[data-f]"); if (r) { A.page(null); A.goFloor(+r.dataset.f); } };
+  const btn = `<button class="p" data-add>${"Connect account"}</button>`;
+  pgi.innerHTML = head("Accounts", "The power for your workers: subscriptions and API keys. Each one is a generator in the basement.", btn) +
+    (S.acc.length ? `<div class="tw"><table><tr><th>${"Name"}</th><th>${"Kind"}</th><th>${"Status"}</th><th>${"Usage"}</th><th>${"Today"}</th></tr>${S.acc.map((a) => { const s = a.st || {}; const k = s.s === "err" ? "err" : s.s === "off" ? "offl" : s.s === "warn" ? "wait" : "ok"; return `<tr data-r="${a.id}"><td>${esc(a.nm)}</td><td class="mt">${esc(ACCK[a.k] || a.k)}</td><td>${pill(k, s.s === "err" ? "error" : s.s === "off" ? "off" : s.s === "warn" ? "almost full" : "running")}</td><td>${Math.round(s.pct || 0)} %</td><td class="mt">${fmt((a.today.tin || 0) + (a.today.tout || 0))} Tokens${a.today.usd ? " · " + a.today.usd.toFixed(2) + " $" : ""}</td></tr>`; }).join("")}</table></div>`
+      : emp("No power yet. Connect your Claude or ChatGPT subscription, or an API key.", btn));
+  pgi.onclick = (e) => { if (e.target.closest("[data-add]")) return A.addAcc(); const r = e.target.closest("[data-r]"); if (r) A.genBox({ acc: +r.dataset.r }); };
+};
+
+PG.servers = () => {
+  const S = A.S, sf = S.fl.find((f) => f.k === "server");
+  const btn = sf ? `<button class="p" data-add>${"Add server"}</button>` : "";
+  pgi.innerHTML = head("Servers", "Linux servers where workers may run jobs, only with the commands you allow.", btn) +
+    (S.srv.length ? `<div class="tw"><table><tr><th>${"Name"}</th><th>${"Address"}</th><th>${"Status"}</th><th>CPU</th><th>RAM</th><th>${"Jobs"}</th></tr>${S.srv.map((s) => { const st = s.st || {}; return `<tr data-r="${s.id}"><td>${esc(s.nm)}</td><td class="mt">${esc(s.host)}</td><td>${pill(st.on ? "ok" : st.t === undefined ? "wait" : "offl", st.on ? "online" : st.t === undefined ? "checking" : "offline")}</td><td>${st.on ? Math.round(st.cpu || 0) + " %" : ""}</td><td>${st.on ? Math.round(st.ram || 0) + " %" : ""}</td><td class="mt">${st.jobs || 0}</td></tr>`; }).join("")}</table></div>`
+      : sf ? emp("No server yet.", btn) : emp("Servers live in a server room. Build one on an empty floor first.", `<button class="p" data-room>${"Build a server room"}</button>`));
+  pgi.onclick = (e) => { if (e.target.closest("[data-room]")) return buildFirst("server"); if (e.target.closest("[data-add]")) return A.addSrv(sf.id); const r = e.target.closest("[data-r]"); if (r) A.rackBox({ srv: +r.dataset.r }); };
+};
+
+PG.notify = async () => {
+  const nf = await A.api("/api/ch");
+  if (A.pgK !== "notify") return;
+  pgi.innerHTML = head("Notifications", "Get a message on your phone, by mail or on the desktop when something happens. Nothing is on by default.") + `<div class="card" id="sNf">${NF.html(nf)}</div>`;
+  pgi.onclick = null;
+  NF.bind(nf);
 };
 
 const WK = { num: "Number", list: "List", chart: "Chart", lamp: "Lamp", text: "Text" };
@@ -161,7 +267,7 @@ PG.stats = async () => {
     if (w.k === "chart") return `<canvas data-ch='${esc(JSON.stringify(Array.isArray(x) ? x : []))}' width="300" height="80"></canvas>`;
     return `<div>${esc(typeof x === "object" ? JSON.stringify(x) : x)}</div>`;
   };
-  pgi.innerHTML = head("Control room", "Numbers from your building and from outside. The service only fetches external data from addresses you enter here.") + `<div class="grid">${ws.map((w) => `<div class="wg"><div class="h"><span>${esc(w.nm || WK[w.k])}</span><span data-ed="${w.id}">⋯</span></div>${val(w)}</div>`).join("")}<div class="wg add" data-nw>+ ${"Widget"}</div></div>`;
+  pgi.innerHTML = head("Statistics", "Numbers from your building and from outside. The service only fetches external data from addresses you enter here.") + `<div class="grid">${ws.map((w) => `<div class="wg"><div class="h"><span>${esc(w.nm || WK[w.k])}</span><span data-ed="${w.id}">⋯</span></div>${val(w)}</div>`).join("")}<div class="wg add" data-nw>+ ${"Widget"}</div></div>`;
   pgi.querySelectorAll("canvas[data-ch]").forEach((c) => {
     const d = JSON.parse(c.dataset.ch), g = c.getContext("2d"), mx = Math.max(1, ...d.map((r) => +r.n || 0));
     const bw = c.width / Math.max(1, d.length);
@@ -181,7 +287,7 @@ const wEd = (w) => {
     <div class="rw"><span>${"Source"}</span><span><select id="wT">${[["house", "Building"], ["http", "HTTP-JSON"], ["github", "GitHub"], ["uptime", "Reachability"], ["rss", "RSS"], ["text", "Text"]].map(([k, n]) => `<option value="${k}"${s.t === k ? " selected" : ""}>${n}</option>`).join("")}</select></span></div>
     <div id="wF"></div>
     <div class="rw"><span>${"Poll every (s)"}</span><span><input type="number" id="wEv" min="60" value="${s.every || 300}" style="width:80px"></span></div>
-    <div class="acts"><button data-sv>${"Save"}</button>${w.id ? `<button class="d" data-del>${"Delete"}</button>` : ""}</div>`, null, "mid wide");
+    <div class="acts"><button data-sv>${"Save"}</button>${w.id ? `<button class="d" data-del>${"Delete"}</button>` : ""}</div>`, null, "wide");
   const fields = () => {
     const t = $("wT").value;
     $("wF").innerHTML = t === "house" ? `<div class="rw"><span>${"Value"}</span><span><select id="wQ">${Object.entries(HQ).map(([k, n]) => `<option value="${k}"${s.q === k ? " selected" : ""}>${n}</option>`).join("")}</select></span></div>`
@@ -218,7 +324,7 @@ PG.lab = async () => {
     <h2>Prompt</h2><textarea id="lP"></textarea>
     <div class="row" style="margin-top:10px"><button class="p" id="lGo">${"Run"}</button><span class="mt" id="lI"></span></div></div>
     <h2>${"Answer"}</h2><pre id="lR" class="mt">–</pre>`;
-  if (!S.acc.length) $("lI").textContent = "First connect an account in the basement.";
+  if (!S.acc.length) $("lI").textContent = "First connect an account under Accounts.";
   $("lGo").onclick = async () => {
     $("lI").textContent = "running …"; $("lR").textContent = "";
     try {
@@ -233,16 +339,16 @@ PG.types = async (o) => {
   const d = await A.loadTypes();
   if (A.pgK !== "types") return;
   const own = (t) => t.own === 1;
-  pgi.innerHTML = head("HR office", "Worker types define what a worker can do and how he looks. You can adjust bundled types or build your own.") +
+  pgi.innerHTML = head("Worker types", "Worker types define what a worker can do and how he looks. You can adjust bundled types or build your own.") +
     `<div class="row"><button class="p" data-nt>+ ${"New type"}</button><button data-ntl>+ ${"Custom tool"}</button></div>
     ${(d.props || []).length ? `<h2>${"Proposals from the coach"}</h2>${d.props.map((p) => `<div class="card"><b>${esc(p.type)}</b> <span class="mt">${"from"} ${esc(p.by)}</span><p>${esc(p.why)}</p>${p.role ? `<details><summary>${"New role"}</summary><pre style="white-space:pre-wrap">${esc(p.role)}</pre></details>` : ""}${p.dsc ? `<div class="mt">${"Description"}: ${esc(p.dsc)}</div>` : ""}${p.outf ? `<div class="mt">${"Result"}: ${esc(p.outf)}</div>` : ""}<div class="row" style="margin-top:6px"><button class="p" data-pa="${+p.id}">${"Apply"}</button><button data-pd="${+p.id}">${"Dismiss"}</button></div></div>`).join("")}` : ""}
     <h2>${"Types"}</h2><div class="tw"><table><tr><th></th><th>${"Name"}</th><th>${"Model"}</th><th>${"Tools"}</th><th>${"Description"}</th></tr>${A.grouped(d).map(([g, l]) => `<tr><th colspan="5" class="gh">${esc(g)}</th></tr>` + l.map((t) => `<tr data-t="${esc(t.id)}" style="cursor:pointer"><td><span style="display:inline-block;width:12px;height:12px;background:${esc(t.col)};border-radius:2px"></span></td><td>${esc(t.nm)}${own(t) ? ` <span class="mt">(${"own"})</span>` : ""}</td><td>${esc(L(t.md || ""))}</td><td class="mt">${esc((t.tools || []).join(", "))}</td><td class="mt">${esc(L(t.dsc || ""))}</td></tr>`).join("")).join("")}</table></div>
     <h2>${"Custom tools"}</h2>${d.tools.length ? `<div class="tw"><table>${d.tools.map((t) => `<tr data-tl="${esc(t.id)}" style="cursor:pointer"><td>${esc(t.id)}</td><td class="mt">${esc(t.dsc)}</td></tr>`).join("")}</table></div>` : `<p class="mt">${"None yet. Custom tools are small JavaScript functions without network or file access except through ctx."}</p>`}
-    <div id="tEd"></div>`;
+`;
   const ed = (t) => {
     const nu = !t;
     t = t || { id: "", nm: "", role: "", tools: ["read", "write", "ls", "grep"], md: "medium", ef: "medium", prov: "", acc: "none", col: "#8a6fd1", dsc: "", outf: "", chk: "" };
-    $("tEd").innerHTML = `<h2>${nu ? "New type" : esc(t.nm)}</h2><div class="card">
+    pgi.innerHTML = head(nu ? "New type" : t.nm, "Worker type", `<button data-bk>${"Back to all types"}</button>`) + `<div class="card">
       <div class="row"><label>ID <input id="eId" value="${esc(t.id)}"${nu ? "" : " disabled"}></label><label>${"Name"} <input id="eNm" value="${esc(t.nm)}"></label><label>${"Color"} <input id="eCol" type="color" value="${esc(t.col)}"></label><label>${"Clothing"} <select id="eAcc">${d.accs.map((a) => `<option${a === t.acc ? " selected" : ""}>${a}</option>`).join("")}</select></label></div>
       <div class="row" style="margin-top:8px"><label>${"Model"} <select id="eMd">${["small", "medium", "large"].map((m) => `<option value="${m}"${t.md === m ? " selected" : ""}>${L(m)}</option>`).join("")}</select></label><label>${"Thinking effort"} <select id="eEf">${["low", "medium", "high"].map((m) => `<option value="${m}"${t.ef === m ? " selected" : ""}>${L(m)}</option>`).join("")}</select></label><label>${"Provider"} <select id="ePv">${[["", "any"], ["claude", "Claude"], ["codex", "Codex"], ["api", "API"]].map(([v, n]) => `<option value="${v}"${(t.prov || "") === v ? " selected" : ""}>${n}</option>`).join("")}</select></label></div>
       <h2>${"Description"}</h2><input id="eDs" style="width:100%" value="${esc(t.dsc)}">
@@ -251,13 +357,14 @@ PG.types = async (o) => {
       <h2>${"Tools"}</h2><div class="row">${d.base.map((b) => `<label title="${esc(b.d)}"><input type="checkbox" data-tool="${b.id}"${(t.tools || []).includes(b.id) ? " checked" : ""}> ${b.id}</label>`).join("")}${d.tools.map((b) => `<label><input type="checkbox" data-tool="x:${esc(b.id)}"${(t.tools || []).includes("x:" + b.id) ? " checked" : ""}> ${esc(b.id)}</label>`).join("")}</div>
       <h2>${"Check after every task"}</h2><input id="eCk" style="width:100%" value="${esc(t.chk || "")}" placeholder="sh:npm test  ${"or"}  js:function check(a, ctx) { return { ok: true } }">
       <div class="row" style="margin-top:12px"><button class="p" data-sv>${"Save"}</button>${own(t) ? `<button class="d" data-dl>${"Delete"}</button>` : ""}</div></div>`;
-    $("tEd").scrollIntoView({ behavior: "smooth" });
-    $("tEd").onclick = async (e) => {
+    pgi.scrollTop = 0; pg.scrollTop = 0;
+    pgi.onclick = async (e) => {
       const D = (e.target.closest("button") || {}).dataset || {};
+      if ("bk" in D) return PG.types();
       try {
         if ("dl" in D) { await A.api(`/api/type/${encodeURIComponent(t.id)}/del`, {}); A.types = null; return PG.types(); }
         if (!("sv" in D)) return;
-        const tools = [...$("tEd").querySelectorAll("[data-tool]:checked")].map((x) => x.dataset.tool);
+        const tools = [...pgi.querySelectorAll("[data-tool]:checked")].map((x) => x.dataset.tool);
         await A.api("/api/type", { id: $("eId").value, nm: $("eNm").value, col: $("eCol").value, acc: $("eAcc").value, md: $("eMd").value, ef: $("eEf").value, prov: $("ePv").value, dsc: $("eDs").value, role: $("eRo").value, outf: $("eOf").value, tools, chk: $("eCk").value.trim() });
         A.toast("saved"); A.types = null; PG.types();
       } catch (x) { A.fail(x); }
@@ -265,14 +372,15 @@ PG.types = async (o) => {
   };
   const tled = (t) => {
     t = t || { id: "", dsc: "", sch: { type: "object", properties: { q: { type: "string" } }, required: ["q"] }, src: "function run(args, ctx) {\n  const r = ctx.fetch(\"https://api.example.com/?q=\" + encodeURIComponent(args.q));\n  return r.text.slice(0, 2000);\n}" };
-    $("tEd").innerHTML = `<h2>${"Custom tool"}</h2><div class="card"><div class="row"><label>ID <input id="xId" value="${esc(t.id)}"></label><label style="flex:1">${"Description for the model"} <input id="xDs" style="width:100%" value="${esc(t.dsc)}"></label></div>
+    pgi.innerHTML = head(t.id || "Custom tool", "Custom tool", `<button data-bk>${"Back to all types"}</button>`) + `<div class="card"><div class="row"><label>ID <input id="xId" value="${esc(t.id)}"></label><label style="flex:1">${"Description for the model"} <input id="xDs" style="width:100%" value="${esc(t.dsc)}"></label></div>
       <h2>${"Parameters (JSON schema)"}</h2><textarea id="xSc" style="min-height:70px">${esc(JSON.stringify(t.sch, null, 1))}</textarea>
       <h2>${"Code"}</h2><textarea id="xSr" style="min-height:180px">${esc(t.src)}</textarea>
       <p class="mt">ctx.read(p) · ctx.write(p, t) · ctx.ls(p) · ctx.exists(p) · ctx.grep(re, p) · ctx.sh(cmd) → {c, o} · ctx.fetch(url, {method, body, headers}) → {status, text} · ctx.deliver(name, text) · ctx.log(s). ${"Everything with the worker's permissions."}</p>
       <div class="row"><button class="p" data-sv>${"Save"}</button>${t.id ? `<button class="d" data-dl>${"Delete"}</button>` : ""}</div></div>`;
-    $("tEd").scrollIntoView({ behavior: "smooth" });
-    $("tEd").onclick = async (e) => {
+    pgi.scrollTop = 0; pg.scrollTop = 0;
+    pgi.onclick = async (e) => {
       const D = (e.target.closest("button") || {}).dataset || {};
+      if ("bk" in D) return PG.types();
       try {
         if ("dl" in D) { await A.api(`/api/tool/${encodeURIComponent(t.id)}/del`, {}); A.types = null; return PG.types(); }
         if (!("sv" in D)) return;
@@ -300,7 +408,7 @@ PG.usage = async (o = {}) => {
   A.usage = u;
   const tb = (rows, k) => `<div class="tw"><table><tr><th>${k}</th><th>Tokens ${"in"}</th><th>${"out"}</th><th>$</th></tr>${rows.map((r) => `<tr><td>${esc(r.nm || (r.wk === -1 ? "Lab" : r.wk === 0 ? "Tests" : "–"))}</td><td>${fmt(r.tin)}</td><td>${fmt(r.tout)}</td><td>${(r.usd || 0).toFixed(2)}</td></tr>`).join("") || `<tr><td class="mt" colspan="4">${"nothing yet"}</td></tr>`}</table></div>`;
   const mx = Math.max(1, ...u.day.map((d) => d.tok || 0));
-  pgi.innerHTML = head("Accounting", `Today ${(u.today || 0).toFixed(2)} $ of the ${u.usd_day} $ daily limit across all API keys. ${"Subscriptions cost nothing extra per task, but they have window limits."}`) +
+  pgi.innerHTML = head("Costs", `Today ${(u.today || 0).toFixed(2)} $ of the ${u.usd_day} $ daily limit across all API keys. ${"Subscriptions cost nothing extra per task, but they have window limits."}`) +
     `<div class="row">${[1, 7, 30].map((d) => `<button data-d="${d}" class="${d === days ? "p" : ""}">${d === 1 ? "Today" : d + " days"}</button>`).join("")}</div>
     <h2>${"History"}</h2><div class="card" style="display:flex;align-items:flex-end;gap:4px;height:120px">${u.day.map((d) => `<div title="${esc(d.day)}: ${fmt(d.tok)} Tokens, ${(d.usd || 0).toFixed(2)} $" style="flex:1;background:#5c7fd6;height:${Math.max(2, Math.round((d.tok || 0) / mx * 100))}%"></div>`).join("") || `<span class="mt">${"nothing yet"}</span>`}</div>
     <h2>${"Per account"}</h2>${tb(u.acc, "Account")}<h2>${"Per worker"}</h2>${tb(u.wk, "Worker")}<h2>${"Per floor"}</h2>${tb(u.fl, "Floor")}`;
@@ -308,7 +416,7 @@ PG.usage = async (o = {}) => {
 };
 
 PG.settings = async () => {
-  const [s, ses, aud, nf] = await Promise.all([A.api("/api/set"), A.api("/api/ses"), A.api("/api/aud"), A.api("/api/ch")]);
+  const [s, ses, aud] = await Promise.all([A.api("/api/set"), A.api("/api/ses"), A.api("/api/aud")]);
   if (A.pgK !== "settings") return;
   const o = A.S.owner || {};
   pgi.innerHTML = head("Settings") + `<div class="card">
@@ -317,9 +425,9 @@ PG.settings = async () => {
     <div class="row" style="margin-top:10px"><label>${"Additional addresses (host or host:port, comma-separated)"} <input id="sHo" style="width:340px" value="${esc((s.hosts || []).join(", "))}" placeholder="office.example.com"></label></div>
     <div class="row" style="margin-top:10px"><button class="p" id="sSv">${"Save"}</button></div></div>
     <h2>${"Program"}</h2><div class="card"><div class="row"><span>ApolloOffice ${esc(s.v)}</span><span class="mt">${"Address"} ${esc(s.bind)}:${s.port}</span><span class="mt">${"Data"}: ${esc(s.data)}</span></div>
-    <div class="row" style="margin-top:10px"><label><input type="checkbox" id="sAu"${s.autostart ? " checked" : ""}> ${"Start when logging in to the computer"}</label><button id="sStop">${A.S.stop ? "Keep working" : "Pause everything"}</button></div></div>
+    <div class="row" style="margin-top:10px"><label><input type="checkbox" id="sAu"${s.autostart ? " checked" : ""}> ${"Start when logging in to the computer"}</label></div></div>
     <h2>${"Updates"}</h2><div class="card"><div class="row"><label><input type="checkbox" id="sUp"${s.updates !== "off" ? " checked" : ""}> ${"Install updates automatically"}</label><span class="mt">${s.upd && s.upd.t ? "Last check " + new Date(s.upd.t).toLocaleString() + (s.upd.latest ? ", latest " + esc(s.upd.latest) : "") : "Not checked yet"}${s.upd && s.upd.err ? " · " + esc(s.upd.err) : ""}</span><button id="sUc">${"Check now"}</button>${s.upd_ready ? `<button class="p" id="sUi">${"Install"} ${esc((s.upd || {}).ready || "")}</button>` : ""}</div><p class="mt">${"Updates are checked every 6 hours on GitHub, verified with a signature and installed when no task is running. ApolloOffice then restarts by itself."}</p></div>
-    <h2>${"Notifications"}</h2><div class="card" id="sNf">${NF.html(nf)}</div>
+    <h2>${"Building"}</h2><div class="card"><div class="row"><span>${A.S.fl.length} ${"floors"}, ${A.S.fl.filter((f) => f.k === "shell").length} ${"of them empty"}</span><button id="sFu">+ ${"Floor"}</button><button id="sFd">− ${"Floor"}</button><span class="mt">${"Only empty floors at the top can be removed."}</span></div></div>
     <h2>${"Account"}</h2><div class="card"><div class="row"><span>${"Owner"}: ${o.nm ? esc(o.nm) + " (" + esc(o.p || "") + ")" : "nobody yet, the next login binds"}</span><span class="mt">${"Only this account gets in. To rebind: apollo-office reset-owner in the terminal. Emergency login: apollo-office login-link."}</span></div></div>
     <h2>${"Sessions"}</h2><div class="tw"><table><tr><th>${"Device"}</th><th>IP</th><th>${"Last"}</th><th></th></tr>${ses.map((x) => `<tr><td>${esc(x.ua.slice(0, 80))}${x.me ? ` <span class="mt">(${"this"})</span>` : ""}</td><td>${esc(x.ip)}</td><td>${new Date(x.t1).toLocaleString()}</td><td>${x.me ? "" : `<button class="d" data-ses="${esc(x.id)}">${"Log out"}</button>`}</td></tr>`).join("")}</table></div>
     <h2>${"Save"}</h2><div class="card"><div class="row"><a href="/api/export" download><button>${"Export (without credentials)"}</button></a><label><button id="sImB">${"Import …"}</button><input type="file" id="sIm" accept=".json" hidden></label><span class="mt">${"Automatic daily backup of the database, 7 copies, in the data folder under backup."}</span></div></div>
@@ -334,14 +442,14 @@ PG.settings = async () => {
   $("sUc").onclick = async () => { $("sUc").textContent = "checking …"; try { const r = await A.api("/api/update", { a: "check" }); A.toast(r.new ? "Update " + r.latest + " downloaded" : "Up to date (" + r.latest + ")"); } catch (x) { A.fail(x); } PG.settings(); };
   if ($("sUi")) $("sUi").onclick = () => $("tUp").click();
   $("sAu").onchange = async (e) => { try { const r = await A.api("/api/autostart", { on: e.target.checked }); A.toast(r.msg); } catch (x) { A.fail(x); e.target.checked = !e.target.checked; } };
-  $("sStop").onclick = async () => { await A.api("/api/stop", { on: !A.S.stop }); await A.poll(); PG.settings(); };
   $("sImB").onclick = () => $("sIm").click();
   $("sIm").onchange = async (e) => {
     const f = e.target.files[0]; if (!f) return;
     if (!(await A.confirmBox("Import", ["Floors, workers, tasks and settings will be replaced by the file. Accounts and servers stay, credentials are not in the file."], "Yes, replace"))) return;
     try { const r = await A.api("/api/import", await f.text()); A.toast(r.msg); A.poll(true); } catch (x) { A.fail(x); }
   };
-  NF.bind(nf);
+  $("sFu").onclick = async () => { try { await A.api("/api/height", { n: A.S.fl.length + 1 }); await A.poll(); PG.settings(); } catch (x) { A.fail(x); } };
+  $("sFd").onclick = async () => { try { await A.api("/api/height", { n: A.S.fl.length - 1 }); await A.poll(); PG.settings(); } catch (x) { A.fail(x); } };
   pgi.onclick = async (e) => { const b = e.target.closest("[data-ses]"); if (b) { await A.api(`/api/ses/${b.dataset.ses}/del`, {}); PG.settings(); } };
 };
 
@@ -407,13 +515,13 @@ const NF = {
 };
 
 const QS = [
-  ["Welcome to your building! I'm Pia from reception. Unfortunately there's no power yet. Take the elevator to the basement and connect a provider to the generator. Do you have Claude Code? Then it's just one click.", "Basement → connect generator"],
-  ["It's running! Can you hear the generator? Now you need an office. Take the elevator to a shell floor, build it out into an office and add a desk in build mode.", "Shell floor → office → build desk"],
-  ["Nicely furnished. But an office without people is sad. Click a free desk and hire your first worker.", "Click a desk → configure"],
-  ["There he is! Click him, give him a folder under Settings → Permissions and then a first task. Something harmless, let him settle in first.", "Click a worker → give task"],
-  ["He is working. Feel free to watch. When he is done, he puts the result in the outbox.", "waiting …"],
-  ["Done! Click the outbox (OUT) and read your first result.", "Click the outbox → read the result"],
-  ["That's it. From now on this is your building. You'll figure out the rest yourself. I'll be down at reception.", ""],
+  ["Welcome to your building! I'm Pia from reception. Unfortunately there's no power yet. Open Accounts in the sidebar on the left and connect a provider. Do you have Claude Code? Then it's just one click.", "Sidebar → Accounts → Connect account"],
+  ["It's running! Can you hear the generator? Now you need an office. Click the empty floors in the sidebar and build one out into an office.", "Sidebar → empty floors → Build out → Office"],
+  ["Nicely done. But an office without people is sad. Click Hire worker in the bar at the bottom and pick your first worker.", "Bottom bar → Hire worker"],
+  ["There they are! Click them, give them a folder under Settings → Permissions and then a first task. Something harmless, let them settle in first.", "Click a worker → Give task"],
+  ["They are working. Feel free to watch. When they are done, the result lands in the outbox and under Tasks.", "waiting …"],
+  ["Done! Open Outbox in the bottom bar or Tasks in the sidebar and read your first result.", "Outbox or Tasks → read the result"],
+  ["That's it. From now on this is your building. Everything is in the sidebar on the left. I'll be down at reception.", ""],
 ];
 A.quest = { s: 0 };
 A.questOn = () => A.quest && !A.quest.done && !A.quest.skip;
@@ -430,7 +538,7 @@ const qShow = () => {
   if (/[?&]shot\b/.test(location.search)) { qti = qtx.length; typing = 0; $("dT").textContent = qtx; portrait(); }
   $("dX").textContent = h ? "Task" + ": " + h : "Click to close";
 };
-A.piaClick = () => { if (A.questOn()) return qShow(); const b = A.box(`<h3>${"Reception"} <small>Pia</small></h3><div class="mt">"${"All good. If you need help: build out a shell floor, hire a worker, give a task. I'm here."}"</div><div class="acts"><button data-q>${"Starter quest again"}</button></div>`, null, "mid"); b.onclick = (e) => { if (e.target.closest("[data-q]")) { A.close(); A.questSet({ s: 0, done: 0, skip: 0, built: 0, read: 0 }); qShow(); } }; };
+A.piaClick = () => { if (A.questOn()) return qShow(); const b = A.box(`<h3>${"Reception"} <small>Pia</small></h3><div class="mt">"${"All good. Everything is in the sidebar on the left. The bar at the bottom has what you can do on this floor."}"</div><div class="acts"><button data-q>${"Starter quest again"}</button></div>`, null, "mid"); b.onclick = (e) => { if (e.target.closest("[data-q]")) { A.close(); A.questSet({ s: 0, done: 0, skip: 0, built: 0, read: 0 }); qShow(); } }; };
 $("dlg").onclick = (e) => {
   if (e.target.id === "dSk") { A.questSet({ skip: 1 }); $("dlg").hidden = true; return; }
   if (typing) { qti = qtx.length; return; }
@@ -443,7 +551,7 @@ const qTick = () => {
   const S = A.S, q = A.quest;
   let s = q.s;
   if (s === 0 && S.acc.length) s = 1;
-  if (s === 1 && S.fl.some((f) => f.k === "office") && q.built) s = 2;
+  if (s === 1 && S.fl.some((f) => f.k === "office")) s = 2;
   if (s === 1 && S.w.length) s = 2;
   if (s === 2 && S.w.length) s = 3;
   if (s === 3 && (S.cnt || []).length + (S.done || []).length > 0) s = 4;
@@ -499,7 +607,7 @@ A.poll = async (force) => {
 let last = performance.now();
 const loop = (n) => {
   const dt = Math.min(.1, (n - last) / 1000); last = n;
-  if (A.S && pg.hidden) { A.step(dt); A.draw(); }
+  if (A.S && pg.hidden) { A.step(dt); A.draw(); } else if (A.S) A.step(dt);
   if (typing) { qti += dt * 60; $("dT").textContent = qtx.slice(0, Math.floor(qti)); if (qti >= qtx.length) typing = 0; }
   if (!$("dlg").hidden) portrait();
   requestAnimationFrame(loop);
@@ -517,7 +625,7 @@ const boot = async () => {
   if (p.has("page")) A.page(p.get("page"));
   if (p.has("box")) { const [bk, bi] = p.get("box").split(":"), f = A.flo(A.cur), u = (f.lay.fu || []).find((x) => x.k === bk && (!bi || x.id === +bi)); if (u) A.fuClick(f, u); }
   if (p.has("set")) { const e = Object.values(A.E).find((x) => x.i && x.i.nm === p.get("set")); if (e) { A.permOpen = p.has("perm"); A.wSet(e.i.id, e); } }
-  if (p.has("add")) A.addAcc({ sx: 700, sy: 100 });
+  if (p.has("add")) A.addAcc();
   if (p.has("build")) A.setBld(true);
   if (p.has("pick")) { const e = Object.values(A.E).find((x) => x.i && x.i.nm === p.get("pick")); if (e) { A.cur = e.fl; A.draw(); A.wBox(e); } }
   if (p.has("lift")) { A.draw(); A.liftBox((A.flo(A.cur).lay.fu || []).find((u) => u.k === "lift")); }

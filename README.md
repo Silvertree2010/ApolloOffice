@@ -49,9 +49,11 @@ from them, and drop results into the OUT tray.
   Reviewer, Tester, Writer, Researcher, Analyst, Ops, Reporter), and you can
   build your own in the HR office. One click hires a whole team: Bugfix,
   Research or Writing.
-- **Settings in the world.** Click a worker, a desk, a generator, a rack or
-  the tray and its menu opens in a fixed panel on the right. The sidebar on
-  the left lists every floor and worker with its status.
+- **One place for everything.** The sidebar holds the building with every
+  floor and worker, plus tasks, workers, accounts, servers, notifications,
+  statistics, costs, worker types, the lab and settings. The bar under each
+  floor has what you can do there. Whatever you click opens in the panel on
+  the right.
 - **Rules instead of a flow editor.** "Takes orders from Repro" is a checkbox
   on the Fixer. Orders never carry rights: the Fixer always works with its own
   folders and commands.
@@ -70,9 +72,8 @@ from them, and drop results into the OUT tray.
   on by default. Workers with the notify tool can send too.
 - **Build mode.** A grid, a palette of furniture, walls and floors, undo. All
   workers are hidden while you build.
-- **Pages.** Control room with widgets (numbers, lists, charts, lamps from the
-  building, HTTP JSON, GitHub, uptime, RSS), a lab to try prompts, the house
-  overview, accounting and settings.
+- **Statistics.** Widgets with numbers, lists, charts and lamps from the
+  building, HTTP JSON, GitHub, uptime or RSS. A lab to try prompts.
 - **Start quest.** Pia at the reception walks you through power, first office,
   first worker, first task and first result. After that you are on your own.
 

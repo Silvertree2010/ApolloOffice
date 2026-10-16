@@ -51,7 +51,15 @@ pub fn hire(a: &Ax, ty: &str, fl: i64, desk: Option<i64>, nm: &str, cfg: Value) 
             }
             d
         }
-        None => crate::world::free_desk(&a.db, fl).ok_or("No free desk. Place one in build mode.")?,
+        None => match crate::world::free_desk(&a.db, fl) {
+            Some(d) => d,
+            None => {
+                let mut l = f["lay"].clone();
+                crate::world::add(&mut l, "desk", json!({})).ok_or("No room for another desk on this floor")?;
+                crate::world::save(&a.db, fl, &l);
+                crate::world::free_desk(&a.db, fl).ok_or("No room for another desk on this floor")?
+            }
+        },
     };
     let nm = if nm.trim().is_empty() { crate::world::name(&a.db) } else { nm.trim().chars().take(20).collect() };
     let mut c = json!({"from": [], "par": 1, "perday": 0, "prio": 3, "cut": 100, "md": "", "ef": t["ef"].as_str().unwrap_or("medium"), "pk": t["prov"].as_str().unwrap_or(""), "acct": 0, "sub": false, "fb": false, "fsr": [], "fsw": [], "sh": false, "net": [], "push": false, "min": 30, "hrs": null, "srv": [], "chk": ""});

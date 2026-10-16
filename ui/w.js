@@ -392,8 +392,7 @@ const pia = (f) => {
 
 A.draw = () => {
   const f = flo(A.cur);
-  const bq = document.getElementById("bx"), pw = innerWidth > 720 && !bq.hidden && !bq.classList.contains("mid") ? bq.offsetWidth + 24 : 0;
-  const nw = A.NW || 0, vw = innerWidth - nw - pw, vh = innerHeight - 44;
+  const nw = A.NW || 0, vw = innerWidth - nw - (A.PW || 0), vh = innerHeight - 44 - (A.FH || 0);
   if (cv.width !== vw || cv.height !== vh) { cv.width = vw; cv.height = vh; }
   if (cv.style.left !== nw + "px") cv.style.left = nw + "px";
   cx.imageSmoothingEnabled = false; cx.fillStyle = "#14161a"; cx.fillRect(0, 0, vw, vh);
@@ -444,7 +443,7 @@ A.canPlace = (lay, k, x, y) => {
   const t = (xx, yy) => (lay.t[yy] ? lay.t[yy][xx] : undefined);
   const o = (xx, yy) => (lay.fu || []).find((u) => xx >= u.x && xx < u.x + FS[u.k][0] && yy >= u.y && yy < u.y + FS[u.k][1]);
   const inner = x > 0 && x < MW - 1 && y > 1 && y < MH - 1;
-  if (k === "erase") { const u = o(x, y); return u ? !["lift", "gen", "rack"].includes(u.k) : t(x, y) === 2 && inner; }
+  if (k === "erase") { const u = o(x, y); return u ? !["lift", "gen", "rack", "tray", "counter"].includes(u.k) : t(x, y) === 2 && inner; }
   if (k === "wall") return t(x, y) === 1 && !o(x, y) && inner;
   if (k === "floor") return t(x, y) === 2 && inner;
   const [sw, sh] = FS[k];
