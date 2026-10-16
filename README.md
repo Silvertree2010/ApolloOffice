@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/badge/runs-locally-2EA44F" alt="Runs locally">
 </p>
 
-![The Bugfix floor: the CEO, Triage, Repro and a Fixer at their desks, the Reviewer off duty, results in the OUT tray](docs/images/hero.png)
+![The Bugfix floor with Triage, Repro, Fixer, Reviewer and Hunter at their desks, the sidebar with every floor and worker on the left and the floor bar below](docs/images/hero.png)
 
 Every account you connect is a generator in the basement. Every floor is a
 room you build yourself: offices, a lounge, a server room, accounting. Workers
@@ -77,13 +77,13 @@ from them, and drop results into the OUT tray.
 - **Start quest.** Pia at the reception walks you through power, first office,
   first worker, first task and first result. After that you are on your own.
 
-| Basement | Worker menu | Rights |
+| Basement | Worker | Rights |
 | --- | --- | --- |
-| <img src="docs/images/basement.png" alt="Basement with three generators"> | <img src="docs/images/menu.png" alt="Worker menu next to a worker"> | <img src="docs/images/perm.png" alt="Worker settings with folders, commands and who it takes orders from"> |
+| <img src="docs/images/basement.png" alt="Basement with two generators"> | <img src="docs/images/menu.png" alt="Worker inspector on the right with status, folders and commands"> | <img src="docs/images/perm.png" alt="Worker settings with folders, commands and who it takes orders from"> |
 
 | Lounge | Build mode | Phone |
 | --- | --- | --- |
-| <img src="docs/images/lounge.png" alt="Two workers asleep on the lounge couch"> | <img src="docs/images/build.png" alt="Build mode with grid and furniture palette"> | <img src="docs/images/mobile.png" alt="The office on a phone" width="200"> |
+| <img src="docs/images/lounge.png" alt="The lounge floor"> | <img src="docs/images/build.png" alt="Build mode with grid and furniture palette"> | <img src="docs/images/mobile.png" alt="The office on a phone" width="200"> |
 
 ## Install
 

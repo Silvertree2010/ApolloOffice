@@ -267,7 +267,7 @@ PG.stats = async () => {
     if (w.k === "chart") return `<canvas data-ch='${esc(JSON.stringify(Array.isArray(x) ? x : []))}' width="300" height="80"></canvas>`;
     return `<div>${esc(typeof x === "object" ? JSON.stringify(x) : x)}</div>`;
   };
-  pgi.innerHTML = head("Statistics", "Numbers from your building and from outside. The service only fetches external data from addresses you enter here.") + `<div class="grid">${ws.map((w) => `<div class="wg"><div class="h"><span>${esc(w.nm || WK[w.k])}</span><span data-ed="${w.id}">⋯</span></div>${val(w)}</div>`).join("")}<div class="wg add" data-nw>+ ${"Widget"}</div></div>`;
+  pgi.innerHTML = head("Statistics", "Numbers from your building and from outside. The service only fetches external data from addresses you enter here.") + `<div class="grid">${ws.map((w) => `<div class="wg"><div class="h"><span>${esc(w.nm || WK[w.k])}</span><span data-ed="${w.id}">⋯</span></div>${val(w)}</div>`).join("")}<div class="wg add" data-nw>+ ${"Widget"}</div></div>${ws.length ? "" : `<div class="row" style="margin-top:12px"><button class="p" data-def>${"Add the usual widgets"}</button><span class="mt">${"Done today, running tasks, cost today, done per day."}</span></div>`}`;
   pgi.querySelectorAll("canvas[data-ch]").forEach((c) => {
     const d = JSON.parse(c.dataset.ch), g = c.getContext("2d"), mx = Math.max(1, ...d.map((r) => +r.n || 0));
     const bw = c.width / Math.max(1, d.length);
@@ -275,6 +275,7 @@ PG.stats = async () => {
   });
   pgi.onclick = (e) => {
     if (e.target.closest("[data-nw]")) return wEd({});
+    if (e.target.closest("[data-def]")) return (async () => { for (const [k, q, nm] of [["num", "done_today", "Done today"], ["num", "run", "Running tasks"], ["num", "usd_today", "Cost today ($)"], ["chart", "tasks_per_day", "Done per day"]]) { const r = await A.api("/api/wid", { k, nm, src: { t: "house", q, every: 60 }, x: 0, y: 0, w: 1, h: 1 }); await A.api(`/api/wid/${r.id}/now`, {}); } setTimeout(PG.stats, 500); })().catch(A.fail);
     const ed = e.target.closest("[data-ed]"); if (ed) wEd(ws.find((w) => w.id === +ed.dataset.ed));
   };
   clearTimeout(PG.st); PG.st = setTimeout(() => { if (!pg.hidden && pgi.querySelector(".grid")) PG.stats(); }, 15000);
@@ -574,7 +575,7 @@ const loginScreen = (me) => {
   const er = new URLSearchParams(location.search).get("e");
   const known = ["Login cancelled", "Link invalid or expired", "token belongs to another installation", "token was issued for another address", "token expired, please log in again", "login unknown or already used", "the login was started in another browser", "token without account", "This installation belongs to another account.", "broken token", "broken signature", "invalid signature"];
   if (er) { $("le").hidden = false; $("le").textContent = known.includes(er) ? er : "Login failed."; }
-  $("lf").textContent = "Login goes through auth.apollonet.dev. It only learns who is logging in. Everything else stays on this computer. No access? In the terminal: apollo-office login-link";
+  $("lf").textContent = "Login goes through auth.apollonet.dev. It only learns who is logging in. Everything else stays on this computer.";
 };
 
 let polling = false, lastLv = {};

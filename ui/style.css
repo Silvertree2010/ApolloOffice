@@ -133,6 +133,8 @@ th.gh{text-align:left;padding-top:14px;font-size:11px;text-transform:uppercase;l
 #login button:hover{border-color:#4a515c;background:#20242a}
 #login .e{color:var(--bad);margin:12px 0 0}
 #login .f{color:var(--t3);font-size:11px;margin-top:18px}
+#login .k{margin-top:16px;background:var(--pn);border:1px solid var(--ln);border-radius:4px;padding:10px;color:var(--t2);font-size:12px;text-align:left}
+#login .k code{display:block;margin-top:6px;color:var(--t1);background:var(--in);padding:6px 8px;border-radius:3px}
 #nav{position:fixed;left:0;top:44px;bottom:0;width:220px;display:flex;flex-direction:column;background:var(--bar);border-right:1px solid var(--ln);z-index:11;font-size:12px}
 #nav .sc{flex:1;overflow:auto;padding:4px 0 12px}
 #nav .h{color:var(--t3);text-transform:uppercase;letter-spacing:.08em;font-size:10px;padding:14px 12px 4px}

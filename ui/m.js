@@ -48,6 +48,10 @@ A.wBox = async (e) => {
     ${lv.say ? `<div class="rw"><span>${"Last"}</span><span>${esc(lv.say.slice(0, 120))}</span></div>` : ""}
     <div class="rw"><span>${"Today"}</span><span>${(d.us && d.us.tok) || 0} Tokens${d.us && d.us.usd ? " · " + d.us.usd.toFixed(2) + " $" : ""}</span></div>
     <div class="rw"><span>${"Takes tasks from"}</span><span>${(w.cfg.from || []).map((f) => esc(wName(f.w ?? f))).join(", ") || "only from you"}</span></div>
+    <div class="rw"><span>${"Folders"}</span><span>${[...(w.cfg.fsw || []).map((x) => esc(x) + " (rw)"), ...(w.cfg.fsr || []).map((x) => esc(x) + " (r)")].join("<br>") || `<span class="er">${"none yet"}</span>`}</span></div>
+    <div class="rw"><span>${"Commands"}</span><span>${w.cfg.sh === true ? "any" : Array.isArray(w.cfg.sh) && w.cfg.sh.length ? w.cfg.sh.map(esc).join(", ") : "none"}${w.cfg.push ? " · git push" : ""}</span></div>
+    ${(w.cfg.net || []).length ? `<div class="rw"><span>${"Websites"}</span><span>${w.cfg.net.map(esc).join(", ")}</span></div>` : ""}
+    ${(w.cfg.sched || []).length ? `<div class="rw"><span>${"Recurring"}</span><span>${w.cfg.sched.map((x) => esc(x.ti) + " · " + (x.at ? esc(x.at) : "every " + (+x.every || 0) + " min")).join("<br>")}</span></div>` : ""}
     <details open><summary>${"Recent tasks"}</summary><div class="li">${(d.tk || []).slice(0, 12).map((t) => `<div data-k="${t.id}"><span>${esc(t.ti.slice(0, 40))}</span><span class="mt">${L(t.st)}</span></div>`).join("") || `<span class="mt">${"none yet"}</span>`}</div></details>
     <div class="acts"><button data-t>${"Give task"}</button><button class="l" data-f>${A.fol === e ? "Unfollow" : "Follow"}</button><button class="l" data-h>${w.hold ? "Resume" : "Pause"}</button></div>`, e);
   b.onclick = async (ev) => {
@@ -150,7 +154,7 @@ A.wSet = async (id, at) => {
         <div class="row" style="display:flex;gap:4px;margin-top:4px"><input type="text" id="sSt" placeholder="${"Title"}" style="flex:1"><input type="text" id="sSe" placeholder="${"08:00 or 60"}" style="width:90px"><button class="l" data-as>+</button></div>
       </details>
       <details${A.permOpen ? " open" : ""}><summary>${"Permissions"}</summary>
-        <div class="mt">${"Read folder"}</div>${chips("fsr", c.fsr, "Path, e.g. C:\\Users\\you\\Project")}
+        <div class="mt">${"Read folder"}</div>${chips("fsr", c.fsr, navigator.platform.startsWith("Win") ? "Path, e.g. C:\\Users\\you\\Project" : "Path, e.g. /home/you/project")}
         <div class="mt">${"Read and change folder"}</div>${chips("fsw", c.fsw, "Path")}
         <div class="rw"><span>${"Commands"}</span><span><select id="sSh"><option value="no"${c.sh === false || c.sh == null ? " selected" : ""}>${"none"}</option><option value="ls"${Array.isArray(c.sh) ? " selected" : ""}>${"only these"}</option><option value="any"${c.sh === true ? " selected" : ""}>${"any"}</option></select></span></div>
         ${Array.isArray(c.sh) ? chips("sh", c.sh, "e.g. npm test or git diff *") : ""}
