@@ -463,6 +463,10 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             crate::world::height(&a.db, n(b, "n"))?;
             ok()
         }
+        ("flows", _, false) => Ok(js(json!(a.db.all("select id,cfg from wk", pa![]).into_iter().map(|r| {
+            let c = &r["cfg"];
+            json!({"id": r["id"], "sc": c["sched"], "r": c["fsr"], "rw": c["fsw"], "sh": c["sh"], "pu": c["push"]})
+        }).collect::<Vec<_>>()))),
         ("types", _, false) => Ok(js(json!({"ty": a.db.all("select * from ty order by own, rowid", pa![]), "teams": crate::world::teams(), "tools": a.db.all("select id,dsc,sch,src from tool", pa![]), "base": crate::tools::base().iter().map(|x| json!({"id": x.0, "d": x.1})).collect::<Vec<_>>(), "accs": crate::world::ACCS, "grp": crate::world::grps(), "props": a.db.kg("props")}))),
         ("type", "prop", true) => {
             let mut v = a.db.kg("props").as_array().cloned().unwrap_or_default();

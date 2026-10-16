@@ -46,17 +46,20 @@ from them, and drop results into the OUT tray.
   Unbuilt floors become an Office, Lounge, Server room or Accounting with one
   click. A lift and stairs connect them.
 - **Workers.** Many types come with it (CEO, Scout, Triage, Hunter, Repro, Fixer,
-  Reviewer, Tester, Writer, Researcher, Analyst, Ops, Reporter), and you can
-  build your own in the HR office. One click hires a whole team: Bugfix,
-  Research or Writing.
+  Reviewer, Shipper, Tester, Writer, Researcher, Analyst, Ops, Reporter), and
+  you can build your own in the HR office. One click hires a whole team:
+  Bugfix (from issue or bug hunt to a pull request), Research or Writing.
 - **One place for everything.** The sidebar holds the building with every
   floor and worker, plus tasks, workers, accounts, servers, notifications,
   statistics, costs, worker types, the lab and settings. The bar under each
   floor has what you can do there. Whatever you click opens in the panel on
   the right.
-- **Rules instead of a flow editor.** "Takes orders from Repro" is a checkbox
-  on the Fixer. Orders never carry rights: the Fixer always works with its own
-  folders and commands.
+- **Flows as blocks.** The Flows page shows who passes work to whom as
+  Scratch-style stacks. Drag a worker type under a block to hire and connect
+  it, drag a trigger on top to run it every hour or every morning. Under the
+  hood it is still a simple rule: "takes orders from Repro" on the Fixer.
+  Orders never carry rights: the Fixer always works with its own folders and
+  commands.
 - **Accounts in the basement.** Claude Code (Claude subscription), Codex CLI
   (ChatGPT subscription) and API keys for Anthropic, OpenAI, Gemini,
   DeepSeek, Mistral, OpenRouter, Groq, Ollama or LM Studio. Several
@@ -76,6 +79,8 @@ from them, and drop results into the OUT tray.
   building, HTTP JSON, GitHub, uptime or RSS. A lab to try prompts.
 - **Start quest.** Pia at the reception walks you through power, first office,
   first worker, first task and first result. After that you are on your own.
+
+![The Flows page: a palette of triggers and worker types on the left, Scratch-style stacks from Triage to Shipper on the right](docs/images/flows.png)
 
 | Basement | Worker | Rights |
 | --- | --- | --- |

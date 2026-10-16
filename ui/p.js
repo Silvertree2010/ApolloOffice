@@ -14,7 +14,7 @@ const dd = (html, anchor, onclick) => {
 };
 addEventListener("pointerdown", (e) => { if (!e.target.closest("#dd") && !e.target.closest(".tb,.me")) $("dd").hidden = true; });
 
-const SEC = { tasks: "Tasks", workers: "Workers", accounts: "Accounts", servers: "Servers", notify: "Notifications", stats: "Statistics", usage: "Costs", types: "Worker types", lab: "Lab", settings: "Settings" };
+const SEC = { flows: "Flows", tasks: "Tasks", workers: "Workers", accounts: "Accounts", servers: "Servers", notify: "Notifications", stats: "Statistics", usage: "Costs", types: "Worker types", lab: "Lab", settings: "Settings" };
 const run = (S, st) => (S.cnt || []).filter((c) => c.st === st).reduce((a, b) => a + b.n, 0);
 
 const top = () => {
@@ -71,7 +71,7 @@ const nav = () => {
     <div class="h">${"Office"}</div>
     <div class="s${bld ? " cur" : ""}" data-b><span>${"Building"}</span></div>
     ${fl}${sh.length ? `<div class="f" data-f="${sh[0].id}"><b>+</b><span>${sh.length} ${"empty floors"}</span></div>` : ""}
-    ${it("tasks", run(S, "run") + run(S, "wait") || "")}${it("workers", S.w.length)}
+    ${it("flows")}${it("tasks", run(S, "run") + run(S, "wait") || "")}${it("workers", S.w.length)}
     <div class="h">${"Resources"}</div>
     ${it("accounts", accErr ? accErr + " " + "error" : S.acc.length || "", accErr)}${it("servers", srvOff ? srvOff + " " + "offline" : S.srv.length || "", srvOff)}${it("notify")}
     <div class="h">${"Insights"}</div>

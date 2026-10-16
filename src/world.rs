@@ -95,8 +95,10 @@ pub fn types() -> Vec<Value> {
           "You reproduce bugs. Read the report, find the code, write the smallest failing test or command that shows the bug. If you can reproduce it, pass it to a fixer with the exact steps. If not, say why.", "Steps or test that reproduce the bug, or why it does not reproduce."),
         t("fixer", "Fixer", "code", "apron", "#e8e6df", "medium", &["read", "write", "edit", "grep", "ls", "sh", "order"], "Changes code and makes tests pass.",
           "You fix code. Make the smallest correct change, follow the style of the code around it, and run the tests you are allowed to run. When done, hand the change to a reviewer if you have one.", "What you changed (files) and the test result."),
-        t("reviewer", "Reviewer", "code", "cap", "#5c7fd6", "small", &["read", "grep", "ls", "sh"], "Reviews changes and gives a clear verdict.",
-          "You review changes. Check correctness, side effects and style. Give a clear verdict: ok, or a list of concrete problems.", "Verdict: ok, or numbered problems with file and line."),
+        t("reviewer", "Reviewer", "code", "cap", "#5c7fd6", "small", &["read", "grep", "ls", "sh", "order"], "Reviews changes and gives a clear verdict.",
+          "You review changes. Check correctness, side effects and style. Give a clear verdict: ok, or a list of concrete problems. If the verdict is ok and you have someone who opens pull requests, pass the change on with the files and a one line summary. If not ok and you have a fixer, send the problems back.", "Verdict: ok, or numbered problems with file and line; who got it."),
+        t("shipper", "Shipper", "code", "tie", "#3fb6a8", "small", &["read", "ls", "sh"], "Puts approved changes on a branch and opens a pull request.",
+          "You ship reviewed changes. Only act on changes a reviewer called ok. Create a new branch named fix/<short-topic>, commit only the changed files with a clear message, push the branch and open a pull request with gh pr create, title and body saying what was fixed and how it was tested. Never push to the main branch, never force push, never merge. If you may not push or run gh, say exactly which command is missing.", "Branch, commit, pull request link, or which step failed and why."),
         t("tester", "Tester", "code", "headset", "#62b86f", "small", &["read", "ls", "sh"], "Runs tests and checks.",
           "You run the tests and checks you are allowed to run and report exactly what passed and what failed.", "Passed/failed with the relevant output."),
         t("auditor", "Auditor", "code", "shield", "#c4614d", "medium", &["read", "grep", "ls", "sh"], "Looks for security holes, changes nothing.",
@@ -177,7 +179,7 @@ pub fn grps() -> Value {
 
 pub fn teams() -> Value {
     json!([
-        {"id": "bugfix", "nm": "Bugfix team", "dsc": "Triage, Hunter, Repro, Fixer, Reviewer", "ws": ["triage", "repro", "fixer", "reviewer", "hunter"], "ln": [[1, 0], [2, 1], [3, 2], [1, 4]]},
+        {"id": "bugfix", "nm": "Bugfix team", "dsc": "Triage, Hunter, Repro, Fixer, Reviewer, Shipper", "ws": ["triage", "repro", "fixer", "reviewer", "hunter", "shipper"], "ln": [[1, 0], [2, 1], [3, 2], [1, 4], [5, 3]]},
         {"id": "research", "nm": "Research team", "dsc": "Researcher, Analyst, Writer", "ws": ["researcher", "analyst", "writer"], "ln": [[1, 0], [2, 1]]},
         {"id": "writing", "nm": "Writing team", "dsc": "Writer, Reviewer", "ws": ["writer", "reviewer"], "ln": [[1, 0]]}
     ])
