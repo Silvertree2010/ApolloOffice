@@ -66,7 +66,7 @@ fn clean(t: &str, r: &mut Value) {
             for k in WKD {
                 c[*k] = json!([]);
             }
-            for k in ["sh", "push", "fb", "ceo_hire", "ceo_conn"] {
+            for k in ["sh", "push", "fb", "ceo_hire", "ceo_conn", "route", "pause"] {
                 c[k] = json!(false);
             }
             c["chk"] = json!("");

@@ -76,6 +76,12 @@ impl App {
         p
     }
 
+    pub fn lib(&self) -> PathBuf {
+        let p = self.dd.join("library");
+        let _ = std::fs::create_dir_all(&p);
+        p
+    }
+
     pub fn adir(&self, a: i64) -> PathBuf {
         let p = self.dd.join("accounts").join(a.to_string());
         let _ = std::fs::create_dir_all(&p);

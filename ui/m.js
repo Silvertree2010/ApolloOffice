@@ -40,6 +40,9 @@ A.confirmBox = confirmBox;
 
 const tyOf = (id) => (A.types ? A.types.ty.find((t) => t.id === id) : null);
 A.loadTypes = async () => { A.types = await A.api("/api/types"); return A.types; };
+const GRP = [["lead", "Lead"], ["code", "Code"], ["text", "Text"], ["data", "Data"], ["operations", "Operations"], ["office", "Office"], ["own", "Own types"]];
+A.grouped = (d) => GRP.map(([k, n]) => [n, d.ty.filter((t) => (t.own === 1 ? "own" : (d.grp || {})[t.id] || "own") === k)]).filter(([, l]) => l.length);
+A.GRP = GRP;
 
 const wName = (id) => { const x = A.wInfo(id); return x ? x.nm : "#" + id; };
 const stTxt = (lv) => ({ work: "working", idle: "waiting for work", off: "has free", hold: "paused", wait: "waiting for an answer" })[lv && lv.st] || "waiting for work";
@@ -163,6 +166,8 @@ A.wSet = async (id, at) => {
         <div class="mt">${"Websites (domains)"}</div>${chips("net", c.net, "api.github.com")}
         <div class="rw"><span>${"git push allowed"}</span><span><input type="checkbox" data-c="push"${c.push ? " checked" : ""}></span></div>
         ${A.S.srv.length ? `<div class="mt">${"Servers in the server room"}</div><div>${A.S.srv.map((s) => `<label style="display:inline-flex;margin-right:8px"><input type="checkbox" data-srv="${s.id}"${(c.srv || []).includes(s.id) ? " checked" : ""}>${esc(s.nm)}</label>`).join("")}</div>` : ""}
+        ${tools.includes("route") ? `<div class="rw"><span>${"May send tasks to other floors"}</span><span><input type="checkbox" data-c="route"${c.route ? " checked" : ""}></span></div>` : ""}
+        ${tools.includes("pause") ? `<div class="rw"><span>${"May pause other workers"}</span><span><input type="checkbox" data-c="pause"${c.pause ? " checked" : ""}></span></div>` : ""}
         ${w.ty === "ceo" ? `<div class="rw"><span>${"May hire workers"}</span><span><input type="checkbox" data-c="ceo_hire"${c.ceo_hire ? " checked" : ""}></span></div><div class="rw"><span>${"May connect workers"}</span><span><input type="checkbox" data-c="ceo_conn"${c.ceo_conn ? " checked" : ""}></span></div>` : ""}
         <div class="mt">${"Accepts tasks from"}</div>
         <div>${others.map((o) => { const r = (c.from || []).find((f) => (f.w ?? f) === o.id); return `<label style="display:flex;justify-content:space-between"><span><input type="checkbox" data-from="${o.id}"${r ? " checked" : ""}> ${esc(o.nm)} <span class="mt">${esc(o.tn || "")}</span></span>${r ? `<input type="number" min="0" data-fmax="${o.id}" value="${+r.max || 0}" title="${"max. per day, 0 = any"}" style="width:50px">` : ""}</label>`; }).join("") || `<span class="mt">${"no other workers yet"}</span>`}</div>
@@ -229,13 +234,15 @@ const perms = (nm, o, n) => {
   if (n.push && !o.push) l.push(`${nm} may publish code with git push.`);
   for (const s of (n.srv || []).filter((x) => !(o.srv || []).includes(x))) l.push(`${nm} may start jobs on ${(A.srvOf(s) || {}).nm || s}.`);
   if (n.ceo_hire && !o.ceo_hire) l.push(`${nm} may hire new workers (without permissions).`);
+  if (n.route && !o.route) l.push(`${nm} may send tasks to every office floor of the building.`);
+  if (n.pause && !o.pause) l.push(`${nm} may pause and resume other workers.`);
   if (n.ceo_conn && !o.ceo_conn) l.push(`${nm} may connect workers that have no more permissions than it has.`);
   for (const f of (n.from || []).filter((x) => !(o.from || []).some((y) => (y.w ?? y) === (x.w ?? x)))) l.push(`${nm} carries out orders from ${wName(f.w ?? f)}, with its own permissions.`);
   if (n.chk && n.chk !== o.chk) l.push(`The check "${n.chk}" runs after every task.`);
   if (n.fb && !o.fb) l.push(`${nm} may switch to API keys when the subscription is full (costs money).`);
   if (n.tools && JSON.stringify(n.tools) !== JSON.stringify(o.tools)) l.push(`${nm} gets these tools: ${n.tools.join(", ")}.`);
   if (!!n.sub !== !!o.sub) l.push(n.sub ? `${nm} only uses subscriptions, never API keys.` : `${nm} may also use API keys (costs money).`);
-  const dk = ["fsr", "fsw", "sh", "net", "push", "ceo_hire", "ceo_conn", "srv", "from", "chk", "tools", "fb", "sub"];
+  const dk = ["fsr", "fsw", "sh", "net", "push", "ceo_hire", "ceo_conn", "srv", "from", "chk", "tools", "fb", "sub", "route", "pause"];
   const j = (v) => JSON.stringify(v ?? null);
   const ch = dk.filter((k) => n[k] !== undefined && n[k] !== null && j(n[k]) !== j(o[k]));
   if (ch.length && !l.length) l.push(`Permissions of ${nm} get narrower (${ch.join(", ")}).`);
@@ -250,7 +257,7 @@ A.moveBox = (id, nm, at) => {
 
 A.hireBox = async (f, u) => {
   if (!A.types) await A.loadTypes();
-  const b = box(`<h3>${"Free desk"}</h3><div class="mt">${"Whom do you want to hire here?"}</div><div class="li">${A.types.ty.map((t) => `<div data-h="${esc(t.id)}"><span><span class="sw" style="background:${esc(t.col)}"></span> ${esc(t.nm)}</span><span class="mt">${esc(L(t.dsc || ""))}</span></div>`).join("")}</div>
+  const b = box(`<h3>${"Free desk"}</h3><div class="mt">${"Whom do you want to hire here?"}</div><div class="li">${A.grouped(A.types).map(([g, l]) => `<div class="gh">${esc(g)}</div>` + l.map((t) => `<div data-h="${esc(t.id)}"><span><span class="sw" style="background:${esc(t.col)}"></span> ${esc(t.nm)}</span><span class="mt">${esc(L(t.dsc || ""))}</span></div>`).join("")).join("")}</div>
     <div class="acts"><button class="l" data-tm>${"Hire the whole team"}</button></div>`, u);
   b.onclick = async (e) => {
     if (e.target.closest("[data-tm]")) return A.teamBox(f.id, u);

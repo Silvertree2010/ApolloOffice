@@ -45,9 +45,14 @@ a{color:var(--ac)}
 .bx .er{color:#a5372d}
 .bx .bar{height:6px;background:#ddd7ca;border-radius:1px;overflow:hidden;margin:3px 0}
 .bx .bar i{display:block;height:100%;background:var(--ok)}
-.bx .li{max-height:240px;overflow:auto;margin:4px 0}
+.bx .li{max-height:300px;overflow:auto;margin:4px 0}
 .bx .li>div{padding:4px;cursor:pointer;border-radius:2px;display:flex;justify-content:space-between;gap:8px}
 .bx .li>div:hover{background:#e6e0d3}
+.bx .li>div>span:first-child{white-space:nowrap;flex:none}
+.bx .li>div>span.mt{text-align:right;font-size:11px}
+.bx .li>div.gh{cursor:default;font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.6;padding:8px 4px 2px}
+.bx .li>div.gh:hover{background:none}
+th.gh{text-align:left;padding-top:14px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;opacity:.7}
 .bx .li>div.cur{background:#2a2723;color:var(--bx)}
 .bx .ar{position:absolute;right:8px;top:6px;cursor:pointer;color:#77716a;font-size:14px}
 .bx label{display:flex;gap:6px;align-items:center}

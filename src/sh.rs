@@ -125,6 +125,64 @@ pub fn age(pid: u32) -> Option<i64> {
     Some(d * 86_400 + s)
 }
 
+pub fn browser() -> Option<(PathBuf, bool)> {
+    let mut c: Vec<(PathBuf, bool)> = vec![];
+    if cfg!(target_os = "macos") {
+        for (p, ff) in [("Google Chrome.app/Contents/MacOS/Google Chrome", false), ("Chromium.app/Contents/MacOS/Chromium", false), ("Microsoft Edge.app/Contents/MacOS/Microsoft Edge", false), ("Brave Browser.app/Contents/MacOS/Brave Browser", false), ("Firefox.app/Contents/MacOS/firefox", true)] {
+            c.push((Path::new("/Applications").join(p), ff));
+            if let Some(h) = dirs::home_dir() {
+                c.push((h.join("Applications").join(p), ff));
+            }
+        }
+    } else if cfg!(windows) {
+        let mut roots: Vec<PathBuf> = ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"].iter().filter_map(|v| std::env::var_os(v).map(PathBuf::from)).collect();
+        roots.dedup();
+        for r in roots {
+            for (p, ff) in [(r"Google\Chrome\Application\chrome.exe", false), (r"Microsoft\Edge\Application\msedge.exe", false), (r"BraveSoftware\Brave-Browser\Application\brave.exe", false), (r"Mozilla Firefox\firefox.exe", true)] {
+                c.push((r.join(p), ff));
+            }
+        }
+    } else {
+        for (n, ff) in [("google-chrome", false), ("google-chrome-stable", false), ("chromium", false), ("chromium-browser", false), ("microsoft-edge", false), ("brave-browser", false), ("firefox", true)] {
+            if let Some(p) = which(n) {
+                c.push((p, ff));
+            }
+        }
+    }
+    c.into_iter().find(|(p, _)| p.is_file())
+}
+
+pub async fn shot(u: &str, f: &Path, w: i64, h: i64) -> Result<(), String> {
+    let (b, ff) = browser().ok_or("no Chrome, Edge, Brave, Chromium or Firefox found for screenshots")?;
+    let pd = std::env::temp_dir().join(format!("ao-shot-{}", hex::encode(rand::random::<[u8; 6]>())));
+    let _ = std::fs::create_dir_all(&pd);
+    let mut c = Command::new(&b);
+    if ff {
+        c.args(["--headless", "--no-remote", "--profile"]).arg(&pd).arg(format!("--window-size={w},{h}")).arg("--screenshot").arg(f).arg(u);
+    } else {
+        c.args(["--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run", "--no-default-browser-check", "--mute-audio"]).arg(format!("--user-data-dir={}", pd.display())).arg(format!("--window-size={w},{h}")).arg(format!("--screenshot={}", f.display())).arg(u);
+    }
+    c.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).kill_on_drop(true);
+    grp(&mut c);
+    let r = match c.spawn() {
+        Ok(mut ch) => {
+            let id = ch.id().unwrap_or(0);
+            let r = tokio::time::timeout(Duration::from_secs(60), ch.wait()).await;
+            if r.is_err() {
+                kill(id);
+            }
+            r.map(|_| ()).map_err(|_| "browser took longer than 60 s".to_string())
+        }
+        Err(e) => Err(format!("{} does not start: {e}", b.display())),
+    };
+    let _ = std::fs::remove_dir_all(&pd);
+    r?;
+    if !f.is_file() {
+        return Err("the browser made no screenshot".into());
+    }
+    Ok(())
+}
+
 pub struct Out {
     pub c: i32,
     pub o: String,
@@ -179,5 +237,17 @@ pub fn head(s: &str, n: usize) -> String {
         s.to_string()
     } else {
         format!("{}\n…(cut)", s.chars().take(n).collect::<String>())
+    }
+}
+
+#[cfg(test)]
+mod t {
+    #[tokio::test]
+    #[ignore]
+    async fn shot() {
+        let f = std::env::temp_dir().join("ao-shot-t.png");
+        let _ = std::fs::remove_file(&f);
+        super::shot("https://example.com", &f, 800, 600).await.unwrap();
+        assert!(f.is_file());
     }
 }

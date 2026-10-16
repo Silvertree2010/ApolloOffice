@@ -202,7 +202,8 @@ PG.types = async (o) => {
   const own = (t) => t.own === 1;
   pgi.innerHTML = head("HR office", "Worker types define what a worker can do and how he looks. You can adjust bundled types or build your own.") +
     `<div class="row"><button class="p" data-nt>+ ${"New type"}</button><button data-ntl>+ ${"Custom tool"}</button></div>
-    <h2>${"Types"}</h2><div class="tw"><table><tr><th></th><th>${"Name"}</th><th>${"Model"}</th><th>${"Tools"}</th><th>${"Description"}</th></tr>${d.ty.map((t) => `<tr data-t="${esc(t.id)}" style="cursor:pointer"><td><span style="display:inline-block;width:12px;height:12px;background:${esc(t.col)};border-radius:2px"></span></td><td>${esc(t.nm)}${own(t) ? ` <span class="mt">(${"own"})</span>` : ""}</td><td>${esc(L(t.md || ""))}</td><td class="mt">${esc((t.tools || []).join(", "))}</td><td class="mt">${esc(L(t.dsc || ""))}</td></tr>`).join("")}</table></div>
+    ${(d.props || []).length ? `<h2>${"Proposals from the coach"}</h2>${d.props.map((p) => `<div class="card"><b>${esc(p.type)}</b> <span class="mt">${"from"} ${esc(p.by)}</span><p>${esc(p.why)}</p>${p.role ? `<details><summary>${"New role"}</summary><pre style="white-space:pre-wrap">${esc(p.role)}</pre></details>` : ""}${p.dsc ? `<div class="mt">${"Description"}: ${esc(p.dsc)}</div>` : ""}${p.outf ? `<div class="mt">${"Result"}: ${esc(p.outf)}</div>` : ""}<div class="row" style="margin-top:6px"><button class="p" data-pa="${+p.id}">${"Apply"}</button><button data-pd="${+p.id}">${"Dismiss"}</button></div></div>`).join("")}` : ""}
+    <h2>${"Types"}</h2><div class="tw"><table><tr><th></th><th>${"Name"}</th><th>${"Model"}</th><th>${"Tools"}</th><th>${"Description"}</th></tr>${A.grouped(d).map(([g, l]) => `<tr><th colspan="5" class="gh">${esc(g)}</th></tr>` + l.map((t) => `<tr data-t="${esc(t.id)}" style="cursor:pointer"><td><span style="display:inline-block;width:12px;height:12px;background:${esc(t.col)};border-radius:2px"></span></td><td>${esc(t.nm)}${own(t) ? ` <span class="mt">(${"own"})</span>` : ""}</td><td>${esc(L(t.md || ""))}</td><td class="mt">${esc((t.tools || []).join(", "))}</td><td class="mt">${esc(L(t.dsc || ""))}</td></tr>`).join("")).join("")}</table></div>
     <h2>${"Custom tools"}</h2>${d.tools.length ? `<div class="tw"><table>${d.tools.map((t) => `<tr data-tl="${esc(t.id)}" style="cursor:pointer"><td>${esc(t.id)}</td><td class="mt">${esc(t.dsc)}</td></tr>`).join("")}</table></div>` : `<p class="mt">${"None yet. Custom tools are small JavaScript functions without network or file access except through ctx."}</p>`}
     <div id="tEd"></div>`;
   const ed = (t) => {
@@ -248,7 +249,9 @@ PG.types = async (o) => {
       } catch (x) { A.fail(x); }
     };
   };
-  pgi.onclick = (e) => {
+  pgi.onclick = async (e) => {
+    const pp = e.target.closest("[data-pa],[data-pd]");
+    if (pp) { try { await A.api("/api/type/prop", { id: +(pp.dataset.pa || pp.dataset.pd), a: pp.dataset.pa ? "apply" : "drop" }); A.toast(pp.dataset.pa ? "applied" : "dismissed"); } catch (x) { A.fail(x); } A.types = null; return PG.types(); }
     if (e.target.closest("[data-nt]")) return ed(null);
     if (e.target.closest("[data-ntl]")) return tled(null);
     const r = e.target.closest("[data-t]"); if (r) return ed(d.ty.find((t) => t.id === r.dataset.t));
@@ -416,7 +419,7 @@ const boot = async () => {
   setInterval(() => { const f = A.flo(A.cur); if (f && f.k === "accounting" && pg.hidden) loadUsage(); }, 30000);
   const p = new URLSearchParams(location.search);
   if (p.has("page")) A.page(p.get("page"));
-  if (p.has("box")) { const f = A.flo(A.cur), u = (f.lay.fu || []).find((x) => x.k === p.get("box")); if (u) A.fuClick(f, u); }
+  if (p.has("box")) { const [bk, bi] = p.get("box").split(":"), f = A.flo(A.cur), u = (f.lay.fu || []).find((x) => x.k === bk && (!bi || x.id === +bi)); if (u) A.fuClick(f, u); }
   if (p.has("set")) { const e = Object.values(A.E).find((x) => x.i && x.i.nm === p.get("set")); if (e) { A.permOpen = p.has("perm"); A.wSet(e.i.id, e); } }
   if (p.has("add")) A.addAcc({ sx: 700, sy: 100 });
   if (p.has("build")) A.setBld(true);

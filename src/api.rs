@@ -93,7 +93,11 @@ pub async fn run(a: &Ax, j: Job, u: &mut (i64, i64)) -> Result<Res, Er> {
                     Ok(t) => (t, false),
                     Err(e) => (format!("error: {e}"), true),
                 };
-                res.push(json!({"type": "tool_result", "tool_use_id": x["id"], "content": crate::sh::head(&t, 100_000), "is_error": e}));
+                let c: Vec<Value> = crate::tools::parts(&t).into_iter().map(|p| match p {
+                    crate::tools::Part::T(t) => json!({"type": "text", "text": crate::sh::head(&t, 100_000)}),
+                    crate::tools::Part::I(d) => json!({"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": d}}),
+                }).collect();
+                res.push(json!({"type": "tool_result", "tool_use_id": x["id"], "content": c, "is_error": e}));
             }
             msgs.push(json!({"role": "user", "content": res}));
         }
@@ -146,6 +150,10 @@ pub async fn run(a: &Ax, j: Job, u: &mut (i64, i64)) -> Result<Res, Er> {
                     None => Err("no tools".into()),
                 };
                 let t = o.unwrap_or_else(|e| format!("error: {e}"));
+                let t: String = crate::tools::parts(&t).into_iter().filter_map(|p| match p {
+                    crate::tools::Part::T(t) => Some(t),
+                    crate::tools::Part::I(_) => Some("(image not shown: this account can not read images through tools)".into()),
+                }).collect::<Vec<_>>().join("\n");
                 msgs.push(json!({"role": "tool", "tool_call_id": c["id"], "content": crate::sh::head(&t, 100_000)}));
             }
         }

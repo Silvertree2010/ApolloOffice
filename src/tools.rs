@@ -65,6 +65,12 @@ pub fn base() -> Vec<(&'static str, &'static str, Value)> {
         ("job_stop", "Stop a running job.", sc(json!({"job": n}), &["job"])),
         ("put_file", "Copy a file from your folders to the work folder of a server.", sc(json!({"server": s, "path": s, "remote": s}), &["server", "path"])),
         ("get_file", "Copy a file from the work folder of a server into your folders.", sc(json!({"server": s, "remote": s, "path": s}), &["server", "remote", "path"])),
+        ("route", "Send a task to another floor of the building (by floor name or level). A free worker there picks it up. Only if you may route.", sc(json!({"floor": s, "title": s, "text": s}), &["floor", "title", "text"])),
+        ("usage", "Token use and costs of the last days per worker, account and floor, the daily limits, and the price per model tier of each account.", sc(json!({"days": n}), &[])),
+        ("pause", "Pause or resume a worker by name (only if you may pause). Paused workers take no new tasks.", sc(json!({"worker": s, "on": b, "why": s}), &["worker", "on"])),
+        ("type_propose", "Propose a change to a worker type's role, description or result description. The owner decides in the HR office.", sc(json!({"type": s, "role": s, "dsc": s, "outf": s, "why": s}), &["type", "why"])),
+        ("delete", "Delete a file or folder inside a folder you may write. The folders you were given themselves cannot be deleted.", sc(json!({"path": s}), &["path"])),
+        ("screenshot", "Screenshot a web page of an allowed domain in a headless browser. w and h set the window size (default 1366x900). Returns the image.", sc(json!({"url": s, "w": n, "h": n}), &["url"])),
     ]
 }
 
@@ -91,6 +97,9 @@ fn allowed(rc: &Rc, n: &str) -> bool {
         "sh" => rc.pm.sh.is_some(),
         "web" => !rc.pm.net.is_empty(),
         "hire" => rc.wc["ceo_hire"].as_bool() == Some(true),
+        "route" => rc.wc["route"].as_bool() == Some(true),
+        "pause" => rc.wc["pause"].as_bool() == Some(true),
+        "screenshot" => !rc.pm.net.is_empty(),
         "connect" => rc.wc["ceo_conn"].as_bool() == Some(true),
         "server_status" | "job_start" | "job_log" | "job_stop" | "put_file" | "get_file" => rc.wc["srv"].as_array().map(|x| !x.is_empty()).unwrap_or(false),
         _ => true,
@@ -367,7 +376,7 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
             let ids = |v: &Value| -> Vec<i64> { v["srv"].as_array().map(|x| x.iter().filter_map(|y| y.as_i64()).collect()).unwrap_or_default() };
             let (mine, theirs) = (ids(&rc.wc), ids(&w["cfg"]));
             let flag = |v: &Value, k: &str| v[k].as_bool() == Some(true);
-            let more = theirs.iter().any(|x| !mine.contains(x)) || ["ceo_hire", "ceo_conn", "fb"].iter().any(|k| flag(&w["cfg"], k) && !flag(&rc.wc, k)) || w["cfg"]["tools"].as_array().map(|t| t.iter().any(|x| x.as_str().map(|s| s.starts_with("x:") && !rc.tools.iter().any(|m| m == s)).unwrap_or(false))).unwrap_or(false);
+            let more = theirs.iter().any(|x| !mine.contains(x)) || ["ceo_hire", "ceo_conn", "fb", "route", "pause"].iter().any(|k| flag(&w["cfg"], k) && !flag(&rc.wc, k)) || w["cfg"]["tools"].as_array().map(|t| t.iter().any(|x| x.as_str().map(|s| s.starts_with("x:") && !rc.tools.iter().any(|m| m == s)).unwrap_or(false))).unwrap_or(false);
             if !rc.pm.sub(&wp) || more {
                 return Err(format!("{} has more permissions than you. Only the owner may connect them.", s(&w, "nm")));
             }
@@ -387,6 +396,80 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
             Ok("connected".into())
         }
         "server_status" | "job_start" | "job_log" | "job_stop" | "put_file" | "get_file" => Box::pin(crate::ssh::tool(a, rc, n, x)).await,
+        "route" => {
+            let q = s(x, "floor").trim().to_lowercase();
+            let f = a.db.all("select id,lvl,k,nm from fl where k in ('office','accounting','server')", pa![]).into_iter().find(|f| f["nm"].as_str().map(|n| n.to_lowercase() == q).unwrap_or(false) || f["lvl"].as_i64().map(|l| l.to_string() == q).unwrap_or(false)).ok_or_else(|| format!("no office floor named {q}"))?;
+            let mk = a.db.n("select mk from tk where id=?", pa![rc.tk]).min(1);
+            let fid = f["id"].as_i64().unwrap_or(0);
+            let id = a.db.run("insert into tk(ti,tx,src,fl,st,kind,par,mk,t0,t1) values(?,?,?,?,'wait','task',?,?,?,?)", pa![cut_s(s(x, "title"), 300), cut_s(s(x, "text"), 20000), format!("w:{}", rc.wk), fid, rc.tk, mk, now(), now()]);
+            a.flow(rc.wk, 0, "order");
+            Ok(format!("task #{id} sent to floor {}", s(&f, "nm")))
+        }
+        "usage" => {
+            let d = x["days"].as_i64().unwrap_or(7).clamp(1, 60);
+            let from = (chrono::Local::now() - chrono::Duration::days(d - 1)).format("%Y-%m-%d").to_string();
+            let st = a.set();
+            let accs: Vec<Value> = a.db.all("select id,k,nm,base,md,cfg from acc", pa![]).iter().map(|c| {
+                let p = |t: &str| { let m = crate::prov::tier(c, t); let (i, o) = crate::prov::price(c, &m); json!({"model": m, "usd_per_mtok_in": i, "usd_per_mtok_out": o}) };
+                json!({"id": c["id"], "name": c["nm"], "kind": c["k"], "small": p("small"), "medium": p("medium"), "large": p("large"), "usd_day": c["cfg"]["usd_day"], "tok_day": c["cfg"]["tok_day"]})
+            }).collect();
+            Ok(serde_json::to_string_pretty(&json!({
+                "today_usd": crate::prov::spent(a), "limit_usd_day": st["usd_day"],
+                "workers": a.db.all("select u.wk, w.nm, json_extract(w.cfg,'$.tokd') tokd, sum(tin) tin, sum(tout) tout, round(sum(usd),4) usd from us u left join wk w on w.id=u.wk where day>=? group by u.wk order by usd desc", pa![from.clone()]),
+                "accounts": a.db.all("select u.acc, c.nm, sum(tin) tin, sum(tout) tout, round(sum(usd),4) usd from us u left join acc c on c.id=u.acc where day>=? group by u.acc order by usd desc", pa![from.clone()]),
+                "floors": a.db.all("select u.fl, f.nm, round(sum(usd),4) usd from us u left join fl f on f.id=u.fl where day>=? group by u.fl order by usd desc", pa![from.clone()]),
+                "days": a.db.all("select day, sum(tin+tout) tok, round(sum(usd),4) usd from us where day>=? group by day order by day", pa![from]),
+                "prices": accs,
+            })).unwrap())
+        }
+        "pause" => {
+            let w = wk_by_name(a, rc.fl, s(x, "worker")).ok_or("worker not found")?;
+            let wid = w["id"].as_i64().unwrap_or(0);
+            if wid == rc.wk {
+                return Err("you cannot pause yourself".into());
+            }
+            let on = x["on"].as_bool().unwrap_or(true);
+            a.db.run("update wk set hold=? where id=?", pa![on as i64, wid]);
+            a.aud(if on { "Worker paused by worker" } else { "Worker resumed by worker" }, &format!("{} -> {}: {}", rc.nm, s(&w, "nm"), cut_s(s(x, "why"), 300)));
+            a.say(wid, &format!("{} by {}", if on { "paused" } else { "resumed" }, rc.nm), None);
+            Ok(format!("{} {}", s(&w, "nm"), if on { "paused" } else { "resumed" }))
+        }
+        "type_propose" => {
+            let tid = s(x, "type").trim().to_lowercase();
+            let t = a.db.one("select id from ty where lower(id)=? or lower(nm)=?", pa![tid.clone(), tid]).ok_or("unknown worker type")?;
+            let mut v = a.db.kg("props").as_array().cloned().unwrap_or_default();
+            if v.len() >= 50 {
+                return Err("50 proposals are already waiting for the owner".into());
+            }
+            let id = now();
+            v.push(json!({"id": id, "type": t["id"], "by": rc.nm, "role": cut_s(s(x, "role"), 20000), "dsc": cut_s(s(x, "dsc"), 200), "outf": cut_s(s(x, "outf"), 500), "why": cut_s(s(x, "why"), 2000), "t": id}));
+            a.db.ks("props", &json!(v));
+            Ok("proposal saved; the owner decides in the HR office".into())
+        }
+        "delete" => {
+            let f = wp(rc, s(x, "path"))?;
+            if rc.pm.wr.iter().any(|r| real(r) == f) || real(&rc.out) == f {
+                return Err("you cannot delete one of your own folders".into());
+            }
+            let m = std::fs::symlink_metadata(&f).map_err(|_| format!("{} does not exist", f.display()))?;
+            if m.is_dir() {
+                std::fs::remove_dir_all(&f).map_err(|e| e.to_string())?;
+            } else {
+                std::fs::remove_file(&f).map_err(|e| e.to_string())?;
+            }
+            Ok(format!("deleted {}", f.display()))
+        }
+        "screenshot" => {
+            let u = s(x, "url");
+            if !netok(&rc.pm, u) {
+                return Err(format!("{u} is not in your allowed domains"));
+            }
+            let (w, h) = (x["w"].as_i64().unwrap_or(1366).clamp(320, 3840), x["h"].as_i64().unwrap_or(900).clamp(320, 4000));
+            let f = rc.out.join(format!("shot-{}-{}.png", rc.tk, now()));
+            crate::sh::shot(u, &f, w, h).await?;
+            file(a, rc.tk, &f);
+            Ok(format!("\u{1}img:{}\nscreenshot of {u} at {w}x{h}, saved as {}", f.display(), f.display()))
+        }
         _ if n.starts_with("x_") => {
             let id = &n[2..];
             let r = a.db.one("select src from tool where id=?", pa![id.to_string()]).ok_or("tool missing")?;
@@ -478,6 +561,26 @@ pub async fn web(a: &Ax, pm: &Pm, x: &Value) -> Result<String, String> {
         t = strip(&t);
     }
     Ok(format!("status {st}\n{}", head(&t, 200_000)))
+}
+
+pub enum Part {
+    T(String),
+    I(String),
+}
+
+pub fn parts(r: &str) -> Vec<Part> {
+    if let Some(x) = r.strip_prefix('\u{1}') {
+        if let Some(rest) = x.strip_prefix("img:") {
+            let (p, t) = rest.split_once('\n').unwrap_or((rest, ""));
+            if let Ok(b) = std::fs::read(p) {
+                if b.len() < 8_000_000 {
+                    return vec![Part::I(base64::Engine::encode(&base64::engine::general_purpose::STANDARD, b)), Part::T(t.to_string())];
+                }
+            }
+            return vec![Part::T(t.to_string())];
+        }
+    }
+    vec![Part::T(r.to_string())]
 }
 
 pub fn cut_s(s: &str, n: usize) -> String {

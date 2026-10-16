@@ -35,7 +35,10 @@ pub async fn handle(a: &Ax, t: &str, m: &Value) -> Value {
             let n = m["params"]["name"].as_str().unwrap_or("");
             let args = if m["params"]["arguments"].is_object() { m["params"]["arguments"].clone() } else { json!({}) };
             match crate::tools::call(a, &rc, n, &args).await {
-                Ok(r) => json!({"jsonrpc": "2.0", "id": id, "result": {"content": [{"type": "text", "text": crate::sh::head(&r, 100_000)}]}}),
+                Ok(r) => json!({"jsonrpc": "2.0", "id": id, "result": {"content": crate::tools::parts(&r).into_iter().map(|p| match p {
+                    crate::tools::Part::T(t) => json!({"type": "text", "text": crate::sh::head(&t, 100_000)}),
+                    crate::tools::Part::I(d) => json!({"type": "image", "data": d, "mimeType": "image/png"}),
+                }).collect::<Vec<_>>()}}),
                 Err(e) => json!({"jsonrpc": "2.0", "id": id, "result": {"content": [{"type": "text", "text": format!("error: {e}")}], "isError": true}}),
             }
         }

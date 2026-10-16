@@ -293,7 +293,7 @@ fn s<'a>(v: &'a Value, k: &str) -> &'a str {
     v[k].as_str().unwrap_or("")
 }
 
-const DANGER: &[&str] = &["fsr", "fsw", "sh", "net", "push", "ceo_hire", "ceo_conn", "srv", "from", "chk", "tools", "fb", "sub"];
+const DANGER: &[&str] = &["fsr", "fsw", "sh", "net", "push", "ceo_hire", "ceo_conn", "srv", "from", "chk", "tools", "fb", "sub", "route", "pause"];
 
 fn danger(old: &Value, new: &Value) -> Vec<String> {
     let mut o = vec![];
@@ -449,7 +449,28 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             crate::world::height(&a.db, n(b, "n"))?;
             ok()
         }
-        ("types", _, false) => Ok(js(json!({"ty": a.db.all("select * from ty order by own, rowid", pa![]), "teams": crate::world::teams(), "tools": a.db.all("select id,dsc,sch,src from tool", pa![]), "base": crate::tools::base().iter().map(|x| json!({"id": x.0, "d": x.1})).collect::<Vec<_>>(), "accs": crate::world::ACCS}))),
+        ("types", _, false) => Ok(js(json!({"ty": a.db.all("select * from ty order by own, rowid", pa![]), "teams": crate::world::teams(), "tools": a.db.all("select id,dsc,sch,src from tool", pa![]), "base": crate::tools::base().iter().map(|x| json!({"id": x.0, "d": x.1})).collect::<Vec<_>>(), "accs": crate::world::ACCS, "grp": crate::world::grps(), "props": a.db.kg("props")}))),
+        ("type", "prop", true) => {
+            let mut v = a.db.kg("props").as_array().cloned().unwrap_or_default();
+            let i = v.iter().position(|p| p["id"].as_i64() == b["id"].as_i64()).ok_or("proposal not found")?;
+            let p = v.remove(i);
+            if s(b, "a") == "apply" {
+                let tid = p["type"].as_str().unwrap_or("").to_string();
+                let t = a.db.one("select * from ty where id=?", pa![tid.clone()]).ok_or("type no longer exists")?;
+                let g = |k: &str| p[k].as_str().filter(|x| !x.trim().is_empty()).map(String::from).unwrap_or_else(|| t[k].as_str().unwrap_or("").to_string());
+                a.db.run("update ty set role=?, dsc=?, outf=? where id=?", pa![g("role"), g("dsc"), g("outf"), tid.clone()]);
+                if t["own"].as_i64() == Some(0) {
+                    let mut e = a.db.kg("tyed").as_array().cloned().unwrap_or_default();
+                    if !e.contains(&json!(tid)) {
+                        e.push(json!(tid));
+                        a.db.ks("tyed", &json!(e));
+                    }
+                }
+                a.aud("Type proposal applied", &format!("{tid} from {}", p["by"].as_str().unwrap_or("")));
+            }
+            a.db.ks("props", &json!(v));
+            ok()
+        }
         ("type", "", true) => {
             let tid: String = s(b, "id").to_lowercase().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').take(24).collect();
             if tid.is_empty() || s(b, "nm").trim().is_empty() || s(b, "role").trim().is_empty() {
@@ -459,6 +480,13 @@ async fn api(a: &Ax, m: &Method, p: &str, u: &Uri, b: &Value, sid: &str, raw: &B
             let acc = if crate::world::ACCS.contains(&s(b, "acc")) { s(b, "acc") } else { "none" };
             let col = if regex::Regex::new("^#[0-9a-fA-F]{6}$").unwrap().is_match(s(b, "col")) { s(b, "col") } else { "#8a8a8a" };
             let tools = json!(b["tools"].as_array().cloned().unwrap_or_default().into_iter().filter(|t| t.as_str().is_some()).collect::<Vec<_>>());
+            if ex.as_ref().map(|e| e["own"].as_i64() == Some(0)).unwrap_or(false) {
+                let mut v = a.db.kg("tyed").as_array().cloned().unwrap_or_default();
+                if !v.contains(&json!(tid)) {
+                    v.push(json!(tid));
+                    a.db.ks("tyed", &json!(v));
+                }
+            }
             if ex.is_some() {
                 a.db.run("update ty set nm=?,role=?,tools=?,md=?,ef=?,prov=?,acc=?,col=?,dsc=?,outf=?,chk=? where id=?", pa![s(b, "nm").chars().take(24).collect::<String>(), s(b, "role").chars().take(20000).collect::<String>(), tools.to_string(), s(b, "md").to_string(), s(b, "ef").to_string(), s(b, "prov").to_string(), acc.to_string(), col.to_string(), s(b, "dsc").chars().take(200).collect::<String>(), s(b, "outf").chars().take(500).collect::<String>(), s(b, "chk").to_string(), tid.clone()]);
             } else {

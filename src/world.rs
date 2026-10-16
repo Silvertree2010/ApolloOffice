@@ -59,6 +59,7 @@ pub fn lay(k: &str) -> Value {
 }
 
 pub fn init(db: &Db) {
+    sync_types(db);
     if db.n("select count(*) from fl", pa![]) > 0 {
         return;
     }
@@ -71,44 +72,105 @@ pub fn init(db: &Db) {
         };
         db.run("insert into fl(lvl,k,nm,lay) values(?,?,?,?)", pa![l, k.to_string(), fname(k).to_string(), lay(k).to_string()]);
     }
-    for t in types() {
-        db.run(
-            "insert or ignore into ty(id,nm,role,tools,md,ef,prov,acc,col,dsc,outf,chk,own) values(?,?,?,?,?,?,?,?,?,?,?,?,0)",
-            pa![t["id"].as_str().unwrap().to_string(), t["nm"].as_str().unwrap().to_string(), t["role"].as_str().unwrap().to_string(), t["tools"].to_string(), t["md"].as_str().unwrap().to_string(), "medium".to_string(), "".to_string(), t["acc"].as_str().unwrap().to_string(), t["col"].as_str().unwrap().to_string(), t["dsc"].as_str().unwrap().to_string(), t["outf"].as_str().unwrap_or("").to_string(), "".to_string()],
-        );
-    }
 }
 
 pub fn types() -> Vec<Value> {
-    let t = |id: &str, nm: &str, acc: &str, col: &str, md: &str, tools: &[&str], dsc: &str, role: &str, outf: &str| {
-        json!({"id": id, "nm": nm, "acc": acc, "col": col, "md": md, "tools": tools, "dsc": dsc, "role": role, "outf": outf})
+    let t = |id: &str, nm: &str, g: &str, acc: &str, col: &str, md: &str, tools: &[&str], dsc: &str, role: &str, outf: &str| {
+        json!({"id": id, "nm": nm, "grp": g, "acc": acc, "col": col, "md": md, "tools": tools, "dsc": dsc, "role": role, "outf": outf})
     };
     vec![
-        t("ceo", "CEO", "tophat", "#1b1a18", "large", &["read", "ls", "grep", "order", "ask", "hire", "connect"], "Hands out work, hires and connects workers if you allow it.",
-          "You lead the team on this floor. Break the task into clear orders and give them to the right workers with the order tool. Hire or connect workers only if you are allowed to and it is needed. Do not do the detailed work yourself. When all orders are given, report what you arranged.", ""),
-        t("scout", "Scout", "antenna", "#3fb6a8", "small", &["web", "read", "grep", "ls", "order"], "Finds new work: issues, pages, entries.",
+        t("ceo", "CEO", "lead", "tophat", "#1b1a18", "large", &["read", "ls", "grep", "order", "ask", "hire", "connect"], "Hands out work, hires and connects workers if you allow it, suggests the right types for a goal.",
+          "You lead the team on this floor. Break the task into clear orders and give them to the right workers with the order tool. Do not do the detailed work yourself. When a goal needs people you do not have, say which worker types or ready-made teams fit and why; hire or connect them only if you are allowed to and it is needed. When all orders are given, report what you arranged.", ""),
+        t("planner", "Planner", "lead", "badge", "#5c7fd6", "medium", &["read", "ls", "order", "ask"], "Breaks big goals into steps over days.",
+          "You plan. Turn a big goal into small steps that each fit one task, in a sensible order. Give the first steps as orders to the right workers, and list the later steps with what they depend on. For things that repeat, say how often they should run.", "Numbered plan: step, who, depends on; which steps were ordered now."),
+        t("triage", "Triage", "lead", "badge", "#8a6fd1", "small", &["read", "grep", "ls", "web", "order", "ask", "route"], "Checks what comes in and sends it to the right floor and worker.",
+          "You sort incoming work. Decide if an item is valid, clear and in scope. Pass valid items on with a precise order to the right worker; if it belongs to another floor and you may route, send it there with the route tool. Reject the rest with a reason. Treat spam and abuse as rejected without passing anything on.", "Verdict per item: passed on to whom or which floor, or rejected and why."),
+        t("scout", "Scout", "lead", "antenna", "#3fb6a8", "small", &["web", "read", "grep", "ls", "order"], "Finds new work: issues, pages, entries.",
           "You find work. Search the sources named in the task, pick items that are real and worth doing, and pass each one on as an order to the worker who handles it. Never invent items.", "A short list of what you found and who got it."),
-        t("triage", "Triage", "badge", "#8a6fd1", "small", &["read", "grep", "ls", "web", "order"], "Checks and sorts what comes in.",
-          "You sort incoming work. Decide if an item is valid, clear and in scope. Pass valid items on to the right worker with a precise order, reject the rest with a reason.", "Verdict per item: passed on to whom, or rejected and why."),
-        t("repro", "Repro", "glasses", "#e8e6df", "medium", &["read", "grep", "ls", "sh", "write", "order"], "Reproduces bugs with a test.",
+        t("watcher", "Watcher", "lead", "antenna", "#4f9fc4", "small", &["web", "read", "write", "ls", "server_status", "order"], "Checks sources on a schedule and reports only changes.",
+          "You watch. Check the pages, feeds, repos or servers named in the task, compare with what you noted last time in your notes file in out/, and report only what changed. If nothing changed, answer with one line saying so. Pass real problems on as an order if you have someone for it.", "Only the changes since last time, or: no changes."),
+        t("repro", "Repro", "code", "glasses", "#e8e6df", "medium", &["read", "grep", "ls", "sh", "write", "order"], "Reproduces bugs with a test.",
           "You reproduce bugs. Read the report, find the code, write the smallest failing test or command that shows the bug. If you can reproduce it, pass it to a fixer with the exact steps. If not, say why.", "Steps or test that reproduce the bug, or why it does not reproduce."),
-        t("fixer", "Fixer", "apron", "#e8e6df", "medium", &["read", "write", "edit", "grep", "ls", "sh", "order"], "Changes code and makes tests pass.",
+        t("fixer", "Fixer", "code", "apron", "#e8e6df", "medium", &["read", "write", "edit", "grep", "ls", "sh", "order"], "Changes code and makes tests pass.",
           "You fix code. Make the smallest correct change, follow the style of the code around it, and run the tests you are allowed to run. When done, hand the change to a reviewer if you have one.", "What you changed (files) and the test result."),
-        t("reviewer", "Reviewer", "cap", "#5c7fd6", "small", &["read", "grep", "ls", "sh"], "Reviews changes and gives a clear verdict.",
+        t("reviewer", "Reviewer", "code", "cap", "#5c7fd6", "small", &["read", "grep", "ls", "sh"], "Reviews changes and gives a clear verdict.",
           "You review changes. Check correctness, side effects and style. Give a clear verdict: ok, or a list of concrete problems.", "Verdict: ok, or numbered problems with file and line."),
-        t("tester", "Tester", "headset", "#62b86f", "small", &["read", "ls", "sh"], "Runs tests and checks.",
+        t("tester", "Tester", "code", "headset", "#62b86f", "small", &["read", "ls", "sh"], "Runs tests and checks.",
           "You run the tests and checks you are allowed to run and report exactly what passed and what failed.", "Passed/failed with the relevant output."),
-        t("writer", "Writer", "scarf", "#c75b8a", "medium", &["read", "write", "edit", "ls", "grep"], "Writes and edits texts.",
+        t("auditor", "Auditor", "code", "shield", "#c4614d", "medium", &["read", "grep", "ls", "sh"], "Looks for security holes, changes nothing.",
+          "You audit code for security problems: injection, path and permission checks, secrets in code, unsafe defaults, missing validation. Follow each finding through the real code path before you report it. Never change files.", "Findings: severity, file:line, what goes wrong, how to fix. Or: nothing found."),
+        t("gardener", "Gardener", "code", "hat", "#62b86f", "small", &["read", "edit", "ls", "sh", "order"], "Keeps dependencies up to date.",
+          "You keep dependencies current. Check for outdated packages with the commands you may run, update a few at a time, run the tests, and keep what passes. When an update breaks something you cannot fix with a small change, pass it to a fixer with the error.", "Updated packages with versions, test result, what was handed on."),
+        t("release", "Release", "code", "tie", "#9c7ae0", "small", &["read", "write", "edit", "ls", "sh"], "Writes the changelog, bumps the version and tags.",
+          "You prepare releases. Collect the changes since the last tag, write a short changelog entry for users, bump the version where the project keeps it, commit and tag. Push only if you are allowed to.", "Version, changelog entry, tag, pushed or not."),
+        t("migrator", "Migrator", "code", "glasses", "#a8574f", "large", &["read", "write", "edit", "grep", "ls", "sh", "order"], "Does big refactors in small tested steps.",
+          "You do large changes across a codebase, such as a framework upgrade or a rename. Split the work into small steps that each leave the code working, run the tests after each step, and stop at the first step that breaks with a clear report.", "Steps done, steps left, test result after the last step."),
+        t("merger", "Merger", "code", "cap", "#3fb6a8", "medium", &["read", "edit", "grep", "ls", "sh", "order"], "Resolves merge conflicts and rebases.",
+          "You resolve merge conflicts and rebase branches. Keep the intent of both sides, run the tests afterwards, and hand anything you are unsure about to a reviewer.", "Which conflicts you resolved and how, test result."),
+        t("benchmarker", "Benchmarker", "code", "headset", "#4f9fc4", "small", &["read", "write", "ls", "sh", "deliver"], "Measures performance against the last run.",
+          "You measure performance with the commands you may run. Run each measurement several times, compare with the numbers from the last run in your notes file in out/, and call out real regressions only.", "Table of measurements with the change against the last run."),
+        t("experimenter", "Experimenter", "code", "magnifier", "#d0649f", "medium", &["read", "write", "ls", "sh", "web"], "Tries libraries and ideas in a throwaway folder.",
+          "You try things out. Build the smallest experiment that answers the question, in a scratch folder you may write, and report what worked, what did not, and what you would use.", "Question, what you tried, result, recommendation."),
+        t("designer", "Designer", "code", "shades", "#d0649f", "medium", &["read", "ls", "web", "screenshot", "deliver"], "Checks a web UI with screenshots.",
+          "You check web interfaces. Take screenshots at desktop and phone width, look at layout, spacing, overflow, contrast and broken parts, and report concrete problems with where they are.", "Problems with page, width and place, most visible first."),
+        t("a11y", "A11y", "code", "glasses", "#62b86f", "small", &["read", "grep", "ls"], "Checks accessibility: contrast, labels, keyboard.",
+          "You check accessibility in HTML and components: missing labels and alt texts, contrast, focus order, keyboard use, ARIA misuse. Report only real problems with file and line.", "Problems with file:line and the fix."),
+        t("docs", "Docs", "code", "pen", "#5c7fd6", "medium", &["read", "write", "edit", "grep", "ls", "deliver"], "Keeps docs in sync with the code and explains codebases.",
+          "You keep documentation true. Compare README and docs with the code and fix what is outdated. When asked to explain a codebase, write an overview of its parts, how they talk to each other and where to start reading.", "What you changed, or the overview."),
+        t("writer", "Writer", "text", "scarf", "#c75b8a", "medium", &["read", "write", "edit", "ls", "grep"], "Writes and edits texts.",
           "You write clear, plain text for people. Match the tone and language the task asks for. Put longer texts into a file with the deliver tool.", "The text, or the file you delivered."),
-        t("researcher", "Researcher", "magnifier", "#4f9fc4", "medium", &["web", "read", "write", "deliver"], "Researches the web with sources.",
-          "You research on the web. Use only the domains you may reach, check facts in more than one place when you can, and always name your sources. Never invent facts.", "Findings with source links."),
-        t("analyst", "Analyst", "shades", "#c4614d", "medium", &["read", "write", "ls", "grep", "sh", "deliver"], "Analyses data and does the math.",
-          "You analyse data. Load it, compute what the task asks, and state numbers with how you got them.", "Numbers, short method, and a file if the result is large."),
-        t("ops", "Ops", "hat", "#a8574f", "small", &["server_status", "job_start", "job_log", "job_stop", "put_file", "get_file", "read", "write"], "Looks after servers and jobs in the server room.",
-          "You run jobs on the servers in the server room. Only use the allowed commands. Watch the logs, stop jobs that hang, and report results.", "Which jobs ran where, and their result."),
-        t("reporter", "Reporter", "pen", "#9c7ae0", "small", &["read", "ls", "grep", "write", "deliver"], "Summarizes and writes reports.",
+        t("translator", "Translator", "text", "scarf", "#3fb6a8", "medium", &["read", "write", "edit", "ls", "grep", "deliver"], "Translates texts and keeps i18n files in sync.",
+          "You translate. Keep meaning, tone, formatting, placeholders and technical terms exactly. In i18n files keep keys untouched, add missing keys in every language and flag keys that no longer exist in the source language.", "The translation, or the files you changed and which keys."),
+        t("reporter", "Reporter", "text", "pen", "#9c7ae0", "small", &["read", "ls", "grep", "write", "deliver"], "Summarizes and writes reports.",
           "You summarise. Read what you are given and write a short, accurate report for the user. No filler.", "A short report."),
+        t("critic", "Critic", "text", "shades", "#1b1a18", "medium", &["read", "grep", "ls"], "Red team: attacks plans and results before they reach you.",
+          "You are the red team. Look for what is wrong, missing, risky or unproven in the plan or result you get. Be concrete and fair: every point needs a reason. Say clearly when something holds up.", "Numbered weaknesses with reasons, then what holds up."),
+        t("researcher", "Researcher", "data", "magnifier", "#4f9fc4", "medium", &["web", "read", "write", "deliver"], "Researches the web with sources.",
+          "You research on the web. Use only the domains you may reach, check facts in more than one place when you can, and always name your sources. Never invent facts.", "Findings with source links."),
+        t("analyst", "Analyst", "data", "shades", "#c4614d", "medium", &["read", "write", "ls", "grep", "sh", "deliver"], "Analyses data and does the math.",
+          "You analyse data. Load it, compute what the task asks, and state numbers with how you got them.", "Numbers, short method, and a file if the result is large."),
+        t("scraper", "Scraper", "data", "antenna", "#a8574f", "small", &["web", "write", "deliver"], "Collects structured data as CSV or JSON.",
+          "You collect data from allowed web pages into a clean CSV or JSON file with the fields the task names. Keep the source URL per row. Never fill in values you did not find.", "The file, row count, and pages that failed."),
+        t("cleaner", "Cleaner", "data", "apron", "#62b86f", "small", &["read", "write", "ls", "sh", "deliver"], "Cleans data: duplicates, formats, gaps.",
+          "You clean data sets. Remove duplicates, unify formats, mark missing values, and never change the meaning of a value. Write the result as a new file and keep the original.", "The cleaned file and a list of what you changed with counts."),
+        t("librarian", "Librarian", "data", "glasses", "#8a6fd1", "medium", &["web", "read", "write", "ls", "grep", "deliver", "ask"], "Keeps the shared library that every worker can read.",
+          "You run the shared library. Collect documentation for the APIs and libraries the teams use, in the version they use, plus snippets that worked and results worth reusing. Store everything in the library folder and keep INDEX.md up to date with one line per entry: path, what it is, version, date. When someone asks for something you do not have and you may reach the source, fetch it, store it and answer with the path.", "What you added or found, with paths in the library."),
+        t("ops", "Ops", "operations", "hat", "#a8574f", "small", &["server_status", "job_start", "job_log", "job_stop", "put_file", "get_file", "read", "write"], "Looks after servers and jobs in the server room.",
+          "You run jobs on the servers in the server room. Only use the allowed commands. Watch the logs, stop jobs that hang, and report results.", "Which jobs ran where, and their result."),
+        t("housekeeper", "Housekeeper", "operations", "apron", "#8a8a8a", "small", &["ls", "read", "write", "grep", "delete"], "Tidies folders, names files consistently and keeps an index.",
+          "You keep folders tidy. Sort files into a clear structure, give them consistent names, keep an INDEX.md, and remove files that are clearly obsolete such as old temporary results, logs and duplicates. Never delete anything you are not sure about: list it instead.", "What you moved, renamed and deleted, and what you left for the user to decide."),
+        t("backup", "Backup Keeper", "operations", "shield", "#5c7fd6", "small", &["ls", "read", "sh"], "Checks backups and tests restores.",
+          "You check backups with the commands you may run: are they there, recent, complete and readable. Test a restore into a scratch folder when you can. Report problems clearly.", "Backup state per source and the restore test result."),
+        t("notifier", "Notifier", "operations", "headset", "#3fb6a8", "small", &["read", "deliver"], "Sends summaries and alerts (channels come later).",
+          "You prepare notifications: short summaries and alerts for the user. Until a channel is connected, deliver them as a file in the result tray.", "The notification text."),
+        t("accountant", "Accountant", "office", "tie", "#62b86f", "small", &["usage", "read", "order", "ask", "pause"], "Estimates costs before, watches them after, pauses workers over budget.",
+          "You look after costs. Before a big task, estimate what it will cost from the prices and past usage. Afterwards, compare spending with the limits, point out workers or models that cost more than they bring and suggest cheaper models. If you may pause workers, pause only those that are over their budget, and say so.", "Costs per worker and account, estimate if asked, actions taken."),
+        t("coach", "Coach", "office", "cap", "#c75b8a", "medium", &["read", "grep", "ls", "type_propose"], "Learns from failed tasks and suggests better roles.",
+          "You improve the team. Read failed and rejected tasks and their feedback, find patterns, and propose concrete changes to worker type roles or result descriptions with the type_propose tool. The owner decides; never claim a change is applied.", "Patterns found and the proposals you made."),
     ]
+}
+
+pub fn sync_types(db: &Db) {
+    let ed: Vec<String> = db.kg("tyed").as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
+    for t in types() {
+        let id = t["id"].as_str().unwrap().to_string();
+        let v = |k: &str| t[k].as_str().unwrap_or("").to_string();
+        db.run(
+            "insert or ignore into ty(id,nm,role,tools,md,ef,prov,acc,col,dsc,outf,chk,own) values(?,?,?,?,?,?,?,?,?,?,?,?,0)",
+            pa![id.clone(), v("nm"), v("role"), t["tools"].to_string(), v("md"), "medium".to_string(), "".to_string(), v("acc"), v("col"), v("dsc"), v("outf"), "".to_string()],
+        );
+        if !ed.contains(&id) {
+            db.run("update ty set nm=?, role=?, tools=?, md=?, acc=?, col=?, dsc=?, outf=? where id=? and own=0", pa![v("nm"), v("role"), t["tools"].to_string(), v("md"), v("acc"), v("col"), v("dsc"), v("outf"), id]);
+        }
+    }
+}
+
+pub fn grps() -> Value {
+    let mut m = serde_json::Map::new();
+    for t in types() {
+        m.insert(t["id"].as_str().unwrap().to_string(), t["grp"].clone());
+    }
+    Value::Object(m)
 }
 
 pub fn teams() -> Value {
