@@ -93,8 +93,8 @@ mod t {
     #[test]
     fn rt() {
         let k = [7u8; 32];
-        let e = super::enc(&k, "sk-geheim");
-        assert_eq!(super::dec(&k, &e).unwrap(), "sk-geheim");
+        let e = super::enc(&k, "sk-secret");
+        assert_eq!(super::dec(&k, &e).unwrap(), "sk-secret");
         assert!(super::dec(&[8u8; 32], &e).is_none());
         assert_eq!(super::tail("sk-abcdef1234"), "…1234");
     }

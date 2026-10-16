@@ -21,5 +21,5 @@ if cfg:
     txt = ("deliver ok" if "tray" in r["result"]["content"][0]["text"] else "deliver failed") + " tools=" + ",".join(names) + " sh=" + str(bad["result"].get("isError"))
     p.stdin.close()
     p.wait()
-out({"type": "assistant", "message": {"content": [{"type": "text", "text": "arbeite"}]}})
+out({"type": "assistant", "message": {"content": [{"type": "text", "text": "working"}]}})
 out({"type": "result", "subtype": "success", "is_error": False, "result": "Done: " + txt, "usage": {"input_tokens": 10, "output_tokens": 5}})

@@ -45,7 +45,7 @@ async fn fake_model() -> u16 {
             let t = user.split("ORDER:").nth(1).unwrap_or("").split_whitespace().next().unwrap_or("");
             call("order", json!({"to": t, "title": "Subtask", "text": "please do this"}))
         } else if last["role"] == "user" && user.contains("WRITE:") && tools.contains(&"write".to_string()) {
-            call("write", json!({"path": "out/notiz.txt", "text": "written"}))
+            call("write", json!({"path": "out/note.txt", "text": "written"}))
         } else {
             json!({"role": "assistant", "content": format!("Done.\nTOOL: {}", last["content"].as_str().unwrap_or(""))})
         };
@@ -204,8 +204,8 @@ async fn whole_building() {
 
     let id = s.ok("/api/task", json!({"wk": w1, "ti": "Write", "tx": "WRITE: now"})).await["id"].as_i64().unwrap();
     let t = s.wait(id, &["done", "fail"]).await;
-    assert!(t["files"].as_array().unwrap().iter().any(|f| f == "notiz.txt"), "{t}");
-    let f = s.c.get(s.u(&format!("/api/file?fl={fl}&n=notiz.txt"))).send().await.unwrap().text().await.unwrap();
+    assert!(t["files"].as_array().unwrap().iter().any(|f| f == "note.txt"), "{t}");
+    let f = s.c.get(s.u(&format!("/api/file?fl={fl}&n=note.txt"))).send().await.unwrap().text().await.unwrap();
     assert_eq!(f, "written");
     let r = s.c.get(s.u(&format!("/api/file?fl={fl}&n=..%2Fx"))).send().await.unwrap();
     assert_eq!(r.status(), 400);

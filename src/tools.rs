@@ -201,7 +201,7 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
             if inside(&f, &rc.out) {
                 file(a, rc.tk, &f);
             }
-            Ok(format!("gespeichert: {}", f.display()))
+            Ok(format!("saved: {}", f.display()))
         }
         "read" => {
             let f = rp(rc, s(x, "path"))?;
@@ -358,7 +358,7 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
             let t = a.db.one("select * from ty where lower(id)=? or lower(nm)=?", pa![ty.clone(), ty]).ok_or("unknown worker type")?;
             let id = crate::eng::hire(a, t["id"].as_str().unwrap_or(""), rc.fl, None, s(x, "name"), json!({}))?;
             a.aud("CEO hires", &format!("{} hires {} (#{id})", rc.nm, s(&t, "nm")));
-            Ok(format!("eingestellt: Worker #{id}"))
+            Ok(format!("hired: worker #{id}"))
         }
         "connect" => {
             let w = wk_by_name(a, rc.fl, s(x, "worker")).filter(|w| w["fl"].as_i64() == Some(rc.fl)).ok_or("worker not found on your floor")?;
@@ -383,8 +383,8 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
             }
             c["from"] = json!(fr);
             a.db.run("update wk set cfg=? where id=?", pa![c.to_string(), wid]);
-            a.aud("CEO verbindet", &format!("{} lets {} take orders from {}", rc.nm, s(&w, "nm"), s(&f, "nm")));
-            Ok("verbunden".into())
+            a.aud("CEO connects", &format!("{} lets {} take orders from {}", rc.nm, s(&w, "nm"), s(&f, "nm")));
+            Ok("connected".into())
         }
         "server_status" | "job_start" | "job_log" | "job_stop" | "put_file" | "get_file" => Box::pin(crate::ssh::tool(a, rc, n, x)).await,
         _ if n.starts_with("x_") => {
@@ -392,7 +392,7 @@ pub async fn raw(a: &Ax, rc: &Rc, n: &str, x: &Value) -> Result<String, String> 
             let r = a.db.one("select src from tool where id=?", pa![id.to_string()]).ok_or("tool missing")?;
             crate::js::run(a.clone(), rc.clone(), r["src"].as_str().unwrap_or("").to_string(), "run", x.clone()).await
         }
-        _ => Err(format!("unbekanntes Werkzeug {n}")),
+        _ => Err(format!("unknown tool {n}")),
     }
 }
 

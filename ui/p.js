@@ -66,7 +66,7 @@ $("tPlus").onclick = () => {
   dd(`<div data-a="floor"><span>${"Build out floor"}</span></div><div data-a="acc"><span>${"Connect account"}</span><small>${"Basement"}</small></div><div data-a="type"><span>${"Build worker type"}</span><small>${"HR office"}</small></div><div data-a="team"><span>${"Ready-made team"}</span></div><div data-a="srv"><span>${"Add server"}</span></div><hr><div data-a="task"><span>${"Give task"}</span></div>`, $("tPlus"), (a) => {
     A.page(null);
     const S = A.S;
-    if (a === "floor") { const r = S.fl.find((f) => f.k === "shell"); if (!r) return A.toast("No shell floor free, build another floor in the elevator"); A.goFloor(r.id); setTimeout(() => A.rohBox(A.flo(r.id), { sx: innerWidth / 2, sy: 100 }), 50); }
+    if (a === "floor") { const r = S.fl.find((f) => f.k === "shell"); if (!r) return A.toast("No shell floor free, build another floor in the elevator"); A.goFloor(r.id); setTimeout(() => A.shellBox(A.flo(r.id), { sx: innerWidth / 2, sy: 100 }), 50); }
     if (a === "acc") { const k = S.fl.find((f) => f.k === "basement"); A.goFloor(k.id); setTimeout(() => A.addAcc({ sx: innerWidth / 2, sy: 100 }), 50); }
     if (a === "type") A.page("types", { nu: 1 });
     if (a === "team") A.teamBox((S.fl.find((f) => f.id === A.cur && f.k === "office") || {}).id, { sx: innerWidth / 2, sy: 100 });

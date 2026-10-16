@@ -113,9 +113,9 @@ pub fn types() -> Vec<Value> {
 
 pub fn teams() -> Value {
     json!([
-        {"id": "bugfix", "nm": "Bugfix-Team", "dsc": "Triage, Repro, Fixer, Reviewer", "ws": ["triage", "repro", "fixer", "reviewer"], "ln": [[1, 0], [2, 1], [3, 2]]},
-        {"id": "recherche", "nm": "Recherche-Team", "dsc": "Researcher, Analyst, Writer", "ws": ["researcher", "analyst", "writer"], "ln": [[1, 0], [2, 1]]},
-        {"id": "schreib", "nm": "Schreib-Team", "dsc": "Writer, Reviewer", "ws": ["writer", "reviewer"], "ln": [[1, 0]]}
+        {"id": "bugfix", "nm": "Bugfix team", "dsc": "Triage, Repro, Fixer, Reviewer", "ws": ["triage", "repro", "fixer", "reviewer"], "ln": [[1, 0], [2, 1], [3, 2]]},
+        {"id": "research", "nm": "Research team", "dsc": "Researcher, Analyst, Writer", "ws": ["researcher", "analyst", "writer"], "ln": [[1, 0], [2, 1]]},
+        {"id": "writing", "nm": "Writing team", "dsc": "Writer, Reviewer", "ws": ["writer", "reviewer"], "ln": [[1, 0]]}
     ])
 }
 

@@ -466,7 +466,7 @@ A.liftBox = (u) => {
   };
 };
 
-A.rohBox = (f, at) => {
+A.shellBox = (f, at) => {
   const b = box(`<h3>${"Build out shell floor"}</h3><div class="mt">${"What should be built here?"}</div><div class="li">${[["office", "Office: workers work here"], ["lounge", "Lounge: workers take breaks here"], ["server", "Server room: your servers"], ["accounting", "Accounting: usage and costs"]].map(([k, d]) => `<div data-k="${k}"><span>${L(A.KN[k])}</span><span class="mt">${esc(d.split(": ")[1])}</span></div>`).join("")}</div>
     <div class="rw"><span>${"Name"}</span><span><input type="text" id="rNm" placeholder="${"optional"}"></span></div>`, at);
   b.onclick = async (e) => {
@@ -531,7 +531,7 @@ A.click = (e) => {
   if (A.sign && mx >= A.sign[0] && mx <= A.sign[0] + A.sign[2] && my >= A.sign[1] && my <= A.sign[1] + A.sign[3]) return A.signBox(f, { sx: e.clientX, sy: e.clientY });
   const u = (f.lay.fu || []).filter((u) => mx >= u.x * T && mx < (u.x + FS[u.k][0]) * T && my >= u.y * T - 10 && my < (u.y + FS[u.k][1]) * T).pop();
   if (u) return A.fuClick(f, u);
-  if (f.k === "shell") return A.rohBox(f, { sx: e.clientX, sy: e.clientY });
+  if (f.k === "shell") return A.shellBox(f, { sx: e.clientX, sy: e.clientY });
   if (f.k === "basement") return A.addAcc({ sx: e.clientX, sy: e.clientY });
   close(); A.fol = null;
 };
