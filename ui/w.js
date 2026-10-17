@@ -180,7 +180,11 @@ A.sync = (fresh) => {
     if (lv.t && lv.t !== e.lt) {
       e.lt = lv.t;
       if (lv.say && Date.now() - lv.t < 12000 && !(lv.say.startsWith("→") && Math.random() < .5)) bubble(e, lv.say.replace(/^→\s*/, ""), 4);
-      if (lv.mood && lv.mood !== "" && Date.now() - lv.t < 8000) { e.mood = lv.mood; e.mt = lv.mood === "ok" ? 2.2 : 3; }
+    }
+    if (lv.mt && lv.mt !== e.lm) {
+      const nw = e.lm !== undefined;
+      e.lm = lv.mt;
+      if (nw && lv.mood && Date.now() - lv.mt < 8000) { e.mood = lv.mood; e.mt = lv.mood === "ok" ? 2.2 : 3; }
     }
     if (e.st !== "walk" && e.st !== "lift" && !e.hand) {
       const t = target(e, i);

@@ -12,6 +12,7 @@ pub struct Ws {
     pub st: String,
     pub say: String,
     pub mood: String,
+    pub mt: i64,
     pub t: i64,
     pub busy: i64,
     pub tk: Vec<i64>,
@@ -108,7 +109,8 @@ impl App {
         let mut l = self.lv.lock().unwrap();
         let x = l.w.entry(w).or_default();
         x.mood = m.into();
-        x.t = crate::db::now();
+        x.mt = crate::db::now();
+        x.t = x.mt;
     }
 
     pub fn flow(&self, a: i64, b: i64, k: &str) {
