@@ -96,7 +96,7 @@ pub async fn call(a: &Ax, r: &Rn, n: &str, g: &Value) -> Result<String, String> 
                 return Err("command not allowed here".into());
             }
             let m = g["min"].as_u64().unwrap_or(20).clamp(1, 60);
-            let m=if crate::routing::enabled(a) {m.min(3)} else {m};
+            let m=if crate::routing::enabled(a) && crate::routing::is_free(&r.md) {m.min(3)} else {m};
             // The controller already prepared this project environment. Make it
             // the default for model commands too, including commands that cd
             // into a subdirectory. Never source repository activation scripts.
@@ -176,11 +176,11 @@ mod t {
         std::fs::write(root.join(".venv/bin/activate"),"echo UNSAFE_ACTIVATION >&2; exit 90\n").unwrap();
         let db=crate::db::Db::mem();db.run("insert into hs(id,on_) values('local',1)",crate::pa![]);
         let a=std::sync::Arc::new(crate::app::App::new(db,root.clone(),1,"x".into()));
-        let r=Rn{h:"local".into(),dir:root.display().to_string(),w:String::new()};
+        let r=Rn{h:"local".into(),dir:root.display().to_string(),w:String::new(),md:String::new()};
         let out=call(&a,&r,"sh",&json!({"cmd":"cd tool && python3 && printf '%s' \"$VIRTUAL_ENV\""})).await.unwrap();
         assert!(out.contains("prepared-project-python"),"{out}");assert!(out.contains(&root.join(".venv").display().to_string()),"{out}");
         assert!(!out.contains("UNSAFE_ACTIVATION"));assert!(out.contains("[exit 0]"),"{out}");
-        let missing=Rn{h:"local".into(),dir:root.join("missing").display().to_string(),w:String::new()};
+        let missing=Rn{h:"local".into(),dir:root.join("missing").display().to_string(),w:String::new(),md:String::new()};
         let out=call(&a,&missing,"sh",&json!({"cmd":"echo OUTSIDE_WORKSPACE"})).await.unwrap();
         assert!(!out.contains("OUTSIDE_WORKSPACE"),"must not run when cd fails: {out}");
         assert!(out.contains("[exit 1]"),"{out}");

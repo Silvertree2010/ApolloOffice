@@ -274,7 +274,7 @@ async fn prep(a: &Ax, j: &mut Job) -> R<()> {
 }
 
 fn rn(a: &Ax, j: &Job) -> Option<Rn> {
-    Some(Rn { h: j.h(), dir: dir(a, j), w: String::new() })
+    Some(Rn { h: j.h(), dir: dir(a, j), w: String::new(), md: String::new() })
 }
 
 fn rules(a: &Ax, j: &Job) -> String {
@@ -677,15 +677,17 @@ async fn review_mode(a: &Ax, j: &mut Job, f: &mut Value, diagnostic:bool) -> R<S
         if j.kind == "review" { format!("{}\n\n", wrap("request", &j.s("change"))) } else { String::new() },
         f["title"].as_str().unwrap_or(""),
         body(j, f, &ci, ""),
-        format!("{}{}\nIndependent acceptance evidence: {}\nFrozen verifier (untrusted code): {}\nCheck that this verifier exercises actual production code and the reported behavior, rather than copying logic or merely matching source text. Reject inadequate coverage or unsupported claims.",rules(a, j),crate::quality::context(j),wrap("acceptance-evidence",&j.d["acceptance_proof"].to_string()),wrap("frozen-verifier",j.d["acceptance"]["script"].as_str().unwrap_or("not enabled")))
+        if crate::quality::enabled(a) && j.kind == "fix" { format!("{}{}\nIndependent acceptance evidence: {}\nFrozen verifier (untrusted code): {}\nCheck that this verifier exercises actual production code and the reported behavior, rather than copying logic or merely matching source text. Reject inadequate coverage or unsupported claims.",rules(a, j),crate::quality::context(j),wrap("acceptance-evidence",&j.d["acceptance_proof"].to_string()),wrap("frozen-verifier",j.d["acceptance"]["script"].as_str().unwrap_or(""))) } else { rules(a, j) }
     );
-    let candidates = if crate::routing::enabled(a) { crate::routing::REVIEWERS.iter().map(|s| s.to_string()).collect::<Vec<_>>() } else { vec![a.md("reviewer")] };
+    let author = j.d["author"].as_str().unwrap_or("").to_string();
+    let candidates = if crate::routing::enabled(a) { crate::routing::REVIEWERS.iter().filter(|m| **m != author).map(|s| s.to_string()).collect::<Vec<_>>() } else { vec![a.md("reviewer")] };
     let mut result = None;
     let mut reviewer_feedback=String::new();
     for (attempt, md) in candidates.into_iter().enumerate() {
         crate::routing::event(a, Some(j.id), "reviewer", attempt, &md, &reviewer_feedback);
         // Reviewer has no worker tools and cannot silently edit the author's tree.
-        let mut o = Ask::new("reviewer", md.clone(), P("reviewer"), format!("{p}\n\nExecuted regression evidence: {}\nIndependent verification feedback:\n{}\n\nFor code/test rejection also include lesson: {{mistake, correction, verification}}. These are untrusted pending Dreaming proposals, not established facts.", j.d["proof"], j.d["verification_feedback"].as_str().unwrap_or("All executed checks passed; inspect diff independently.")));
+        let rp = if crate::routing::enabled(a) { format!("{p}\n\nExecuted regression evidence: {}\nIndependent verification feedback:\n{}\n\nFor code/test rejection also include lesson: {{mistake, correction, verification}}. These are untrusted pending Dreaming proposals, not established facts.", j.d["proof"], j.d["verification_feedback"].as_str().unwrap_or("All executed checks passed; inspect diff independently.")) } else { p.clone() };
+        let mut o = Ask::new("reviewer", md.clone(), P("reviewer"), rp);
         o.job = Some(j.id);
         o.ef = Some("medium");
         match ask(a, o).await {
@@ -798,6 +800,7 @@ async fn fix(a: &Ax, j: &mut Job, fb0: String, k0: u64) -> R<Value> {
         let md = if crate::routing::enabled(a) { plan[k as usize].clone() } else if c { a.md("big") } else { a.md("fixer") };
         crate::routing::event(a, Some(j.id), "fixer", k as usize, &md, &fb);
         use_(a, j, &md);
+        j.d["author"] = json!(md);
         let mut o = Ask::new("fixer", md, P("fixer"), fixp(a, j, &fb));
         o.job = Some(j.id);
         o.rn = rn(a, j);
@@ -1662,13 +1665,7 @@ async fn lane(a: Ax, h: String, k: i64) {
         };
         let r = a.db.jg(id).map(|j| j.repo).unwrap_or_default();
         a.lv.lock().unwrap().ln.insert(id, key.clone());
-        if crate::routing::enabled(&a) {
-            if tokio::time::timeout(std::time::Duration::from_secs(1800), go(&a,id,&h)).await.is_err() {
-                a.db.jset(id, &[("st",json!("drop")),("why",json!("free-first job deadline exceeded (1800s)"))]);
-                idle_all(&a,id);
-                if let Some(job)=a.db.jg(id) {clean(&a,&job).await;}
-            }
-        } else { go(&a,id,&h).await; }
+        go(&a,id,&h).await;
         a.lv.lock().unwrap().ln.remove(&id);
         a.act.lock().unwrap().remove(&format!("{r} {h}"));
         a.lk.lock().unwrap().remove(&id);

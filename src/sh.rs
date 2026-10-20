@@ -158,7 +158,7 @@ pub async fn run(p: &str, a: &[String], r: Rq<'_>) -> Out {
     #[cfg(unix)]
     impl Drop for ProcessGroup { fn drop(&mut self) { if self.0 > 0 { kill(self.0); } } }
     #[cfg(unix)]
-    let _process_group = ProcessGroup(pid);
+    let mut process_group = ProcessGroup(pid);
     if let (Some(i), Some(mut si)) = (r.i.clone(), ch.stdin.take()) {
         tokio::spawn(async move {
             let _ = si.write_all(i.as_bytes()).await;
@@ -202,7 +202,11 @@ pub async fn run(p: &str, a: &[String], r: Rq<'_>) -> Out {
         (o, e, st)
     };
     match tokio::time::timeout(Duration::from_secs(r.t), w).await {
-        Ok((o, e, st)) => Out { c: st.ok().and_then(|s| s.code()).unwrap_or(-1), o: if kp { o } else { tail(&o) }, e },
+        Ok((o, e, st)) => {
+            #[cfg(unix)]
+            { process_group.0 = 0; }
+            Out { c: st.ok().and_then(|s| s.code()).unwrap_or(-1), o: if kp { o } else { tail(&o) }, e }
+        }
         Err(_) => {
             kill(pid);
             Out { c: -1, o: String::new(), e: format!("timeout after {} s", r.t) }
@@ -230,6 +234,16 @@ pub fn head(s: &str, n: usize) -> String {
         i -= 1;
     }
     s[..i].to_string()
+}
+
+/// Keep both ends of an oversized tool result; failures and exit markers are at the end.
+pub fn clip(s: &str, n: usize) -> String {
+    if s.len() <= n {
+        return s.to_string();
+    }
+    let h = head(s, n / 3);
+    let t = last(s, n - h.len());
+    format!("{h}\n…[{} bytes omitted]…\n{t}", s.len() - h.len() - t.len())
 }
 
 pub fn last(s: &str, n: usize) -> String {
@@ -323,7 +337,7 @@ pub fn hbid(a: &App, h: &str) -> String {
     ho(a, h).map(|x| hb(a, &x)).unwrap_or_else(|| "/work".into())
 }
 
-pub const PRE: &str = "ulimit -n 10240 2>/dev/null; export PATH=\"$HOME/.cargo/bin:$HOME/.local/bin:$HOME/go/bin:/usr/local/go/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\" CARGO_TERM_COLOR=never NO_COLOR=1 CI=1 GIT_TERMINAL_PROMPT=0 CARGO_PROFILE_DEV_DEBUG=line-tables-only CARGO_PROFILE_TEST_DEBUG=line-tables-only CARGO_PROFILE_RELEASE_LTO=off CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 CARGO_PROFILE_BENCH_LTO=off; to() { s=$1; shift; if command -v timeout >/dev/null 2>&1 && timeout --version 2>/dev/null | head -n 1 | grep -q 'GNU coreutils'; then timeout --foreground -k 10 \"$s\" \"$@\"; else \"$@\"; fi; }\n";
+pub const PRE: &str = "ulimit -n 10240 2>/dev/null; export PATH=\"$HOME/.cargo/bin:$HOME/.local/bin:$HOME/go/bin:/usr/local/go/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\" CARGO_TERM_COLOR=never NO_COLOR=1 CI=1 GIT_TERMINAL_PROMPT=0 CARGO_PROFILE_DEV_DEBUG=line-tables-only CARGO_PROFILE_TEST_DEBUG=line-tables-only CARGO_PROFILE_RELEASE_LTO=off CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 CARGO_PROFILE_BENCH_LTO=off; to() { s=$1; shift; if command -v timeout >/dev/null 2>&1 && timeout --version 2>/dev/null | head -n 1 | grep -q 'GNU coreutils'; then timeout -k 10 \"$s\" \"$@\"; else \"$@\"; fi; }\n";
 
 fn sshv(h: &Ho) -> Vec<String> {
     let mut v: Vec<String> = vec!["-o".into(), "ConnectTimeout=15".into(), "-o".into(), "ServerAliveInterval=15".into(), "-o".into(), "ServerAliveCountMax=4".into(), "-o".into(), "BatchMode=yes".into()];
@@ -513,4 +527,25 @@ mod t {
         assert_eq!(nested.c,0,"{}",nested.all());assert_eq!(nested.o,"nested-timeout-ok");
     }
 
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn clip_keeps_exit_marker_at_the_end() {
+        let s = format!("{}FAILED test_offset\n[exit 1]", "collected line\n".repeat(2000));
+        let c = super::clip(&s, 6000);
+        assert!(c.len() < 6100);
+        assert!(c.starts_with("collected line"));
+        assert!(c.ends_with("FAILED test_offset\n[exit 1]"));
+        assert!(c.contains("bytes omitted"));
+        assert_eq!(super::clip("short", 6000), "short");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn timeout_kills_child_processes() {
+        let o = super::run("bash", &["-c".into(), format!("{}to 1 bash -c 'sleep 30 & wait'; echo \"[exit $?]\"", super::PRE)], super::Rq { t: 20, ..Default::default() }).await;
+        assert!(o.o.contains("[exit 124]"), "{}", o.all());
+    }
 }

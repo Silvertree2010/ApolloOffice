@@ -56,6 +56,7 @@ pub struct Rn {
     pub h: String,
     pub dir: String,
     pub w: String,
+    pub md: String,
 }
 
 pub struct App {
