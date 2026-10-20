@@ -12,6 +12,10 @@ pub struct Pv {
 }
 
 pub const PV: &[Pv] = &[
+    Pv { id: "opencode", nm: "OpenCode ACP (verified free only)", fmt: "openai", base: "unix://apollo-opencode", key: false, ms: &["opencode/beam-free", "opencode/deepseek-v4.1-flash-free"] },
+    Pv { id: "nvidia", nm: "NVIDIA (approved free route)", fmt: "openai", base: "https://integrate.api.nvidia.com/v1", key: true, ms: &["nvidia/nemotron-3-super-120b-a12b"] },
+    Pv { id: "mistral", nm: "Mistral (approved free tier)", fmt: "openai", base: "https://api.mistral.ai/v1", key: true, ms: &["ministral-14b-latest"] },
+    Pv { id: "groq", nm: "Groq (approved free tier)", fmt: "openai", base: "https://api.groq.com/openai/v1", key: true, ms: &["openai/gpt-oss-120b"] },
     Pv { id: "cc", nm: "Claude Code (your login)", fmt: "cli", base: "", key: false, ms: &["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"] },
     Pv { id: "codex", nm: "ChatGPT (Codex CLI login)", fmt: "cli", base: "", key: false, ms: &["gpt-5.6-terra", "gpt-5.6-luna"] },
     Pv { id: "anthropic", nm: "Claude API", fmt: "anthropic", base: "https://api.anthropic.com", key: true, ms: &["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"] },
@@ -67,6 +71,7 @@ pub const PX: &[(&str, f64, f64, f64, f64)] = &[
 ];
 
 pub fn px(a: &Ax, md: &str) -> Option<[f64; 4]> {
+    if crate::routing::is_opencode(md) { return Some([0.0; 4]); }
     let (p, m) = parse(md);
     if p == "ollama" {
         return Some([0.0; 4]);
@@ -110,6 +115,7 @@ pub fn base(a: &Ax, id: &str) -> String {
 pub fn name(md: &str) -> String {
     let (p, m) = parse(md);
     match p {
+        "codex" if m.is_empty() => "Codex CLI".into(),
         "cc" | "anthropic" => crate::ai::mname(&m),
         _ => {
             let s = m.rsplit('/').next().unwrap_or(&m);
@@ -123,6 +129,9 @@ pub fn mail(md: &str) -> &'static str {
         "cc" | "anthropic" => "noreply@anthropic.com",
         "codex" | "openai" => "noreply@openai.com",
         "gemini" => "noreply@google.com",
+        "nvidia" => "noreply@nvidia.com",
+        "mistral" => "noreply@mistral.ai",
+        "groq" => "noreply@groq.com",
         _ => "noreply@ollama.com",
     }
 }
@@ -159,6 +168,7 @@ pub fn hdr(a: &Ax, id: &str) -> Result<Vec<(&'static str, String)>, String> {
 
 pub async fn models(a: &Ax, id: &str) -> Result<Vec<String>, String> {
     let Some(p) = pv(id) else { return Err("unknown provider".into()) };
+    if id == "opencode" { return Ok(p.ms.iter().map(|m| m.to_string()).collect()); }
     if id == "codex" {
         let h = std::env::var_os("CODEX_HOME").map(std::path::PathBuf::from).or_else(|| dirs::home_dir().map(|d| d.join(".codex"))).unwrap_or_default();
         let v: Value = std::fs::read_to_string(h.join("models_cache.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
@@ -209,6 +219,7 @@ mod t {
         assert_eq!(parse("openai:gpt-5.5"), ("openai", "gpt-5.5".into()));
         assert_eq!(parse("nope:x"), ("cc", "nope:x".into()));
         assert_eq!(name("openai:gpt-5.5"), "GPT-5.5");
+        assert_eq!(name("codex:"), "Codex CLI");
         assert_eq!(name("gemini:gemini-2.5-flash"), "Gemini-2.5-Flash");
         assert_eq!(name("anthropic:claude-sonnet-5-5"), "Claude Sonnet 5.5");
         assert_eq!(mail("codex:gpt-5.5"), "noreply@openai.com");

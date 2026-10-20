@@ -145,6 +145,8 @@ pub fn pick_ci(names: &[String], pkg: Option<&str>, mk: Option<&str>, xtask: boo
         let e = if has("pyproject.toml") || has("setup.py") { " -e ." } else { "" };
         let i = if has("requirements-dev.txt") {
             format!("python3 -m venv .venv && . .venv/bin/activate && pip install -q -r requirements-dev.txt{e}")
+        } else if has("tool/requirements-test.txt") {
+            format!("python3 -m venv .venv && . .venv/bin/activate && pip install -q -r tool/requirements-test.txt{e}")
         } else if has("requirements.txt") {
             format!("python3 -m venv .venv && . .venv/bin/activate && pip install -q pytest -r requirements.txt{e}")
         } else {
@@ -158,13 +160,56 @@ pub fn pick_ci(names: &[String], pkg: Option<&str>, mk: Option<&str>, xtask: boo
     (String::new(), String::new())
 }
 
+fn python_version(value: &str) -> Option<String> {
+    let value=value.trim();
+    regex::Regex::new(r"^3\.(12|13|14)(\.[0-9]{1,2})?$").unwrap().is_match(value).then(||value.to_string())
+}
+
+fn workflow_python_version(text: &str) -> Option<String> {
+    if !text.contains("actions/setup-python@") { return None; }
+    let pattern=regex::Regex::new(r#"(?m)^\s+python-version:\s*['\"]?(3\.(?:12|13|14)(?:\.[0-9]{1,2})?)['\"]?\s*(?:#.*)?$"#).unwrap();
+    let versions:std::collections::BTreeSet<String>=pattern.captures_iter(text).filter_map(|m|python_version(&m[1])).collect();
+    if versions.len()==1 { versions.into_iter().next() } else { None }
+}
+
+fn isolated_python_setup(setup: &str, version: &str) -> String {
+    let Some(version)=python_version(version) else { return setup.to_string(); };
+    // Only a validated version reaches this constant worker-only bootstrap.
+    // Never copy run scripts, shell fragments or credentials from CI YAML.
+    let prefix=format!("python3 -m venv .venv-bootstrap && .venv-bootstrap/bin/python -m pip install -q uv==0.13.3 && .venv-bootstrap/bin/uv venv --no-project --managed-python --seed --python {version} .venv");
+    setup.replacen("python3 -m venv .venv",&prefix,1)
+}
+
 pub async fn detect(r: &str) -> (String, String) {
     let fs = files(r, "").await;
-    let names: Vec<String> = fs.iter().filter_map(|f| f["name"].as_str().map(String::from)).collect();
+    let mut names: Vec<String> = fs.iter().filter_map(|f| f["name"].as_str().map(String::from)).collect();
+    if names.iter().any(|x| x == "pyproject.toml") && names.iter().any(|x| x == "tool")
+        && files(r,"tool").await.iter().any(|f| f["name"] == "requirements-test.txt") {
+        names.push("tool/requirements-test.txt".into());
+    }
     let pkg = if names.iter().any(|x| x == "package.json") { file(r, "package.json").await } else { None };
     let mk = if names.iter().any(|x| x == "Makefile") { file(r, "Makefile").await } else { None };
     let xt = names.iter().any(|x| x == "xtask") || names.iter().any(|x| x == ".cargo") && file(r, ".cargo/config.toml").await.map(|c| c.contains("xtask")).unwrap_or(false);
-    pick_ci(&names, pkg.as_deref(), mk.as_deref(), xt)
+    let (ci,mut setup)=pick_ci(&names, pkg.as_deref(), mk.as_deref(), xt);
+    if setup.starts_with("python3 -m venv .venv") {
+        let mut version=if names.iter().any(|n|n==".python-version") { file(r,".python-version").await.and_then(|s|python_version(&s)) } else { None };
+        if version.is_none() && names.iter().any(|n|n==".github") {
+            let mut workflows=files(r,".github/workflows").await;
+            workflows.sort_by_key(|f|f["name"].as_str().unwrap_or("").to_string());
+            let mut versions=std::collections::BTreeSet::new();
+            for f in workflows.into_iter().filter(|f| {
+                let n=f["name"].as_str().unwrap_or("");
+                (n.ends_with(".yml")||n.ends_with(".yaml")) && n.bytes().all(|c|c.is_ascii_alphanumeric()||b"._-".contains(&c))
+            }).take(4) {
+                if let Some(text)=file(r,&format!(".github/workflows/{}",f["name"].as_str().unwrap())).await {
+                    if let Some(v)=workflow_python_version(&text) { versions.insert(v); }
+                }
+            }
+            if versions.len()==1 { version=versions.into_iter().next(); }
+        }
+        if let Some(version)=version { setup=isolated_python_setup(&setup,&version); }
+    }
+    (ci,setup)
 }
 
 pub async fn opened(a: &App, r: &str) -> i64 {
@@ -178,6 +223,22 @@ pub async fn today(a: &App, r: &str) -> i64 {
 #[cfg(test)]
 mod t {
     use super::*;
+
+    #[test]
+    fn ci_python_runtime_is_validated_and_isolated_in_the_worker() {
+        let workflow="      - uses: actions/setup-python@v6\n        with:\n          python-version: '3.13'\n          cache: pip\n";
+        assert_eq!(workflow_python_version(workflow),Some("3.13".into()));
+        assert!(workflow_python_version(&format!("{workflow}          python-version: '3.12'\n")).is_none());
+        assert!(workflow_python_version("python-version: '${{ matrix.python }}'").is_none());
+        let setup="python3 -m venv .venv && . .venv/bin/activate && pip install -q -r tool/requirements-test.txt -e .";
+        let isolated=isolated_python_setup(setup,"3.13");
+        assert!(isolated.contains("--managed-python --seed --python 3.13 .venv"));
+        assert!(isolated.ends_with("pip install -q -r tool/requirements-test.txt -e ."));
+        assert!(!isolated.contains("sudo"));
+        for value in ["3.13;id","../python","3.13 && curl evil","${PYTHON}","2.7"] {
+            assert!(python_version(value).is_none());assert_eq!(isolated_python_setup(setup,value),setup);
+        }
+    }
 
     #[test]
     fn lives() {
@@ -196,6 +257,8 @@ mod t {
         assert_eq!(pick_ci(&n(&["go.mod"]), None, None, false).0, "go test ./...");
         assert!(pick_ci(&n(&["pyproject.toml"]), None, None, false).0.ends_with("pytest"));
         assert!(pick_ci(&n(&["pyproject.toml"]), None, None, false).1.ends_with(" -e ."));
+        assert_eq!(pick_ci(&n(&["pyproject.toml","tool/requirements-test.txt"]),None,None,false),
+            (". .venv/bin/activate && pytest".into(),"python3 -m venv .venv && . .venv/bin/activate && pip install -q -r tool/requirements-test.txt -e .".into()));
         assert!(pick_ci(&n(&["pytest.ini", "requirements.txt"]), None, None, false).1.ends_with("-r requirements.txt"));
         assert_eq!(pick_ci(&n(&["Makefile"]), None, Some("all:\n\ttrue\ntest:\n\t./t.sh\n"), false).0, "make test");
         assert_eq!(pick_ci(&n(&["README.md"]), None, None, false).0, "");

@@ -41,7 +41,7 @@ if a[0] == "api":
     if p == f"repos/{R}":
         out({"full_name": R, "default_branch": "main", "private": os.environ.get("FAKE_GH_PRIVATE") == "1", "fork": False, "archived": False, "permissions": {"push": True}})
     if "/timeline" in p or "/comments" in p or "/reviews" in p:
-        out([[]])
+        out([[]] if "--slurp" in a else [])
     if "/contents/" in p:
         sys.stderr.write("HTTP 404: Not Found")
         sys.exit(1)

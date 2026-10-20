@@ -34,6 +34,9 @@ ours.
 > proof and an editable PR text. You can switch a repository to submit on its
 > own.
 
+For optional free-model authors with Codex/Claude subscription review, see
+[the free-first guide](docs/free-first.md).
+
 ## What's inside
 
 - **A fixed pipeline** of small workers: Scout, Guard, Vet, Hunter, Repro,

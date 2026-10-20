@@ -8,6 +8,8 @@ mod net;
 mod ntf;
 mod pipe;
 mod prov;
+mod quality;
+mod routing;
 mod sh;
 mod star;
 mod sys;

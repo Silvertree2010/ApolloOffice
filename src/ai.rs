@@ -1,3 +1,5 @@
+#[cfg(test)]
+pub static CLI_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 use crate::app::{sl, Ax, Rn, X, R};
 use crate::sh::{run, tool, Rq};
 use rust_embed::RustEmbed;
@@ -41,6 +43,7 @@ pub fn by_id(js: &Value, ids: &[String]) -> Option<Value> {
     Some(Value::Object(ids.iter().cloned().zip(v.into_iter().cloned()).collect()))
 }
 
+#[derive(Clone)]
 pub struct Ask {
     pub w: &'static str,
     pub md: String,
@@ -92,7 +95,26 @@ pub async fn ask(a: &Ax, o: Ask) -> R<(String, Value)> {
         a.say(o.w, &p, o.job);
         sl(60_000).await;
     }
-    ask1(a, o).await
+    // Coding/reproduction retries are controlled by the pipeline, where actual
+    // verification failures (rather than just provider errors) are available.
+    if !crate::routing::enabled(a) || matches!(o.w, "fixer" | "repro" | "reviewer") {
+        return ask1(a, o).await;
+    }
+    let mut feedback = String::new();
+    for (attempt, md) in crate::routing::plan_for(a,o.w).into_iter().enumerate() {
+        let mut q = o.clone();
+        q.md = md.clone();
+        q.p.push_str(&feedback);
+        crate::routing::event(a, o.job, o.w, attempt, &md, &feedback);
+        match ask1(a, q).await {
+            Ok(v) if !v.1.is_null() || o.w == "test" => return Ok(v),
+            Ok(_) => feedback = "\nPrevious attempt returned no valid JSON. Return the requested JSON schema.".into(),
+            Err(X::Back(e)) => return Err(X::Back(e)),
+            Err(X::Drop(e)) => return Err(X::Drop(e)),
+            Err(e) => feedback = format!("\nPrevious attempt failed: {}", crate::sh::head(&e.to_string(), 1000)),
+        }
+    }
+    Err(X::E(format!("free-first attempts exhausted: {feedback}")))
 }
 
 pub fn rbud(a: &Ax, j: Option<i64>) -> Option<String> {
@@ -134,9 +156,13 @@ pub fn cost(a: &Ax, o: &Ask, u: [i64; 4], usd: Option<f64>) {
 }
 
 pub async fn ask1(a: &Ax, mut o: Ask) -> R<(String, Value)> {
+    crate::routing::validate(a, &o.md)?;
+    if let Some(reason)=a.provider_limit(&o.md) { return Err(X::Lim(reason)); }
+    if crate::routing::enabled(a) && crate::routing::is_free(&o.md) { o.t = o.t.min(240); o.turns = o.turns.min(24); }
     a.stmd(o.w, &o.md);
     if let Some(r) = o.rn.as_mut() {
         r.w = o.w.to_string();
+        r.md = o.md.clone();
     }
     match crate::prov::parse(&o.md).0 {
         "cc" => cc(a, o).await,
@@ -244,7 +270,7 @@ async fn cc(a: &Ax, o: Ask) -> R<(String, Value)> {
             return Err(e);
         }
     }
-    let r = run(&tool("claude"), &av, Rq { i: Some(o.p.clone()), t: o.t, env, rm, cwd: Some(e0), ln: Some(&ln), keep: false }).await;
+    let r = run(&tool("claude"), &av, Rq { i: Some(o.p.clone()), t: o.t, env, rm, cwd: Some(e0), ln: Some(&ln), keep: false, strip_provider_secrets: crate::routing::enabled(a) }).await;
     if !tk.is_empty() {
         a.runs.lock().unwrap().remove(&tk);
     }
@@ -342,7 +368,7 @@ async fn codex(a: &Ax, o: Ask) -> R<(String, Value)> {
             _ => {}
         }
     };
-    let r = run(&tool("codex"), &av, Rq { i: Some(format!("{}\n\n---\n\n{}", o.sys, o.p)), t: o.t, cwd: Some(rd.clone()), ln: Some(&ln), ..Default::default() }).await;
+    let r = run(&tool("codex"), &av, Rq { i: Some(format!("{}\n\n---\n\n{}", o.sys, o.p)), t: o.t, strip_provider_secrets: crate::routing::enabled(a), cwd: Some(rd.clone()), ln: Some(&ln), ..Default::default() }).await;
     if !tk.is_empty() {
         a.runs.lock().unwrap().remove(&tk);
     }
@@ -368,7 +394,20 @@ async fn codex(a: &Ax, o: Ask) -> R<(String, Value)> {
 }
 
 async fn post(a: &Ax, u: &str, h: &[(&'static str, String)], b: &Value, t: Duration) -> R<Value> {
-    let mut q = a.hc.post(u).timeout(t).json(b);
+    #[cfg(unix)]
+    let bridge_client = if u == "unix://apollo-opencode/chat/completions" {
+        // A private local socket avoids exposing an inference server over TCP.
+        let default=std::env::var_os("HOME").map(std::path::PathBuf::from).unwrap_or_else(std::env::temp_dir).join(".local/state/apollo-opencode/bridge.sock");
+        let socket=std::env::var_os("APOLLO_OFFICE_OPENCODE_SOCKET").map(std::path::PathBuf::from).unwrap_or(default);
+        Some(reqwest::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none())
+            .unix_socket(socket).build().map_err(|e| X::E(e.to_string()))?)
+    } else { None };
+    #[cfg(not(unix))]
+    let bridge_client: Option<reqwest::Client> = None;
+    let (client, url) = if let Some(ref c) = bridge_client { (c, "http://localhost/chat/completions") } else { (&a.hc, u) };
+    let mut payload = b.clone();
+    if bridge_client.is_some() { payload["timeout_seconds"] = json!(t.as_secs().clamp(1, 120)); }
+    let mut q = client.post(url).timeout(t).json(&payload);
     for (k, v) in h {
         if !v.is_empty() {
             q = q.header(*k, v);
@@ -394,6 +433,19 @@ fn unthink(t: &str) -> String {
     regex::Regex::new(r"(?s)<think>.*?</think>").unwrap().replace_all(t, "").trim().to_string()
 }
 
+// Preserve the tool-call/result protocol and latest observation while reducing
+// old observations. The code lives on the worker and can be read again by range.
+fn compact_tool_history(messages: &mut [Value]) {
+    let latest=messages.iter().rposition(|m|m["role"]=="assistant");
+    for (index,message) in messages.iter_mut().enumerate() {
+        if message["role"]=="tool" && latest.map(|at|index<at).unwrap_or(false) {
+            if let Some(text)=message["content"].as_str() {
+                if text.len()>1024 { message["content"]=json!(format!("{}\n[Older output truncated; read targeted file ranges if needed.]",crate::sh::head(text,1024))); }
+            }
+        }
+    }
+}
+
 async fn api(a: &Ax, o: Ask) -> R<(String, Value)> {
     let (id, md) = crate::prov::parse(&o.md);
     let fmt = crate::prov::pv(id).map(|p| p.fmt).unwrap_or("openai");
@@ -402,6 +454,7 @@ async fn api(a: &Ax, o: Ask) -> R<(String, Value)> {
     if md.is_empty() {
         return Err(X::E(format!("no model set for {}", o.w)));
     }
+    let result_limit=if crate::routing::is_free(&o.md) {6000} else {100_000};
     let defs = if o.rn.is_some() { crate::mcp::defs() } else { vec![] };
     let mx = if defs.is_empty() { 1 } else { o.turns.max(1) };
     let dl = std::time::Instant::now() + Duration::from_secs(o.t);
@@ -416,6 +469,22 @@ async fn api(a: &Ax, o: Ask) -> R<(String, Value)> {
     };
     let nt = std::sync::atomic::AtomicUsize::new(0);
     let ns = std::sync::atomic::AtomicUsize::new(0);
+    // Remote worker directories may contain $HOME. Resolve the real directory
+    // on that worker, never against the controller or from model-provided text.
+    // This internal read does not count as the model's command verification.
+    let bridge_workspace = if id == "opencode" {
+        if let Some(rn) = &o.rn {
+            let out = crate::sh::hx(a, &rn.h, &format!("cd \"{}\" && pwd -P", rn.dir), 30).await;
+            let path = out.o.trim();
+            if out.c != 0 || !std::path::Path::new(path).is_absolute() || path.contains(['\n', '\r']) {
+                return Err(X::E("could not resolve the OpenCode task's actual worker directory".into()));
+            }
+            Some(path.to_string())
+        } else { None }
+    } else { None };
+    // One opaque ID per author/repro call, stable across its host-tool turns.
+    // It scopes the ACP session and is never reused for another job or role.
+    let bridge_conversation = hex::encode(rand::random::<[u8; 16]>());
     let tool = |n: String, g: Value| {
         nt.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         if n == "sh" {
@@ -464,7 +533,7 @@ async fn api(a: &Ax, o: Ask) -> R<(String, Value)> {
                         Ok(t) => (t, false),
                         Err(e) => (format!("error: {e}"), true),
                     };
-                    rs.push(json!({"type": "tool_result", "tool_use_id": x["id"], "content": crate::sh::head(&t, 100_000), "is_error": e}));
+                    rs.push(json!({"type": "tool_result", "tool_use_id": x["id"], "content": crate::sh::clip(&t, result_limit), "is_error": e}));
                 }
                 ms.push(json!({"role": "user", "content": rs}));
             }
@@ -477,6 +546,24 @@ async fn api(a: &Ax, o: Ask) -> R<(String, Value)> {
                     return Err(X::E(format!("timeout after {} s", o.t)));
                 }
                 let mut b = json!({"model": md, "messages": ms});
+                if id == "opencode" {
+                    b["conversation_id"] = json!(bridge_conversation);
+                    if let Some(root) = &bridge_workspace { b["workspace_root"] = json!(root); }
+                }
+                if crate::routing::is_free(&o.md) {
+                    let output = if id == "groq" { 512 } else { 8192 };
+                    b["max_tokens"] = json!(output);
+                    // Conservative byte budget, including tool schemas and output.
+                    let budget = if id == "groq" { 7000 } else { 90000 };
+                    let overhead=tools.iter().map(|t| t.to_string().len()).sum::<usize>()+output;
+                    if b.to_string().len()+overhead>budget {
+                        compact_tool_history(&mut ms);
+                        b["messages"]=json!(ms);
+                    }
+                    if b.to_string().len()+overhead>budget {
+                        return Err(X::E("approved route request budget exceeded".into()));
+                    }
+                }
                 if !tools.is_empty() {
                     b["tools"] = json!(tools);
                 }
@@ -485,6 +572,9 @@ async fn api(a: &Ax, o: Ask) -> R<(String, Value)> {
                     b["options"] = json!({"num_ctx": a.set()["prov"]["ollama"]["ctx"].as_i64().unwrap_or(32768)});
                 }
                 let r = post(a, &if ol { format!("{base}/api/chat") } else { format!("{base}/chat/completions") }, &h, &b, left()).await?;
+                if r["usage_unavailable"] == true {
+                    a.say(o.w, "ACP did not report token usage for a cancelled native action; token accounting for this turn is incomplete.", o.job);
+                }
                 let ci = r["usage"]["prompt_tokens_details"]["cached_tokens"].as_i64().unwrap_or(0);
                 u[0] += (r["usage"]["prompt_tokens"].as_i64().or(r["prompt_eval_count"].as_i64()).unwrap_or(0) - ci).max(0);
                 u[2] += ci;
@@ -512,7 +602,7 @@ async fn api(a: &Ax, o: Ask) -> R<(String, Value)> {
                     };
                     let n = c["function"]["name"].as_str().unwrap_or("").to_string();
                     let t = tool(n.clone(), g).await.unwrap_or_else(|e| format!("error: {e}"));
-                    ms.push(if ol { json!({"role": "tool", "tool_name": n, "content": crate::sh::head(&t, 100_000)}) } else { json!({"role": "tool", "tool_call_id": c["id"], "content": crate::sh::head(&t, 100_000)}) });
+                    ms.push(if ol { json!({"role": "tool", "tool_name": n, "content": crate::sh::clip(&t, result_limit)}) } else { json!({"role": "tool", "tool_call_id": c["id"], "content": crate::sh::clip(&t, result_limit)}) });
                 }
             }
         }
@@ -547,6 +637,17 @@ mod t {
         assert!(by_id(&json!({"r#1": {}, "r#2": {}}), &ids).is_some());
         assert_eq!(by_id(&json!({"1": {"x": 1}, "2": {"x": 2}}), &ids).unwrap()["r#2"]["x"], 2);
         assert!(by_id(&json!({"1": {}}), &ids).is_none());
+    }
+
+    #[test]
+    fn tool_history_compaction_preserves_call_ids_and_latest_result() {
+        let mut messages=vec![json!({"role":"assistant","tool_calls":[{"id":"call1","function":{"name":"read","arguments":"{}"}}]}),json!({"role":"tool","tool_call_id":"call1","content":"x".repeat(40_000)}),json!({"role":"tool","tool_call_id":"call2","content":"latest".repeat(2000)})];
+        let recent=messages.clone();compact_tool_history(&mut messages);assert_eq!(messages,recent);
+        messages.push(json!({"role":"assistant","tool_calls":[{"id":"call3"}]}));
+        messages.push(json!({"role":"tool","tool_call_id":"call3","content":"z".repeat(40_000)}));
+        let latest=messages[4].clone();let call=messages[0].clone();compact_tool_history(&mut messages);
+        assert_eq!(messages[0],call);assert_eq!(messages[4],latest);
+        assert_eq!(messages[1]["tool_call_id"],"call1");assert!(messages[1]["content"].as_str().unwrap().len()<1200);
     }
 
     #[test]
@@ -601,7 +702,7 @@ mod t {
             let (a, seen, dd) = fake(fmt).await;
             let mut o = Ask::new("fixer", md.into(), "sys".into(), "go".into());
             o.turns = 5;
-            o.rn = Some(Rn { h: "local".into(), dir: dd.join("repo").display().to_string(), w: String::new() });
+            o.rn = Some(Rn { h: "local".into(), dir: dd.join("repo").display().to_string(), w: String::new(), md: String::new() });
             let (_, js) = ask1(&a, o).await.unwrap();
             assert_eq!(js["ok"], true, "{fmt}");
             let c = a.db.one("select sum(tin) i, sum(tout) o, sum(usd) u, max(sub) s from cost where w='fixer'", crate::pa![]).unwrap();
@@ -632,5 +733,130 @@ mod t {
         for n in ["guard", "scout", "vet", "twin", "repro", "fixer", "reviewer", "hunter", "watcher", "rebase", "rebrev", "desc"] {
             assert!(!p(n).is_empty(), "{n}");
         }
+    }
+}
+
+#[cfg(all(test, unix))]
+mod opencode_live {
+    use super::*;
+    #[tokio::test]
+    #[ignore = "explicit live free-provider acceptance with actual production role prompts"]
+    async fn opencode_repro_and_fixer_use_production_protocol() {
+        let model = std::env::var("APOLLO_TEST_MODEL").expect("explicit model required");
+        assert!(crate::routing::is_opencode(&model));
+        let dd = std::env::temp_dir().join(format!("apollo-opencode-roles-{}", hex::encode(rand::random::<[u8; 6]>())));
+        let repo=dd.join("repo");std::fs::create_dir_all(repo.join("t")).unwrap();
+        std::fs::write(repo.join("add.sh"),"add() { echo $(( $1 - $2 )); }\n").unwrap();
+        std::fs::write(repo.join("t/run.sh"),"e=0\nfor f in t/*_test.sh; do bash \"$f\" || e=1; done\nexit $e\n").unwrap();
+        std::fs::write(repo.join("t/zero_test.sh"),"source ./add.sh\n[ \"$(add 0 0)\" = 0 ] && echo 'ok 1 - zero' || { echo 'not ok 1 - zero'; exit 1; }\n").unwrap();
+        let git = |args: &[&str]| {
+            let out=std::process::Command::new("git").args(args).current_dir(&repo).output().unwrap();
+            assert!(out.status.success(),"git {args:?}: {}",String::from_utf8_lossy(&out.stderr));
+            String::from_utf8(out.stdout).unwrap().trim().to_string()
+        };
+        git(&["init","-q"]);git(&["config","user.name","Isolated acceptance"]);git(&["config","user.email","acceptance@localhost"]);
+        git(&["add","."]);git(&["commit","-qm","baseline intentional arithmetic bug"]);
+        let base=git(&["rev-parse","HEAD"]);
+        let frozen=r#"import subprocess,sys
+cases=[(2,3,5),(-2,-3,-5),(-7,10,3),(7,-10,-3),(0,7,7),(7,0,7),(0,0,0),(100000,200000,300000),(42,-42,0)]
+for a,b,want in cases:
+ p=subprocess.run(['bash','-c','source ./add.sh; add "$1" "$2"','check',str(a),str(b)],cwd=sys.argv[1],capture_output=True,text=True,timeout=5)
+ assert p.returncode==0 and p.stdout.strip()==str(want),(a,b,want,p.stdout,p.stderr)
+print('9 frozen independent addition cases PASS')
+"#;
+        let check=dd.join("acceptance.py");std::fs::write(&check,frozen).unwrap();
+        let verify=||std::process::Command::new("python3").args(["-I",check.to_str().unwrap(),repo.to_str().unwrap()]).output().unwrap();
+        assert!(!verify().status.success(),"baseline must fail actual arithmetic assertions");
+        let db=crate::db::Db::mem();db.run("insert into hs(id,ssh,dk,raw,on_) values('local','',0,1,1)",crate::pa![]);
+        db.ks("set",&json!({"free_first":true}));
+        let a=std::sync::Arc::new(crate::app::App::new(db,dd.clone(),1,"apollo-office".into()));
+        let task="The shell function add in add.sh returns 3 for add 8 5, expected 13; -13 for add -8 5, expected -3; -5 for add 0 5, expected 5. Existing bash t/run.sh passes because only 0 plus 0 is checked. Correct sums are required for positive, negative, mixed-sign and zero integers.";
+        let mut repro=Ask::new("repro",model.clone(),p("repro"),task.into());
+        repro.turns=24;repro.t=240;repro.rn=Some(Rn{h:"local".into(),dir:repo.display().to_string(),w:"repro".into(),md:String::new()});
+        let reproduced=ask1(&a,repro).await;
+        println!("REPRO_RESULT {reproduced:?}\nREPRO_EVENTS {}",json!(a.db.all("select w,m from ev where w='repro'",crate::pa![])));
+        assert_eq!(reproduced.expect("Beam must complete actual reproduction").1["ok"],true);
+        assert!(!verify().status.success(),"reproduction must not fix the source");
+        git(&["restore","."]);git(&["clean","-fdq"]);
+        let mut fixer=Ask::new("fixer",model.clone(),p("fixer"),format!("{task}\nBase commit: {base}. Repository rules: add focused named TAP regression cases under t/*_test.sh so bash t/run.sh runs them; preserve t/run.sh and t/zero_test.sh. The branch is ready. No dependencies are required. Exactly the test commit then the fix commit, as required by your role."));
+        fixer.turns=24;fixer.t=240;fixer.rn=Some(Rn{h:"local".into(),dir:repo.display().to_string(),w:"fixer".into(),md:String::new()});
+        let result=ask1(&a,fixer).await;
+        println!("FIXER_RESULT {result:?}\nHOST_EVENTS {}",json!(a.db.all("select w,m from ev where w in ('repro','fixer')",crate::pa![])));
+        let (_,out)=result.expect("Beam must complete the actual fixer tool loop");assert!(!out["test_cmd"].as_str().unwrap_or("").is_empty());
+        let after=verify();assert!(after.status.success(),"{}",String::from_utf8_lossy(&after.stderr));
+        assert_eq!(std::fs::read_to_string(&check).unwrap(),frozen);
+        assert_eq!(git(&["rev-list","--count",&format!("{base}..HEAD")]),"2");
+        assert!(git(&["status","--porcelain"]).is_empty());
+        let head=git(&["rev-parse","HEAD"]);let test_commit=git(&["rev-parse","HEAD~1"]);
+        assert!(git(&["diff",&base,&test_commit,"--","add.sh"]).is_empty(),"test commit must not contain production fix");
+        git(&["checkout","-q",&test_commit]);
+        let red=std::process::Command::new("bash").arg("t/run.sh").current_dir(&repo).output().unwrap();
+        assert_eq!(red.status.code(),Some(1),"regression test must actually fail before fix");
+        assert!(String::from_utf8_lossy(&red.stdout).contains("not ok"));
+        git(&["checkout","-q",&head]);
+        let green=std::process::Command::new("bash").arg("t/run.sh").current_dir(&repo).output().unwrap();assert!(green.status.success());
+        assert!(a.db.n("select count(*) from ev where w='repro' and m like '→ sh %'",crate::pa![])>0);
+        assert!(a.db.n("select count(*) from ev where w='fixer' and m like '→ sh %'",crate::pa![])>0);
+        let costs=a.db.one("select sum(usd) usd, max(sub) sub from cost",crate::pa![]).unwrap();assert_eq!(costs["usd"],0.0);assert_eq!(costs["sub"],0);
+        println!("PRODUCTION_ROLE_ACCEPTANCE model={model}; test_commit={test_commit}; fix_commit={head}; regression red/green PASS; 9 frozen cases PASS; isolated_fixture={}",repo.display());
+    }
+
+    #[tokio::test]
+    #[ignore = "explicit live free-provider acceptance on an isolated remote worker fixture"]
+    async fn opencode_remote_worker_resolves_home_without_faking_verification() {
+        let model=std::env::var("APOLLO_TEST_MODEL").expect("explicit model required");assert!(crate::routing::is_opencode(&model));
+        let dir=std::env::var("APOLLO_TEST_REMOTE_DIR").expect("explicit isolated remote fixture required");
+        assert!(dir.starts_with("$HOME/.apollo-office/work/protocol-acp-"));
+        let ssh=std::env::var("APOLLO_TEST_WORKER_SSH").expect("explicit worker SSH profile required");
+        let db=crate::db::Db::mem();db.run("insert into hs(id,ssh,dk,raw,on_) values('remote',?,0,1,1)",crate::pa![ssh]);db.ks("set",&json!({"free_first":true}));
+        let dd=std::env::temp_dir().join(format!("apollo-remote-acceptance-{}",hex::encode(rand::random::<[u8;6]>())));std::fs::create_dir_all(&dd).unwrap();
+        let a=std::sync::Arc::new(crate::app::App::new(db,dd,1,"apollo-office".into()));
+        let baseline=crate::sh::hx(&a,"remote",&format!("cd \"{dir}\" && source ./add.sh && add 8 5"),30).await;assert_eq!(baseline.c,0);assert_eq!(baseline.o.trim(),"3");
+        let mut ask=Ask::new("repro",model.clone(),p("repro"),"The actual add function in add.sh returns 3 for add 8 5 instead of 13. Reproduce the wrong behavior with a targeted shell command and report actual observations. No production repair or commits in this reproduction task; leave the source clean.".into());
+        ask.turns=24;ask.t=240;ask.rn=Some(Rn{h:"remote".into(),dir:dir.clone(),w:"repro".into(),md:String::new()});
+        let result=ask1(&a,ask).await;
+        println!("REMOTE_RESULT {result:?}\nREMOTE_HOST_EVENTS {}",json!(a.db.all("select w,m from ev",crate::pa![])));
+        assert_eq!(result.expect("actual remote Beam reproduction").1["ok"],true);
+        assert!(a.db.n("select count(*) from ev where w='repro' and m like '→ sh %'",crate::pa![])>0,"internal pwd must not count as a model command");
+        let after=crate::sh::hx(&a,"remote",&format!("cd \"{dir}\" && git status --porcelain && source ./add.sh && add 8 5"),30).await;assert_eq!(after.c,0);assert_eq!(after.o.trim(),"3","remote source must remain unchanged");
+        let costs=a.db.one("select sum(usd) usd,max(sub) sub from cost",crate::pa![]).unwrap();assert_eq!(costs["usd"],0.0);assert_eq!(costs["sub"],0);
+        println!("REMOTE_WORKER_ACCEPTANCE model={model}; literal_HOME_directory_resolved_on_actual_worker; actual model sh observed; source unchanged; PASS");
+    }
+
+    #[tokio::test]
+    #[ignore = "explicit live free-provider acceptance only"]
+    async fn opencode_author_repairs_repo_via_apollo_host_tools() {
+        let model = std::env::var("APOLLO_TEST_MODEL").expect("explicit model required");
+        assert!(crate::routing::is_opencode(&model));
+        let dd = std::env::temp_dir().join(format!("apollo-opencode-live-{}", hex::encode(rand::random::<[u8; 6]>())));
+        let repo = dd.join("repo");std::fs::create_dir_all(&repo).unwrap();
+        std::fs::write(repo.join("heading.py"), "def heading(value):\n    return value.strip()\n").unwrap();
+        let frozen = r#"import sys
+sys.path.insert(0,sys.argv[1])
+from heading import heading
+cases={' Hello World ':'hello-world',' A\t B\nC ':'a-b-c','ÄPFEL und ÖL':'äpfel-und-öl','   ':'','already-done':'already-done',' 42 Cats ':'42-cats','a  b':'a-b'}
+for value,expected in cases.items(): assert heading(value)==expected,(value,heading(value),expected)
+print('7 frozen independent cases PASS')
+"#;
+        let check = dd.join("acceptance.py");std::fs::write(&check,frozen).unwrap();
+        let verify = || std::process::Command::new("python3").args(["-I",check.to_str().unwrap(),repo.to_str().unwrap()]).output().unwrap();
+        assert!(!verify().status.success(),"baseline must fail behaviorally");
+        let db=crate::db::Db::mem();db.run("insert into hs(id,ssh,dk,raw,on_) values('local','',0,1,1)",crate::pa![]);
+        db.ks("set",&json!({"free_first":true}));
+        let a=std::sync::Arc::new(crate::app::App::new(db,dd.clone(),1,"apollo-office".into()));
+        let mut o=Ask::new("fixer",model.clone(),"Repair the actual repository through the advertised Apollo host functions. Use read, write/edit, and sh. Python3 is installed as python3. Return final JSON {\"ok\":true} only after real command verification. Do not use OpenCode native tools.".into(),
+            "Fix heading(value) in heading.py: strip outside whitespace, lowercase Unicode text, collapse each run of any whitespace into one hyphen, preserve existing hyphens, empty/whitespace-only input becomes empty string. Read the file first, edit it, and execute Python checks through sh before finishing. Do not edit/create acceptance tests. The host will run frozen independent tests.".into());
+        o.turns=10;o.t=240;o.rn=Some(Rn{h:"local".into(),dir:repo.display().to_string(),w:"fixer".into(),md:String::new()});
+        let result=ask1(&a,o).await;
+        let after=verify();
+        let events = a.db.all("select m from ev where w='fixer'", crate::pa![]);
+        println!("HOST_EVENTS {}", json!(events));
+        println!("LIVE_MODEL {model}\nRESULT {result:?}\nACCEPTANCE {}\nSOURCE {}",String::from_utf8_lossy(&after.stdout),std::fs::read_to_string(repo.join("heading.py")).unwrap());
+        assert_eq!(std::fs::read_to_string(&check).unwrap(),frozen,"frozen checks changed");
+        let (_,js)=result.expect("actual Apollo host-tool loop must complete");assert_eq!(js["ok"],true);
+        assert!(after.status.success(),"{}",String::from_utf8_lossy(&after.stderr));
+        let costs=a.db.one("select sum(usd) usd, max(sub) sub from cost",crate::pa![]).unwrap();
+        assert_eq!(costs["usd"],0.0);assert_eq!(costs["sub"],0);
+        let _=std::fs::remove_dir_all(&dd);
     }
 }

@@ -30,6 +30,7 @@ static FAIL: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<Stri
 async fn ck(a: &Ax, k: &str) -> bool {
     match k {
         "gh" => gh(&["api", "rate_limit", "--jq", ".rate.remaining"], 30).await.is_ok(),
+        "an" if crate::routing::enabled(a) => true,
         "an" => a.hc.get("https://api.anthropic.com/").timeout(std::time::Duration::from_secs(15)).send().await.is_ok(),
         h => match ho(a, h) {
             Some(x) => {

@@ -56,6 +56,7 @@ pub struct Rn {
     pub h: String,
     pub dir: String,
     pub w: String,
+    pub md: String,
 }
 
 pub struct App {
@@ -208,6 +209,13 @@ impl App {
     }
 
     pub fn md(&self, w: &str) -> String {
+        if crate::routing::enabled(self) {
+            if matches!(w,"fixer"|"repro") {
+                if let Some(md) = self.set()["opencode_authors"].as_array().and_then(|rows| rows.iter()
+                    .filter_map(|v| v.as_str()).find(|md| crate::routing::is_opencode(md))) { return md.to_string(); }
+            }
+            return crate::routing::FREE[0].into();
+        }
         self.set()["md"][w].as_str().unwrap_or("claude-sonnet-5-5").to_string()
     }
 
@@ -294,6 +302,7 @@ impl App {
         let wh = off_hours(&self.set()["wh"]);
         let bd = self.set()["budday"].as_f64().unwrap_or(0.0);
         let bu = if bd > 0.0 { self.db.usd(None) } else { 0.0 };
+        let free_first=crate::routing::enabled(self);
         let mut l = self.lv.lock().unwrap();
         if l.o.rst > 0 && l.o.rst <= n {
             l.o.rl = "allowed".into();
@@ -301,7 +310,7 @@ impl App {
         }
         let lim = l.o.rl != "allowed" && l.o.rl != "allowed_warning" && l.o.rst > n;
         l.o.warn = l.o.rl == "allowed_warning";
-        l.o.pause = if lim {
+        l.o.pause = if lim && !free_first {
             format!("Claude usage limit reached, paused until {}", chrono::DateTime::from_timestamp_millis(l.o.rst).map(|d| d.with_timezone(&chrono::Local).format("%H:%M").to_string()).unwrap_or_default())
         } else if td > 0 && used >= td {
             "daily token limit reached, paused until midnight".into()
@@ -324,6 +333,14 @@ impl App {
         }
         drop_(l);
         self.tick();
+    }
+
+    pub fn provider_limit(&self, model: &str) -> Option<String> {
+        if !crate::routing::enabled(self) || crate::prov::parse(model).0 != "cc" { return None; }
+        let l=self.lv.lock().unwrap();
+        if l.o.rl!="allowed" && l.o.rl!="allowed_warning" && l.o.rst>now() {
+            Some("Claude usage limit is active; try another configured provider".into())
+        } else { None }
     }
 
     pub fn net(&self, k: &str) -> bool {
@@ -369,4 +386,24 @@ pub fn fast() -> bool {
 pub async fn sl(ms: u64) {
     let ms = if fast() { (ms / 100).max(300) } else { ms };
     tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+}
+
+#[cfg(test)]
+mod provider_limit_tests {
+    use super::*;
+    #[test]
+    fn claude_limit_does_not_pause_other_free_first_routes_or_remove_owner_limits() {
+        let db=Db::mem();db.ks("set",&json!({"free_first":true,"tokday":0}));
+        let a=App::new(db,std::env::temp_dir(),1,"x".into());
+        a.rl(&json!({"status":"rejected","resetsAt":now()/1000+3600}));
+        assert!(a.lv.lock().unwrap().o.pause.is_empty());
+        assert!(a.provider_limit("cc:sonnet").is_some());assert!(a.provider_limit("codex:").is_none());
+        assert!(a.provider_limit("opencode:opencode/beam-free").is_none());
+        assert!(!a.hold("fixer"));
+        a.lv.lock().unwrap().o.man=true;assert!(a.hold("fixer"));a.lv.lock().unwrap().o.man=false;
+        a.db.ks("set",&json!({"free_first":true,"tokday":1}));a.tok("fixture",1,0);a.tick();
+        assert!(a.lv.lock().unwrap().o.pause.contains("daily token limit"));
+        a.db.ks("set",&json!({"free_first":false,"tokday":0}));a.tick();
+        assert!(a.lv.lock().unwrap().o.pause.contains("Claude usage limit"));
+    }
 }
