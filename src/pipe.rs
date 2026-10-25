@@ -1950,7 +1950,7 @@ print(json.dumps({'type':'turn.completed','usage':{'input_tokens':10,'output_tok
             assert!(out.status.success(),"{}",String::from_utf8_lossy(&out.stderr));String::from_utf8_lossy(&out.stdout).trim().to_string()
         };
         let commit=|m:&str|{git(&["add","."]);git(&["-c","user.name=fixture","-c","user.email=fixture@localhost","commit","-qm",m]);git(&["rev-parse","HEAD"])};
-        git(&["init","-q","-b","work"]);
+        git(&["init","-q","-b","work"]);git(&["config","user.name","fixture"]);git(&["config","user.email","fixture@localhost"]);
         std::fs::write(repo.join("a.txt"),"1\n").unwrap();let base=commit("base");
         std::fs::write(repo.join("a.txt"),"2\n").unwrap();commit("Address review");
         std::fs::write(repo.join("b.txt"),"3\n").unwrap();commit("more");
