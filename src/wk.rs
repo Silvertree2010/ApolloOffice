@@ -360,14 +360,67 @@ async fn comments(r: &str, n: i64, me: &str) -> R<Vec<Value>> {
     Ok(o.into_iter().filter(|x| x["by"].as_str().map(|b| b != me && !bot.is_match(b)).unwrap_or(false)).collect())
 }
 
+async fn late(a: &Ax, r: &str, n: i64, me: &str, v: &Value) -> R<()> {
+    let tag = format!("{r}#{n}");
+    let mut nw: Vec<Value> = vec![];
+    for c in comments(r, n, me).await? {
+        let id = c["id"].as_str().unwrap_or("").to_string();
+        if a.db.n("select count(*) from cm where id=? or id=?", pa![format!("{r}:{id}"), id.clone()]) > 0 {
+            continue;
+        }
+        a.db.run("insert or ignore into cm(id,t) values(?,?)", pa![format!("{r}:{id}"), now()]);
+        if MA.contains(&c["as"].as_str().unwrap_or("")) {
+            nw.push(c);
+        }
+    }
+    if nw.is_empty() {
+        return Ok(());
+    }
+    let g = guard(a, nw.iter().map(|c| (c["id"].as_str().unwrap_or("").to_string(), c["t"].as_str().unwrap_or("").to_string())).collect(), "watcher", None).await?;
+    let ok: Vec<&Value> = nw.iter().filter(|c| !g[c["id"].as_str().unwrap_or("")]["inj"].as_bool().unwrap_or(false)).collect();
+    if ok.is_empty() {
+        return Ok(());
+    }
+    let cs = ok.iter().map(|c| wrap(c["id"].as_str().unwrap_or(""), &format!("{} by {} ({})\n\n{}", c["k"].as_str().unwrap_or(""), c["by"].as_str().unwrap_or(""), c["as"].as_str().unwrap_or(""), crate::sh::head(c["t"].as_str().unwrap_or(""), 4000)))).collect::<Vec<_>>().join("\n\n");
+    let pr = format!("PR {tag}: {}\n\nThis PR is already merged. Set act only if a maintainer asks for a follow-up change or reports a problem the merged change caused; the change will become a new pull request from the default branch. A thank-you or merge notice is not a request.\n\n{cs}", v["title"].as_str().unwrap_or(""));
+    let mut o = Ask::new("watcher", a.md("watcher"), P("watcher"), pr);
+    o.ef = Some("low");
+    let (_, js) = ask(a, o).await?;
+    let by = ok.iter().filter_map(|c| c["by"].as_str()).collect::<Vec<_>>().join(", ");
+    if !js["act"].as_bool().unwrap_or(false) {
+        return Ok(());
+    }
+    let ch = js["change"].as_str().unwrap_or("").to_string();
+    let ti = format!("Follow-up to #{n}: {}", v["title"].as_str().unwrap_or(""));
+    let body = format!("{ch}\n\nRequested after #{n} was merged ({}). Open a new pull request from the default branch that references #{n}.\n\nMaintainer comment:\n{}", v["url"].as_str().unwrap_or(""), crate::sh::head(&ok.iter().map(|c| format!("{}: {}", c["by"].as_str().unwrap_or(""), c["t"].as_str().unwrap_or(""))).collect::<Vec<_>>().join("\n\n"), 6000));
+    a.db.jnew(r, 0, "fix", &ti, v["url"].as_str().unwrap_or(""), "vet", &format!("follow-up requested by {by} after merge"), json!({"title": ti, "body": body, "after": n}), None, -1.0);
+    a.say("watcher", &format!("{tag}: {by} asked for a follow-up after merge, sent to Vet"), None);
+    a.note("Follow-up after merge", &format!("{tag} ({by}): {ch}\n\nDraft reply:\n{}\n{}", js["draft"].as_str().unwrap_or("-"), v["url"].as_str().unwrap_or("")), 4);
+    Ok(())
+}
+
 async fn watch1(a: &Ax) -> R<()> {
     need(a, "watcher", &["gh"]).await?;
     a.st("watcher", "work", None, "");
     let me = crate::gh::login(a).await;
-    for p in a.db.all("select * from prs where st='open'", pa![]) {
+    for p in a.db.all("select * from prs where st='open' or (st='merged' and merged>strftime('%Y-%m-%dT%H:%M:%SZ','now','-2 days'))", pa![]) {
         a.held("watcher").await;
         let r = p["repo"].as_str().unwrap_or("").to_string();
         let n = p["num"].as_i64().unwrap_or(0);
+        if p["st"] == "merged" {
+            let wk = format!("wm:{r}#{n}");
+            if a.db.kg(&wk).as_i64().map(|t| now() - t < 1_800_000).unwrap_or(false) {
+                continue;
+            }
+            a.db.ks(&wk, &json!(now()));
+            let v = ghj(&["pr", "view", &n.to_string(), "-R", &r, "--json", "updatedAt,title,url"], 60).await.map_err(X::E)?;
+            let up = v["updatedAt"].as_str().unwrap_or("").to_string();
+            if p["upd"].as_str() != Some(up.as_str()) {
+                a.db.run("update prs set upd=? where repo=? and num=?", pa![up, r.clone(), n]);
+                late(a, &r, n, &me, &v).await?;
+            }
+            continue;
+        }
         let v = ghj(&["pr", "view", &n.to_string(), "-R", &r, "--json", "state,mergedAt,updatedAt,title,url,mergeable,headRefName,headRepositoryOwner,headRepository,baseRefName"], 60).await.map_err(X::E)?;
         let up = v["updatedAt"].as_str().unwrap_or("").to_string();
         let st = if v["mergedAt"].is_string() { "merged".to_string() } else { v["state"].as_str().unwrap_or("OPEN").to_lowercase() };
@@ -378,6 +431,8 @@ async fn watch1(a: &Ax) -> R<()> {
             a.flow("watcher", "submit", "merged");
             a.say("watcher", &format!("{tag} merged"), None);
             a.db.ks("lm", &json!({"repo": r, "num": n, "title": v["title"], "url": v["url"], "t": now()}));
+            a.db.ks(&format!("wm:{tag}"), &json!(now()));
+            late(a, &r, n, &me, &v).await?;
             continue;
         }
         if st == "closed" {

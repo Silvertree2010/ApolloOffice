@@ -593,7 +593,7 @@ async fn ci0(a: &Ax, j: &mut Job) -> R<String> {
             if fs.is_empty() || bn.is_empty() {
                 a.st("ci", "idle", None, "sad");
                 a.db.ks(&format!("cired:{}", j.repo), &json!({"sha": bs, "t": now()}));
-                return drop(format!("`{c}` also fails on {} without the fix, the office cannot verify changes until it is green again", j.s("mn")));
+                return Err(X::Back(format!("`{c}` also fails on {} without the fix, waiting until it is green again", j.s("mn"))));
             }
             a.st("ci", "idle", None, "sad");
             return Ok(format!("`{c}` has new failures with the fix: {}\n{}", nw.join(", "), crate::sh::last(&errs(&o), 6000)));
@@ -765,7 +765,12 @@ fn fixp(a: &Ax, j: &Job, fb: &str) -> String {
 }
 
 async fn vrev(a: &Ax, j: &Job, f: &Value) -> R<String> {
-    let n: i64 = ok(a, j, &format!("git rev-list --count {}..HEAD", j.s("base")), 60).await?.parse().unwrap_or(0);
+    let mut n: i64 = ok(a, j, &format!("git rev-list --count {}..HEAD", j.s("base")), 60).await?.parse().unwrap_or(0);
+    if n > 1 {
+        let b = q(&j.s("base"));
+        ok(a, j, &format!("c=$(git rev-list --reverse {b}..HEAD | head -1) && git reset -q --soft {b} && git commit -q -C \"$c\""), 60).await?;
+        n = ok(a, j, &format!("git rev-list --count {b}..HEAD"), 60).await?.parse().unwrap_or(0);
+    }
     if n != 1 {
         return Ok(format!("expected exactly 1 new commit on top of the PR head, found {n}"));
     }
@@ -1932,6 +1937,33 @@ print(json.dumps({'type':'turn.completed','usage':{'input_tokens':10,'output_tok
         assert_eq!(job.d["acceptance_proof"]["ok"],false);
         assert!(fixp(&a,&job,&feedback).contains("Independent acceptance rejected"));
         assert_eq!(job.d["acceptance_proof"]["run"]["script_sha256"],json!(hex::encode(Sha256::digest(script.as_bytes()))));
+        std::fs::remove_dir_all(dd).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn review_with_several_commits_is_squashed() {
+        let dd=std::env::temp_dir().join(format!("apollo-squash-{}",hex::encode(rand::random::<[u8;8]>())));
+        let repo=dd.join("work/o__r");std::fs::create_dir_all(&repo).unwrap();
+        let git=|args:&[&str]| {
+            let out=std::process::Command::new("git").args(args).current_dir(&repo).output().unwrap();
+            assert!(out.status.success(),"{}",String::from_utf8_lossy(&out.stderr));String::from_utf8_lossy(&out.stdout).trim().to_string()
+        };
+        let commit=|m:&str|{git(&["add","."]);git(&["-c","user.name=fixture","-c","user.email=fixture@localhost","commit","-qm",m]);git(&["rev-parse","HEAD"])};
+        git(&["init","-q","-b","work"]);
+        std::fs::write(repo.join("a.txt"),"1\n").unwrap();let base=commit("base");
+        std::fs::write(repo.join("a.txt"),"2\n").unwrap();commit("Address review");
+        std::fs::write(repo.join("b.txt"),"3\n").unwrap();commit("more");
+        let db=crate::db::Db::mem();
+        db.run("insert into hs(id,ssh,dk,raw,on_) values('local','',0,1,1)",pa![]);
+        db.run("insert into rp(full,ci) values('o/r','true')",pa![]);
+        let id=db.jnew("o/r",1,"review","t","","fix","",json!({"h":"local","base":base,"br":"work"}),Some(1),0.0);
+        let a=std::sync::Arc::new(crate::app::App::new(db,dd.clone(),1,"apollo-office".into()));let job=a.db.jg(id).unwrap();
+        let fb=vrev(&a,&job,&json!({})).await.unwrap();
+        assert_eq!(fb,"");
+        assert_eq!(git(&["rev-list","--count",&format!("{base}..HEAD")]),"1");
+        assert_eq!(git(&["log","-1","--format=%s"]),"Address review");
+        assert_eq!(git(&["show","HEAD:b.txt"]),"3");
         std::fs::remove_dir_all(dd).unwrap();
     }
 
