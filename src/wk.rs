@@ -139,7 +139,7 @@ async fn scout1(a: &Ax) -> R<()> {
 pub async fn scout(a: Ax) {
     loop {
         a.held("scout").await;
-        let b = a.db.n("select count(*) from jobs where st in ('ready','vet') and kind='fix'", pa![]);
+        let b = a.db.n("select count(*) from jobs where st in ('ready','vet') and kind='fix' and not exists (select 1 from kv where k='cired:'||jobs.repo)", pa![]);
         if b >= QMAX {
             a.st("scout", "idle", None, "");
             a.say("scout", &format!("{b} issues waiting, skipping this pass"), None);
@@ -272,7 +272,7 @@ async fn vet1(a: &Ax, id: i64) -> R<()> {
 async fn vetl(a: Ax) {
     loop {
         a.held("vet").await;
-        let rd = a.db.n("select count(*) from jobs where st='ready' and kind='fix'", pa![]);
+        let rd = a.db.n("select count(*) from jobs where st='ready' and kind='fix' and not exists (select 1 from kv where k='cired:'||jobs.repo)", pa![]);
         if rd >= QMAX {
             a.st("vet", "idle", None, "");
             sl(60_000).await;
