@@ -590,7 +590,11 @@ async fn ci0(a: &Ax, j: &mut Job) -> R<String> {
                 a.say("ci", &format!("green except tests that also fail on {}: {}", j.s("mn"), fs.join(", ")), Some(j.id));
                 return Ok(String::new());
             }
-            if fs.is_empty() || bn.is_empty() {
+            if fs.is_empty() && !bn.is_empty() {
+                a.st("ci", "idle", None, "sad");
+                return Ok(format!("`{c}` fails with the fix (exit {ec}) before the tests run, while {} only fails tests:\n{}", j.s("mn"), crate::sh::last(&errs(&o), 6000)));
+            }
+            if bn.is_empty() {
                 a.st("ci", "idle", None, "sad");
                 a.db.ks(&format!("cired:{}{}", j.repo, hk(a, &j.h())), &json!({"sha": bs, "t": now()}));
                 return Err(X::Back(format!("`{c}` also fails on {} without the fix, waiting until it is green again", j.s("mn"))));

@@ -356,7 +356,7 @@ fn jobs(a: &App, h: &Ho) -> String {
         return String::new();
     }
     let j = (c / h.ln.max(1)).max(1);
-    format!("export CARGO_BUILD_JOBS={j} MAKEFLAGS=-j{j} CMAKE_BUILD_PARALLEL_LEVEL={j}\nrenice -n 19 $$ >/dev/null 2>&1; ionice -c 3 -p $$ >/dev/null 2>&1\n")
+    format!("export CARGO_BUILD_JOBS={j} RUST_TEST_THREADS={j} MAKEFLAGS=-j{j} CMAKE_BUILD_PARALLEL_LEVEL={j}\nrenice -n 19 $$ >/dev/null 2>&1; ionice -c 3 -p $$ >/dev/null 2>&1\n")
 }
 
 pub async fn hraw(h: &Ho, s: &str, t: u64) -> Out {
