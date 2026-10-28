@@ -550,7 +550,7 @@ async fn ci0(a: &Ax, j: &mut Job) -> R<String> {
                 return drop(format!("`{c}` needs a tool that is missing on {}: {}", j.h(), t.0));
             }
         }
-        let bk = format!("cibase:{}", j.repo);
+        let bk = format!("cibase:{}{}", j.repo, hk(a, &j.h()));
         let bs = j.s("base");
         let cb = a.db.kg(&bk);
         let (bred, bn) = if cb["sha"].as_str() == Some(bs.as_str()) {
@@ -592,7 +592,7 @@ async fn ci0(a: &Ax, j: &mut Job) -> R<String> {
             }
             if fs.is_empty() || bn.is_empty() {
                 a.st("ci", "idle", None, "sad");
-                a.db.ks(&format!("cired:{}", j.repo), &json!({"sha": bs, "t": now()}));
+                a.db.ks(&format!("cired:{}{}", j.repo, hk(a, &j.h())), &json!({"sha": bs, "t": now()}));
                 return Err(X::Back(format!("`{c}` also fails on {} without the fix, waiting until it is green again", j.s("mn"))));
             }
             a.st("ci", "idle", None, "sad");
@@ -1401,11 +1401,13 @@ async fn go(a: &Ax, id: i64, h: &str) {
                 clean(a, &jj).await;
                 return Err(X::Back(String::new()));
             }
-            if let Some(cr) = a.db.kg(&format!("cired:{}", j.repo)).as_object() {
-                if cr.get("sha").and_then(|x| x.as_str()) == Some(j.s("base").as_str()) {
-                    return Err(X::Back(format!("{}: CI is red on the default branch, waiting until it moves", j.repo)));
+            for k in [format!("cired:{}", j.repo), format!("cired:{}{}", j.repo, hk(a, &j.h()))] {
+                if let Some(cr) = a.db.kg(&k).as_object() {
+                    if cr.get("sha").and_then(|x| x.as_str()) == Some(j.s("base").as_str()) {
+                        return Err(X::Back(format!("{}: CI is red on the default branch, waiting until it moves", j.repo)));
+                    }
+                    a.db.kd(&k);
                 }
-                a.db.kd(&format!("cired:{}", j.repo));
             }
             if j.kind == "fix" {
                 stage(a, "repro", || race(a, &j, "before repro")).await?;
@@ -1537,8 +1539,22 @@ pub fn recover(a: &Ax) {
     }
 }
 
-async fn red(a: &Ax, r: &str) -> bool {
-    let cr = a.db.kg(&format!("cired:{r}"));
+fn hk(a: &Ax, h: &str) -> String {
+    if crate::sh::ho(a, h).map(|x| x.dk).unwrap_or(true) {
+        String::new()
+    } else {
+        format!("@{h}")
+    }
+}
+
+async fn red(a: &Ax, r: &str, h: &str) -> bool {
+    let mut cr = a.db.kg(&format!("cired:{r}"));
+    if cr.is_null() {
+        let x = hk(a, h);
+        if !x.is_empty() {
+            cr = a.db.kg(&format!("cired:{r}{x}"));
+        }
+    }
     if cr.is_null() {
         return false;
     }
@@ -1597,7 +1613,7 @@ async fn pick(a: &Ax, h: &str) -> Option<i64> {
         if rr["ci"].as_str().unwrap_or("").trim().is_empty() && !pin {
             continue;
         }
-        if !pin && red(a, &r).await {
+        if !pin && red(a, &r, h).await {
             continue;
         }
         if !pin && j["kind"] == "fix" {

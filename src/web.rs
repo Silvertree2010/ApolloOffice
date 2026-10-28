@@ -686,7 +686,7 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
                                 d.as_object_mut().map(|o| o.remove(k));
                             }
                             a.db.kd(&format!("kill:{id}"));
-                            a.db.kd(&format!("cired:{}", j.repo));
+                            a.db.run("delete from kv where k=? or k like ?", pa![format!("cired:{}", j.repo), format!("cired:{}@%", j.repo)]);
                             a.db.jset(id, &[("st", json!(if j.why.starts_with("Guard") || j.why.starts_with("Vet") { "vet" } else { "ready" })), ("why", json!("requeued by the owner")), ("d", d)]);
                         }
                     }
@@ -742,7 +742,7 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
                             }
                         }
                     }
-                    a.db.kd(&format!("cired:{r}"));
+                    a.db.run("delete from kv where k=? or k like ?", pa![format!("cired:{r}"), format!("cired:{r}@%")]);
                     a.sw.notify_one();
                     js(cfg(a))
                 }
