@@ -1653,7 +1653,7 @@ fn hn(a: &Ax) -> i64 {
 }
 
 fn mk_hunt(a: &Ax) -> bool {
-    let on = a.db.all("select repo from jobs where kind='hunt' and st not in ('done','drop')", pa![]);
+    let on = a.db.all("select repo from jobs where kind='hunt' and st not in ('done','drop','park')", pa![]);
     if on.len() as i64 >= hn(a) {
         return false;
     }
@@ -1661,7 +1661,8 @@ fn mk_hunt(a: &Ax) -> bool {
     let rs: Vec<String> = a.db.all("select full from rp where on_=1 and hunt=1 and ci<>''", pa![]).iter().filter_map(|x| x["full"].as_str().map(String::from)).collect();
     let act: Vec<String> = a.act.lock().unwrap().iter().map(|k| k.split(' ').next().unwrap_or("").to_string()).collect();
     let cnt = |r: &str| a.db.n("select count(*) from jobs where kind='hunt' and repo=? and t0>?", pa![r.to_string(), d0]);
-    let mut c: Vec<String> = rs.into_iter().filter(|r| !act.contains(r) && !on.iter().any(|x| x["repo"].as_str() == Some(r.as_str())) && cnt(r) < 6).collect();
+    let hs: Vec<_> = hosts(a).into_iter().filter(|h| h.on).collect();
+    let mut c: Vec<String> = rs.into_iter().filter(|r| !act.contains(r) && !on.iter().any(|x| x["repo"].as_str() == Some(r.as_str())) && a.db.kg(&format!("cired:{r}")).is_null() && hs.iter().any(|h| !h.skips(r))).collect();
     c.sort_by_key(|r| cnt(r));
     let Some(r) = c.first() else { return false };
     a.db.jnew(r, 0, "hunt", &format!("Hunt for bugs in {r}"), &format!("https://github.com/{r}"), "ready", "hunter slot", json!({}), None, 99.0);
