@@ -1662,7 +1662,7 @@ fn mk_hunt(a: &Ax) -> bool {
     let act: Vec<String> = a.act.lock().unwrap().iter().map(|k| k.split(' ').next().unwrap_or("").to_string()).collect();
     let cnt = |r: &str| a.db.n("select count(*) from jobs where kind='hunt' and repo=? and t0>?", pa![r.to_string(), d0]);
     let hs: Vec<_> = hosts(a).into_iter().filter(|h| h.on).collect();
-    let mut c: Vec<String> = rs.into_iter().filter(|r| !act.contains(r) && !on.iter().any(|x| x["repo"].as_str() == Some(r.as_str())) && a.db.kg(&format!("cired:{r}")).is_null() && hs.iter().any(|h| !h.skips(r))).collect();
+    let mut c: Vec<String> = rs.into_iter().filter(|r| !act.contains(r) && !on.iter().any(|x| x["repo"].as_str() == Some(r.as_str())) && a.db.kg(&format!("cired:{r}")).is_null() && hs.iter().any(|h| !h.skips(r) && (h.dk || a.db.kg(&format!("cired:{r}@{}", h.id)).is_null()))).collect();
     c.sort_by_key(|r| cnt(r));
     let Some(r) = c.first() else { return false };
     a.db.jnew(r, 0, "hunt", &format!("Hunt for bugs in {r}"), &format!("https://github.com/{r}"), "ready", "hunter slot", json!({}), None, 99.0);
