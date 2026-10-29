@@ -407,7 +407,7 @@ pub async fn hx(a: &App, id: &str, s: &str, t: u64) -> Out {
     hxl(a, id, s, t, None).await
 }
 
-pub const DF: &str = r#"FROM rust:1-bookworm
+pub const DF: &str = r#"FROM rust:1-trixie
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config libssl-dev clang cmake git curl ca-certificates procps xz-utils unzip libxdo-dev mesa-vulkan-drivers \
     python3 python3-pip python3-venv python3-dev nodejs npm golang-go \
