@@ -105,7 +105,7 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 28vw, 4
 .tip .bar i { display: block; height: 100%; background: var(--ok); }
 .tip .bar i.hi { background: var(--bad); }
 .tip .bad2 { color: var(--bad); } .tip .ok2 { color: var(--ok); }
-canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; aspect-ratio: 200 / 129; width:98%; }
 .side { display: grid; grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, .8fr); gap: 10px; min-height: 0; }
 .card { background: var(--p); border: 1px solid var(--l); border-radius: var(--r); padding: 9px 11px; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .card h2 { font: 600 11px/1 var(--m); text-transform: uppercase; letter-spacing: .1em; color: var(--t2); margin: 2px 0 8px; display: flex; gap: 8px; flex: none; white-space: nowrap; }
@@ -240,7 +240,7 @@ pre.df .ad { color: var(--ok); } pre.df .rm { color: var(--bad); } pre.df .hh { 
 <div class="ban" id="ban" hidden><span>Enjoying ApolloOffice? A star on GitHub helps other people find it.</span><span class="sp"></span><button class="go" id="bStar">Star on GitHub</button><button id="bLater">Later</button></div>
 <div class="tiles" id="tiles"></div>
 <main>
-  <div class="stage" id="stage"><canvas id="cv" width="400" height="258"></canvas><div class="mg" id="mg" hidden></div></div><div class="tip" id="tip" hidden></div>
+  <div class="stage" id="stage"><canvas id="cv"></canvas><div class="mg" id="mg" hidden></div></div><div class="tip" id="tip" hidden></div>
   <div class="side">
     <div class="card"><h2>Queue <span id="qn"></span></h2><div class="bd" id="queue"></div></div>
     <div class="card"><h2>Pull requests <span id="prn"></span></h2><div class="bars" id="bars" title="merges per day, last 30 days"></div><div class="bd" id="prs"></div></div>
