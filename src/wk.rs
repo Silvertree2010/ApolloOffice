@@ -3,14 +3,13 @@ use crate::app::{sl, Ax, X, R};
 use crate::db::now;
 use crate::net::need;
 use crate::pa;
-use crate::pipe::rp;
+use crate::pipe::{bl, qn, rp};
 use crate::sh::{apip, gh, ghj};
 use regex::Regex;
 use serde_json::{json, Value};
 use std::future::Future;
 use std::pin::Pin;
 
-pub const QMAX: i64 = 12;
 
 fn guard1<'a>(a: &'a Ax, b: Vec<(String, String)>, job: Option<i64>, d: u32) -> Pin<Box<dyn Future<Output = R<Value>> + Send + 'a>> {
     Box::pin(async move {
@@ -69,6 +68,10 @@ async fn scout1(a: &Ax) -> R<()> {
     let rs = a.db.all("select full from rp where on_=1 and iss=1 and ci<>''", pa![]);
     for r in rs {
         let r = r["full"].as_str().unwrap_or("").to_string();
+        let b = bl(a, &r);
+        if b == 0 || qn(a, &r, "'vet','ready'") >= 4 * b {
+            continue;
+        }
         a.held("scout").await;
         a.st("scout", "work", None, "");
         let is = ghj(&["issue", "list", "-R", &r, "--state", "open", "--limit", "200", "--json", "number,title,body,author,updatedAt,labels,assignees,url"], 120).await.map_err(X::E)?;
@@ -139,11 +142,7 @@ async fn scout1(a: &Ax) -> R<()> {
 pub async fn scout(a: Ax) {
     loop {
         a.held("scout").await;
-        let b = a.db.n("select count(*) from jobs where st in ('ready','vet') and kind='fix' and not exists (select 1 from kv where k='cired:'||jobs.repo)", pa![]);
-        if b >= QMAX {
-            a.st("scout", "idle", None, "");
-            a.say("scout", &format!("{b} issues waiting, skipping this pass"), None);
-        } else if let Err(x) = scout1(&a).await {
+        if let Err(x) = scout1(&a).await {
             a.st("scout", "idle", None, "err");
             a.say("scout", &errm(&x), None);
         }
@@ -272,15 +271,14 @@ async fn vet1(a: &Ax, id: i64) -> R<()> {
 async fn vetl(a: Ax) {
     loop {
         a.held("vet").await;
-        let rd = a.db.n("select count(*) from jobs where st='ready' and kind='fix' and not exists (select 1 from kv where k='cired:'||jobs.repo)", pa![]);
-        if rd >= QMAX {
-            a.st("vet", "idle", None, "");
-            sl(60_000).await;
-            continue;
-        }
         let mut n = None;
-        for x in a.db.all("select id from jobs where st='vet' order by json_extract(d,'$.vt') is not null, t1", pa![]) {
+        let mut fu = std::collections::HashMap::new();
+        for x in a.db.all("select id, repo from jobs where st='vet' order by json_extract(d,'$.vt') is not null, t1", pa![]) {
             let id = x["id"].as_i64().unwrap_or(0);
+            let r = x["repo"].as_str().unwrap_or("").to_string();
+            if *fu.entry(r.clone()).or_insert_with(|| qn(&a, &r, "'ready'") >= 2 * bl(&a, &r)) {
+                continue;
+            }
             let mut t = a.vtk.lock().unwrap();
             if t.insert(id) {
                 n = Some(id);

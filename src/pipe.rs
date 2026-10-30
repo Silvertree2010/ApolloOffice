@@ -1641,11 +1641,22 @@ async fn pick(a: &Ax, h: &str) -> Option<i64> {
     None
 }
 
+pub fn bl(a: &Ax, r: &str) -> i64 {
+    if !a.db.kg(&format!("cired:{r}")).is_null() {
+        return 0;
+    }
+    hosts(a).iter().filter(|h| h.on && a.net(&h.id) && !h.skips(r) && (h.dk || a.db.kg(&format!("cired:{r}@{}", h.id)).is_null())).map(|h| h.ln).sum()
+}
+
+pub fn qn(a: &Ax, r: &str, sts: &str) -> i64 {
+    a.db.n(&format!("select count(*) from jobs where repo=? and kind='fix' and st in ({sts})"), pa![r.to_string()])
+}
+
 fn hn(a: &Ax) -> i64 {
     if crate::routing::enabled(a) { return 0; }
     let cap = a.set()["hunters"].as_i64().unwrap_or(2).clamp(0, 12);
     let l: i64 = hosts(a).iter().filter(|h| h.on && a.net(&h.id)).map(|h| h.ln).sum();
-    let hf = a.db.n("select count(*) from jobs where kind='fix' and num=0 and st in ('vet','ready') and json_extract(d,'$.ext') is null", pa![]);
+    let hf: i64 = a.db.all("select repo, count(*) n from jobs where kind='fix' and num=0 and st in ('vet','ready') and json_extract(d,'$.ext') is null group by repo", pa![]).iter().map(|x| x["n"].as_i64().unwrap_or(0).min(2 * bl(a, x["repo"].as_str().unwrap_or("")))).sum();
     if cap == 0 {
         return 0;
     }
@@ -1661,8 +1672,7 @@ fn mk_hunt(a: &Ax) -> bool {
     let rs: Vec<String> = a.db.all("select full from rp where on_=1 and hunt=1 and ci<>''", pa![]).iter().filter_map(|x| x["full"].as_str().map(String::from)).collect();
     let act: Vec<String> = a.act.lock().unwrap().iter().map(|k| k.split(' ').next().unwrap_or("").to_string()).collect();
     let cnt = |r: &str| a.db.n("select count(*) from jobs where kind='hunt' and repo=? and t0>?", pa![r.to_string(), d0]);
-    let hs: Vec<_> = hosts(a).into_iter().filter(|h| h.on).collect();
-    let mut c: Vec<String> = rs.into_iter().filter(|r| !act.contains(r) && !on.iter().any(|x| x["repo"].as_str() == Some(r.as_str())) && a.db.kg(&format!("cired:{r}")).is_null() && hs.iter().any(|h| !h.skips(r) && (h.dk || a.db.kg(&format!("cired:{r}@{}", h.id)).is_null()))).collect();
+    let mut c: Vec<String> = rs.into_iter().filter(|r| !act.contains(r) && !on.iter().any(|x| x["repo"].as_str() == Some(r.as_str())) && { let b = bl(a, r); b > 0 && qn(a, r, "'vet','ready'") < 4 * b }).collect();
     c.sort_by_key(|r| cnt(r));
     let Some(r) = c.first() else { return false };
     a.db.jnew(r, 0, "hunt", &format!("Hunt for bugs in {r}"), &format!("https://github.com/{r}"), "ready", "hunter slot", json!({}), None, 99.0);
