@@ -233,6 +233,8 @@ async fn prep(a: &Ax, j: &mut Job) -> R<()> {
         if r.c != 0 {
             hx(a, &j.h(), &format!("rm -rf \"{d}\""), 600).await;
         }
+    } else {
+        hx(a, &j.h(), &format!("rm -rf \"{d}\""), 600).await;
     }
     if hx(a, &j.h(), &format!("test -d \"{d}/.git\""), 60).await.c != 0 {
         a.say("repro", &format!("[{}] cloning {}", j.h(), j.repo), Some(j.id));
