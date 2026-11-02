@@ -422,7 +422,7 @@ async fn watch1(a: &Ax) -> R<()> {
             }
             continue;
         }
-        let v = ghj(&["pr", "view", &n.to_string(), "-R", &r, "--json", "state,mergedAt,updatedAt,title,url,mergeable,headRefName,headRepositoryOwner,headRepository,baseRefName"], 60).await.map_err(X::E)?;
+        let v = ghj(&["pr", "view", &n.to_string(), "-R", &r, "--json", "state,mergedAt,updatedAt,title,url,mergeable,headRefName,headRepositoryOwner,headRepository,baseRefName,reviewDecision"], 60).await.map_err(X::E)?;
         let up = v["updatedAt"].as_str().unwrap_or("").to_string();
         let st = if v["mergedAt"].is_string() { "merged".to_string() } else { v["state"].as_str().unwrap_or("OPEN").to_lowercase() };
         a.db.run("update prs set st=?, title=?, upd=?, merged=? where repo=? and num=?", pa![st.clone(), v["title"].as_str().unwrap_or("").to_string(), up.clone(), v["mergedAt"].as_str().map(String::from), r.clone(), n]);
@@ -441,11 +441,20 @@ async fn watch1(a: &Ax) -> R<()> {
             a.say("watcher", &format!("{tag} closed without merge"), None);
             continue;
         }
+        let hd = format!("{}/{}", v["headRepositoryOwner"]["login"].as_str().unwrap_or(""), v["headRepository"]["name"].as_str().unwrap_or(""));
+        let hrn = v["headRefName"].as_str().unwrap_or("").to_string();
+        if v["mergeable"] == "CONFLICTING" && v["headRepositoryOwner"]["login"].as_str() == Some(&me) && a.db.n("select count(*) from jobs where repo=? and pr=? and kind='rebase' and (st not in ('done','drop') or t1>?)", pa![r.clone(), n, now() - 86_400_000]) == 0 {
+            a.db.jnew(&r, n, "rebase", v["title"].as_str().unwrap_or(""), v["url"].as_str().unwrap_or(""), "ready", &format!("merge conflict with {}", v["baseRefName"].as_str().unwrap_or("")), json!({"branch": hrn, "head": hd, "test_cmd": p["d"]["test_cmd"]}), Some(n), -1.0);
+            a.flow("watcher", "fixer", "rebase");
+            a.say("watcher", &format!("{tag} has a merge conflict, sent to rebase"), None);
+        }
         if p["upd"].as_str() == Some(up.as_str()) && p["d"]["seen"].as_bool().unwrap_or(false) {
             continue;
         }
         let first = !p["d"]["seen"].as_bool().unwrap_or(false);
         let cs = comments(&r, n, &me).await?;
+        let cr: Vec<String> = if v["reviewDecision"] == "CHANGES_REQUESTED" { cs.iter().filter(|c| c["k"] == "review" && c["t"].as_str().map(|t| t.starts_with("[review: CHANGES_REQUESTED]")).unwrap_or(false)).filter_map(|c| c["by"].as_str().map(String::from)).collect() } else { vec![] };
+        let tr = |c: &Value| MA.contains(&c["as"].as_str().unwrap_or("")) || c["by"].as_str().map(|b| cr.iter().any(|x| x == b)).unwrap_or(false);
         let mut nw: Vec<Value> = cs.into_iter().filter(|c| a.db.n("select count(*) from cm where id=? or id=?", pa![format!("{r}:{}", c["id"].as_str().unwrap_or("")), c["id"].as_str().unwrap_or("").to_string()]) == 0).collect();
         for c in &nw {
             a.db.run("insert or ignore into cm(id,t) values(?,?)", pa![format!("{r}:{}", c["id"].as_str().unwrap_or("")), now()]);
@@ -459,8 +468,6 @@ async fn watch1(a: &Ax) -> R<()> {
             d["seen"] = json!(true);
             a.db.run("update prs set d=? where repo=? and num=?", pa![d.to_string(), r.clone(), n]);
         }
-        let hd = format!("{}/{}", v["headRepositoryOwner"]["login"].as_str().unwrap_or(""), v["headRepository"]["name"].as_str().unwrap_or(""));
-        let hrn = v["headRefName"].as_str().unwrap_or("").to_string();
         if !nw.is_empty() {
             a.say("watcher", &format!("{tag}: {} new comment(s)", nw.len()), None);
             let g = guard(a, nw.iter().map(|c| (c["id"].as_str().unwrap_or("").to_string(), c["t"].as_str().unwrap_or("").to_string())).collect(), "watcher", None).await?;
@@ -469,7 +476,7 @@ async fn watch1(a: &Ax) -> R<()> {
             }
             let okc: Vec<&Value> = nw.iter().filter(|c| !g[c["id"].as_str().unwrap_or("")]["inj"].as_bool().unwrap_or(false)).collect();
             if !okc.is_empty() {
-                let mc: Vec<&Value> = okc.iter().filter(|c| MA.contains(&c["as"].as_str().unwrap_or(""))).cloned().collect();
+                let mc: Vec<&Value> = okc.iter().filter(|c| tr(c)).cloned().collect();
                 let ma = !mc.is_empty();
                 let src: &Vec<&Value> = if ma { &mc } else { &okc };
                 let pv = ghj(&["pr", "view", &n.to_string(), "-R", &r, "--json", "body,files"], 60).await.unwrap_or(Value::Null);
@@ -502,11 +509,6 @@ async fn watch1(a: &Ax) -> R<()> {
                     a.note(&format!("Comment on {tag}"), &format!("{by}: {}\n\nDraft reply:\n{}\n{}", crate::sh::head(okc.last().and_then(|c| c["t"].as_str()).unwrap_or(""), 600), js["draft"].as_str().unwrap_or("-"), v["url"].as_str().unwrap_or("")), 3);
                 }
             }
-        }
-        if v["mergeable"] == "CONFLICTING" && v["headRepositoryOwner"]["login"].as_str() == Some(&me) && a.db.n("select count(*) from jobs where repo=? and pr=? and kind='rebase' and (st not in ('done','drop') or t1>?)", pa![r.clone(), n, now() - 86_400_000]) == 0 {
-            a.db.jnew(&r, n, "rebase", v["title"].as_str().unwrap_or(""), v["url"].as_str().unwrap_or(""), "ready", &format!("merge conflict with {}", v["baseRefName"].as_str().unwrap_or("")), json!({"branch": hrn, "head": hd, "test_cmd": p["d"]["test_cmd"]}), Some(n), -1.0);
-            a.flow("watcher", "fixer", "rebase");
-            a.say("watcher", &format!("{tag} has a merge conflict, sent to rebase"), None);
         }
     }
     a.st("watcher", "idle", None, "");
