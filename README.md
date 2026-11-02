@@ -48,8 +48,12 @@ For optional free-model authors with Codex/Claude subscription review, see
   Click the gear on a worker's card to change it.
 - **Docker isolation** on this computer or any machine you reach with `ssh`.
   The GitHub token never leaves your computer.
-- **Watcher** follows your open PRs: merges, review requests from maintainers
-  and merge conflicts, which it rebases on its own.
+- **Watcher** follows your open PRs: merges, change requests from maintainers
+  and reviewers with write access, and merge conflicts, which it rebases on
+  its own.
+- **Feature mode** (per repository, off by default): Scout and Vet also pick
+  small, clearly specified feature requests. A Planner checks the feature is
+  still missing, Fixer builds it test-first, and the PR closes the issue.
 - **API** for bug reports from your own tools (error trackers, CI, scripts):
   `POST /v1/report` with a token from Settings. Reports go through Guard and
   Vet like issues.
