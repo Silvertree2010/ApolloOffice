@@ -31,6 +31,7 @@ fn mig(c: &Connection) {
     let _ = c.execute("alter table hs add column no text default ''", []);
     let _ = c.execute("alter table hs add column cpu int default 0", []);
     let _ = c.execute("alter table rp add column bud real default 0", []);
+    let _ = c.execute("alter table rp add column feat int default 0", []);
 }
 
 pub type P = Vec<Box<dyn ToSql + Send>>;
@@ -225,6 +226,9 @@ impl Job {
     pub fn ext(&self) -> bool {
         self.d["ext"].is_object()
     }
+    pub fn feat(&self) -> bool {
+        self.d["feat"].as_bool().unwrap_or(false)
+    }
     pub fn own(&self) -> bool {
         self.hunt() || self.ext()
     }
@@ -236,6 +240,8 @@ impl Job {
             "Bug found by our own testing (there is no GitHub issue; do not reference one)".into()
         } else if self.ext() {
             format!("Bug report sent to us directly from {} (there is no GitHub issue; do not reference one)", self.d["ext"]["src"].as_str().unwrap_or("an external tool"))
+        } else if self.feat() {
+            format!("Feature request, issue #{}", self.num)
         } else {
             format!("Issue #{}", self.num)
         }

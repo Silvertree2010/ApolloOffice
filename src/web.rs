@@ -246,7 +246,7 @@ fn sets(a: &Ax, b: &Value) {
     }
 }
 
-const RPF: &[&str] = &["iss", "hunt", "nm", "on_", "maxo", "maxd", "bud", "ci", "setup", "rules", "mode"];
+const RPF: &[&str] = &["iss", "hunt", "feat", "nm", "on_", "maxo", "maxd", "bud", "ci", "setup", "rules", "mode"];
 const HSF: &[&str] = &["id", "ssh", "dk", "ln", "ci", "gb", "raw", "no", "cpu"];
 
 fn export(a: &Ax) -> Value {
@@ -714,7 +714,7 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
                     js(json!({"full": r, "ci": c, "setup": s, "cfg": cfg(a)}))
                 }
                 "set" => {
-                    for (k, kind) in [("iss", 0), ("hunt", 0), ("nm", 0), ("on_", 0), ("maxo", 1), ("maxd", 1), ("bud", 3), ("ci", 2), ("setup", 2), ("rules", 2), ("mode", 2)] {
+                    for (k, kind) in [("iss", 0), ("hunt", 0), ("feat", 0), ("nm", 0), ("on_", 0), ("maxo", 1), ("maxd", 1), ("bud", 3), ("ci", 2), ("setup", 2), ("rules", 2), ("mode", 2)] {
                         let v = &b[k];
                         if v.is_null() {
                             continue;

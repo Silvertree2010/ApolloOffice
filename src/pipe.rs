@@ -302,8 +302,8 @@ async fn repro(a: &Ax, j: &mut Job) -> R<()> {
         crate::routing::event(a, Some(j.id), "repro", attempt, &md, &reproduction_feedback);
         a.st("repro", "work", Some(j.id), "");
         use_(a, j, &md);
-        a.say("repro", &format!("{} reproducing {}", crate::prov::name(&md), j.tag()), Some(j.id));
-        let mut o = Ask::new("repro", md, P("repro"), format!("{p}\n{}",wrap("previous-reproduction-diagnostic",&reproduction_feedback)));
+        a.say("repro", &format!("{} {} {}", crate::prov::name(&md), if j.feat() { "planning" } else { "reproducing" }, j.tag()), Some(j.id));
+        let mut o = Ask::new("repro", md, P(if j.feat() { "plan" } else { "repro" }), format!("{p}\n{}",wrap("previous-reproduction-diagnostic",&reproduction_feedback)));
         o.job = Some(j.id);
         o.rn = rn(a, j);
         o.turns = 40;
@@ -325,16 +325,16 @@ async fn repro(a: &Ax, j: &mut Job) -> R<()> {
         if js["ok"].as_bool().unwrap_or(false) {
             j.d["repro"] = json!({"how": js["how"], "where": js["where"], "test": js["test"]});
             a.db.jd(j);
-            a.say("repro", &format!("reproduced: {}", js["how"].as_str().unwrap_or("")), Some(j.id));
+            a.say("repro", &format!("{}: {}", if j.feat() { "planned" } else { "reproduced" }, js["how"].as_str().unwrap_or("")), Some(j.id));
             a.flow("repro", "fixer", &j.tag());
             a.st("repro", "idle", None, "ok");
             return Ok(());
         }
         reproduction_feedback=crate::sh::head(&js.to_string(),3000);
-        a.say("repro", &format!("not reproduced: {}", js["how"].as_str().unwrap_or("no answer")), Some(j.id));
+        a.say("repro", &format!("{}: {}", if j.feat() { "not plannable" } else { "not reproduced" }, js["how"].as_str().unwrap_or("no answer")), Some(j.id));
     }
     a.st("repro", "idle", None, "sad");
-    drop("not reproducible")
+    drop(if j.feat() { "feature already exists or cannot be done as one focused change" } else { "not reproducible" })
 }
 
 pub fn junk(p: &str) -> bool {
@@ -401,6 +401,23 @@ pub fn judge(ts: &[String], a_e: i32, a_o: &str, b_e: i32, b_o: &str) -> String 
     String::new()
 }
 
+pub fn judgef(ts: &[String], a_e: i32, a_o: &str, b_e: i32, b_o: &str) -> String {
+    if a_e != 0 && Regex::new(CE).unwrap().is_match(a_o) && !Regex::new(r"\[checkout failed\]").unwrap().is_match(&format!("{a_o}{b_o}")) {
+        if b_e != 0 {
+            return format!("Test fails with the feature. Output:\n{}", crate::sh::last(b_o, 3000));
+        }
+        if !ts.iter().any(|t| b_o.contains(&bare(t))) {
+            return format!("None of the named tests appears in the output of the feature commit. Output:\n{}", crate::sh::last(b_o, 3000));
+        }
+        let f = fails(b_o);
+        if !f.is_empty() {
+            return format!("Tests still reported as failing with the feature: {}. Output:\n{}", f.join(", "), crate::sh::last(b_o, 3000));
+        }
+        return String::new();
+    }
+    judge(ts, a_e, a_o, b_e, b_o).replace("with the fix", "with the feature").replace("without the fix", "without the feature")
+}
+
 async fn verify(a: &Ax, j: &mut Job, f: &Value) -> R<String> {
     let ts: Vec<String> = f["tests"].as_array().cloned().unwrap_or_default().iter().filter_map(|x| x.as_str().map(String::from)).filter(|x| !x.is_empty()).collect();
     let tc = f["test_cmd"].as_str().unwrap_or("").to_string();
@@ -423,7 +440,7 @@ async fn verify(a: &Ax, j: &mut Job, f: &Value) -> R<String> {
     let (ae, ao) = run_t(a, j, &at, &tc).await;
     let (be, bo) = run_t(a, j, &b, &tc).await;
     ok(a, j, &format!("git checkout -q {}", q(&j.s("br"))), 120).await?;
-    let r = judge(&ts, ae, &ao, be, &bo);
+    let r = if j.feat() { judgef(&ts, ae, &ao, be, &bo) } else { judge(&ts, ae, &ao, be, &bo) };
     if r.is_empty() {
         let fl = Regex::new(r"(?i)FAIL|panicked|assert|Error|expected|^not ok\b").unwrap();
         let pl = Regex::new(r"(?i)\bok\b|pass|✓").unwrap();
@@ -633,14 +650,17 @@ pub fn body(j: &Job, f: &Value, ci: &str, ft: &str) -> String {
             v.push(format!("Found while testing `{}` (no existing issue): {}.", j.d["hunt"]["where"].as_str().unwrap_or(""), j.d["hunt"]["title"].as_str().unwrap_or("")));
         } else if j.ext() {
             v.push("Reported to us directly (no existing issue).".to_string());
+        } else if j.feat() {
+            v.push(format!("Closes #{}", j.num));
         } else {
             v.push(format!("Fixes #{}", j.num));
         }
         v.push(String::new());
     }
-    v.extend(["## Cause".into(), g("cause"), String::new(), "## Fix".into(), g("fix"), String::new(), "## Verified".into()]);
+    let fe = j.feat();
+    v.extend([if fe { "## Why" } else { "## Cause" }.into(), g("cause"), String::new(), if fe { "## Change" } else { "## Fix" }.into(), g("fix"), String::new(), "## Verified".into()]);
     if !ts.is_empty() {
-        v.push(format!("- Regression test{} {}: fail{} on `{mn}` without the fix and pass{} with it (`{}`).", if pl { "s" } else { "" }, ts.iter().map(|t| format!("`{t}`")).collect::<Vec<_>>().join(", "), if pl { "" } else { "s" }, if pl { "" } else { "es" }, f["test_cmd"].as_str().unwrap_or("")));
+        v.push(format!("- {}{} {}: fail{} on `{mn}` without the {} and pass{} with it (`{}`).", if fe { "Test" } else { "Regression test" }, if pl { "s" } else { "" }, ts.iter().map(|t| format!("`{t}`")).collect::<Vec<_>>().join(", "), if pl { "" } else { "s" }, if fe { "change" } else { "fix" }, if pl { "" } else { "es" }, f["test_cmd"].as_str().unwrap_or("")));
     }
     if kn.is_empty() {
         v.push(format!("- `{ci}` passes."));
@@ -680,7 +700,7 @@ async fn review_mode(a: &Ax, j: &mut Job, f: &mut Value, diagnostic:bool) -> R<S
         j.repo,
         if j.own() { "no GitHub issue (the PR must not reference any issue number)".to_string() } else { format!("issue #{}", j.num) },
         wrap("issue", &format!("{}\n\n{}", j.title, crate::sh::head(&j.s("body"), 4000))),
-        if j.kind == "review" { format!("{}\n\n", wrap("request", &j.s("change"))) } else { String::new() },
+        if j.kind == "review" { format!("{}\n\n", wrap("request", &j.s("change"))) } else if j.feat() { "This PR implements a requested FEATURE, not a bug fix. Judge it as a feature: it does what the issue asks, completely but minimally; the tests check the new behaviour (on the test commit they may fail to compile because the new API is missing); no unrelated changes; no surprising changes to defaults, file formats or visible design beyond what the issue asks.\n\n".to_string() } else { String::new() },
         f["title"].as_str().unwrap_or(""),
         body(j, f, &ci, ""),
         if crate::quality::enabled(a) && j.kind == "fix" { format!("{}{}\nIndependent acceptance evidence: {}\nFrozen verifier (untrusted code): {}\nCheck that this verifier exercises actual production code and the reported behavior, rather than copying logic or merely matching source text. Reject inadequate coverage or unsupported claims.",rules(a, j),crate::quality::context(j),wrap("acceptance-evidence",&j.d["acceptance_proof"].to_string()),wrap("frozen-verifier",j.d["acceptance"]["script"].as_str().unwrap_or(""))) } else { rules(a, j) }
@@ -744,6 +764,8 @@ async fn review_mode(a: &Ax, j: &mut Job, f: &mut Value, diagnostic:bool) -> R<S
     Ok(format!("Reviewer objections:\n{is}"))
 }
 
+const FEAT: &str = "This job is a FEATURE REQUEST, not a bug. The rules for a bug fix apply with these changes: implement the requested behaviour completely but minimally, in the project's existing style, without unrelated changes. Commit 1 \"test: …\" adds tests that check the new behaviour; on that commit they must fail because the feature is missing (an assertion failure is best; if the test has to call a new API, a compile error on that commit is accepted). Commit 2 \"feat: …\" implements the feature; there the tests pass. Update user-facing docs or the changelog only if the project does that for every feature. In the JSON, \"cause\" is why the feature is needed (what users could not do), \"fix\" is what was added.";
+
 fn fixp(a: &Ax, j: &Job, fb: &str) -> String {
     let h = format!("Repository: {}. Branch {} is checked out. Base commit: {}.", j.repo, j.s("br"), j.s("base"));
     if j.kind == "review" {
@@ -760,10 +782,12 @@ fn fixp(a: &Ax, j: &Job, fb: &str) -> String {
     }
     let ci = rp(a, &j.repo)["ci"].as_str().unwrap_or("").to_string();
     let h = if ci.is_empty() { h } else { format!("{h} The repository's full test command is `{ci}`; your test_cmd runs in a fresh shell from the repo root, so use the same environment (for example the same virtualenv or package manager).") };
+    let h = if j.feat() { format!("{h}\n{FEAT}") } else { h };
     format!(
-        "{h}\n{}:\n{}\n\nRepro result (from a previous agent): {}{}{}",
+        "{h}\n{}:\n{}\n\n{} (from a previous agent): {}{}{}",
         j.orig(),
         wrap("issue", &format!("{}\n\n{}", j.title, j.s("body"))),
+        if j.feat() { "Implementation plan" } else { "Repro result" },
         j.d["repro"],
         if fb.is_empty() { String::new() } else { format!("\n\nYour previous attempt was rejected by the pipeline:\n{fb}\nThe branch still contains your previous commits; fix the problems and make sure there are exactly two commits (test, fix) on top of the base commit.") },
         format!("{}{}",rules(a, j),crate::quality::context(j))
@@ -1838,6 +1862,11 @@ mod t {
         assert!(judge(&ts, 1, "something else failed", 0, "").contains("No failure"));
         assert!(judge(&ts, 101, "t_empty FAILED", 1, "boom").contains("fails with the fix"));
         assert!(judge(&ts, 1, "t_empty", 0, "[checkout failed]").contains("checkout"));
+        assert!(judgef(&ts, 101, "error[E0425]: cannot find function", 0, "test m::t_empty ... ok").is_empty());
+        assert!(judgef(&ts, 101, "error[E0425]: cannot find function", 0, "test other ... ok").contains("None of the named"));
+        assert!(judgef(&ts, 101, "error[E0425]: cannot find function", 1, "t_empty FAILED").contains("fails with the feature"));
+        assert!(judgef(&ts, 0, "", 0, "").contains("already passes"));
+        assert!(judgef(&ts, 101, "t_empty FAILED", 1, "boom").contains("with the feature"));
     }
 
     #[test]
@@ -1855,6 +1884,11 @@ mod t {
         assert!(b.starts_with("Found while testing `a.rs:3`"));
         assert!(!b.contains("#0"));
         assert!(b.contains("Regression tests `a`, `b`: fail on"));
+        let fj = Job::of(json!({"id": 7, "repo": "o/r", "num": 9, "kind": "fix", "title": "T", "d": {"mn": "main", "feat": true}}));
+        let b = body(&fj, &f, "cargo test", "");
+        assert!(b.starts_with("Closes #9"));
+        assert!(b.contains("## Why") && b.contains("## Change") && !b.contains("## Cause"));
+        assert!(b.contains("Test `t1`: fails on `main` without the change"));
     }
 
     #[test]

@@ -65,8 +65,10 @@ async fn scout1(a: &Ax) -> R<()> {
     let me = crate::gh::login(a).await;
     let no = Regex::new(r"(?i)\b(enhancement|feature|question|wontfix|won't fix|duplicate|invalid|discussion|idea|roadmap|docs?|documentation)\b").unwrap();
     let ft = Regex::new(r"(?i)^\s*(\[?feat(ure)?\]?|\[?request\]?|idea|proposal)[:\] ]").unwrap();
-    let rs = a.db.all("select full from rp where on_=1 and iss=1 and ci<>''", pa![]);
+    let nf = Regex::new(r"(?i)\b(question|wontfix|won't fix|duplicate|invalid|discussion|docs?|documentation)\b").unwrap();
+    let rs = a.db.all("select full, feat from rp where on_=1 and iss=1 and ci<>''", pa![]);
     for r in rs {
+        let fe = r["feat"].as_i64().unwrap_or(0) == 1;
         let r = r["full"].as_str().unwrap_or("").to_string();
         let b = bl(a, &r);
         if b == 0 || qn(a, &r, "'vet','ready'") >= 4 * b {
@@ -88,7 +90,8 @@ async fn scout1(a: &Ax) -> R<()> {
             if a.db.one("select upd from seen where repo=? and num=?", pa![r.clone(), n]).map(|x| x["upd"].as_str() == Some(&up)).unwrap_or(false) {
                 continue;
             }
-            if i["labels"].as_array().map(|l| l.iter().any(|x| no.is_match(x["name"].as_str().unwrap_or("")))).unwrap_or(false) || ft.is_match(i["title"].as_str().unwrap_or("")) {
+            let nx = if fe { &nf } else { &no };
+            if i["labels"].as_array().map(|l| l.iter().any(|x| nx.is_match(x["name"].as_str().unwrap_or("")))).unwrap_or(false) || (!fe && ft.is_match(i["title"].as_str().unwrap_or(""))) {
                 a.db.run("insert into seen(repo,num,upd) values(?,?,?) on conflict do update set upd=excluded.upd", pa![r.clone(), n, up]);
                 continue;
             }
@@ -101,7 +104,7 @@ async fn scout1(a: &Ax) -> R<()> {
         for b in nw.chunks(15) {
             let ids: Vec<String> = b.iter().map(|i| format!("{r}#{}", i["number"])).collect();
             let p = format!("{}\n\nUse exactly these ids as JSON keys, in this order: {}", b.iter().map(|i| wrap(&format!("{r}#{}", i["number"]), &format!("#{} {}\n\n{}", i["number"], i["title"].as_str().unwrap_or(""), crate::sh::head(i["body"].as_str().unwrap_or(""), 2500)))).collect::<Vec<_>>().join("\n\n"), ids.join(", "));
-            let mut o = Ask::new("scout", a.md("scout"), P("scout"), p);
+            let mut o = Ask::new("scout", a.md("scout"), P(if fe { "scoutf" } else { "scout" }), p);
             o.ef = Some("low");
             let (_, j0) = ask(a, o).await?;
             let Some(js) = by_id(&j0, &ids) else { return Err(X::E("Scout gave no readable verdict".into())) };
@@ -129,7 +132,7 @@ async fn scout1(a: &Ax) -> R<()> {
                     continue;
                 }
                 let v = &js[&id];
-                a.db.jnew(&r, n, "fix", &ti, &u, "vet", v["why"].as_str().unwrap_or(""), json!({"cx": if v["cx"] == "complex" { "complex" } else { "simple" }}), None, 0.0);
+                a.db.jnew(&r, n, "fix", &ti, &u, "vet", v["why"].as_str().unwrap_or(""), json!({"cx": if v["cx"] == "complex" { "complex" } else { "simple" }, "feat": fe && v["kind"] == "feat"}), None, 0.0);
                 a.flow("scout", "vet", &id);
                 a.say("scout", &format!("{id} → Vet: {}", v["why"].as_str().unwrap_or("")), None);
             }
@@ -248,7 +251,7 @@ async fn vet1(a: &Ax, id: i64) -> R<()> {
     for (k, c) in cs.iter().enumerate() {
         ps.push(wrap(&format!("c{k}"), &format!("comment by {} ({})\n\n{}", c["author"]["login"].as_str().unwrap_or(""), c["authorAssociation"].as_str().unwrap_or(""), crate::sh::head(c["body"].as_str().unwrap_or(""), 3000))));
     }
-    let mut o = Ask::new("vet", a.md("vet"), P("vet"), format!("Repository {}.\n\n{}{rl}", j.repo, ps.join("\n\n")));
+    let mut o = Ask::new("vet", a.md("vet"), P(if j.feat() { "vetf" } else { "vet" }), format!("Repository {}.\n\n{}{rl}", j.repo, ps.join("\n\n")));
     o.job = Some(id);
     o.ef = Some("low");
     let (_, js) = ask(a, o).await?;
@@ -258,7 +261,7 @@ async fn vet1(a: &Ax, id: i64) -> R<()> {
     }
     let mut d = j.d.clone();
     d["va"] = json!(now());
-    d["cx"] = json!(if js["cx"] == "complex" || j.s("cx") == "complex" { "complex" } else { "simple" });
+    d["cx"] = json!(if js["cx"] == "complex" || j.s("cx") == "complex" || j.feat() { "complex" } else { "simple" });
     d["hint"] = json!(js["hint"].as_str().unwrap_or(""));
     d["body"] = json!(crate::sh::head(i["body"].as_str().unwrap_or(""), 8000));
     d["title"] = json!(i["title"].as_str().unwrap_or(""));
