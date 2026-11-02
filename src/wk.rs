@@ -351,7 +351,7 @@ async fn comments(r: &str, n: i64, me: &str) -> R<Vec<Value>> {
     }
     for x in b.map_err(X::E)? {
         if x["body"].as_str().map(|s| !s.is_empty()).unwrap_or(false) || x["state"] == "CHANGES_REQUESTED" {
-            o.push(json!({"id": format!("r{}", x["id"]), "by": x["user"]["login"], "as": x["author_association"], "t": format!("[review: {}] {}", x["state"].as_str().unwrap_or(""), x["body"].as_str().unwrap_or("")), "k": "review", "at": x["submitted_at"]}));
+            o.push(json!({"id": format!("r{}", x["id"]), "rid": x["node_id"], "by": x["user"]["login"], "as": x["author_association"], "t": format!("[review: {}] {}", x["state"].as_str().unwrap_or(""), x["body"].as_str().unwrap_or("")), "k": "review", "at": x["submitted_at"]}));
         }
     }
     for x in c.map_err(X::E)? {
@@ -359,6 +359,12 @@ async fn comments(r: &str, n: i64, me: &str) -> R<Vec<Value>> {
         o.push(json!({"id": format!("c{}", x["id"]), "by": x["user"]["login"], "as": x["author_association"], "t": format!("[on {}:{}]\n{dh}{}", x["path"].as_str().unwrap_or(""), x["line"].as_i64().or(x["original_line"].as_i64()).map(|l| l.to_string()).unwrap_or("?".into()), x["body"].as_str().unwrap_or("")), "k": "line", "at": x["created_at"]}));
     }
     Ok(o.into_iter().filter(|x| x["by"].as_str().map(|b| b != me && !bot.is_match(b)).unwrap_or(false)).collect())
+}
+
+async fn pushers(r: &str, n: i64) -> Vec<String> {
+    let Some((o, nm)) = r.split_once('/') else { return vec![] };
+    let q = format!("query{{repository(owner:{o:?},name:{nm:?}){{pullRequest(number:{n}){{reviews(last:100,states:CHANGES_REQUESTED){{nodes{{id authorCanPushToRepository}}}}}}}}}}");
+    ghj(&["api", "graphql", "-f", &format!("query={q}")], 60).await.ok().and_then(|v| v["data"]["repository"]["pullRequest"]["reviews"]["nodes"].as_array().cloned()).unwrap_or_default().into_iter().filter(|x| x["authorCanPushToRepository"] == true).filter_map(|x| x["id"].as_str().map(String::from)).collect()
 }
 
 async fn late(a: &Ax, r: &str, n: i64, me: &str, v: &Value) -> R<()> {
@@ -453,8 +459,8 @@ async fn watch1(a: &Ax) -> R<()> {
         }
         let first = !p["d"]["seen"].as_bool().unwrap_or(false);
         let cs = comments(&r, n, &me).await?;
-        let cr: Vec<String> = if v["reviewDecision"] == "CHANGES_REQUESTED" { cs.iter().filter(|c| c["k"] == "review" && c["t"].as_str().map(|t| t.starts_with("[review: CHANGES_REQUESTED]")).unwrap_or(false)).filter_map(|c| c["by"].as_str().map(String::from)).collect() } else { vec![] };
-        let tr = |c: &Value| MA.contains(&c["as"].as_str().unwrap_or("")) || c["by"].as_str().map(|b| cr.iter().any(|x| x == b)).unwrap_or(false);
+        let cr: Vec<String> = if v["reviewDecision"] == "CHANGES_REQUESTED" { pushers(&r, n).await } else { vec![] };
+        let tr = |c: &Value| MA.contains(&c["as"].as_str().unwrap_or("")) || (c["k"] == "review" && c["t"].as_str().map(|t| t.starts_with("[review: CHANGES_REQUESTED]")).unwrap_or(false) && c["rid"].as_str().map(|x| cr.iter().any(|y| y == x)).unwrap_or(false));
         let mut nw: Vec<Value> = cs.into_iter().filter(|c| a.db.n("select count(*) from cm where id=? or id=?", pa![format!("{r}:{}", c["id"].as_str().unwrap_or("")), c["id"].as_str().unwrap_or("").to_string()]) == 0).collect();
         for c in &nw {
             a.db.run("insert or ignore into cm(id,t) values(?,?)", pa![format!("{r}:{}", c["id"].as_str().unwrap_or("")), now()]);
