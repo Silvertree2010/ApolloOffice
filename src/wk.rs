@@ -428,7 +428,13 @@ async fn watch1(a: &Ax) -> R<()> {
             }
             continue;
         }
-        let v = ghj(&["pr", "view", &n.to_string(), "-R", &r, "--json", "state,mergedAt,updatedAt,title,url,mergeable,headRefName,headRepositoryOwner,headRepository,baseRefName,reviewDecision"], 60).await.map_err(X::E)?;
+        let v = match ghj(&["pr", "view", &n.to_string(), "-R", &r, "--json", "state,mergedAt,updatedAt,title,url,mergeable,headRefName,headRepositoryOwner,headRepository,baseRefName,reviewDecision"], 60).await {
+            Ok(v) => v,
+            Err(e) => {
+                a.say("watcher", &format!("{r}#{n}: {}", crate::sh::head(&e, 200)), None);
+                continue;
+            }
+        };
         let up = v["updatedAt"].as_str().unwrap_or("").to_string();
         let st = if v["mergedAt"].is_string() { "merged".to_string() } else { v["state"].as_str().unwrap_or("OPEN").to_lowercase() };
         a.db.run("update prs set st=?, title=?, upd=?, merged=? where repo=? and num=?", pa![st.clone(), v["title"].as_str().unwrap_or("").to_string(), up.clone(), v["mergedAt"].as_str().map(String::from), r.clone(), n]);
@@ -458,7 +464,13 @@ async fn watch1(a: &Ax) -> R<()> {
             continue;
         }
         let first = !p["d"]["seen"].as_bool().unwrap_or(false);
-        let cs = comments(&r, n, &me).await?;
+        let cs = match comments(&r, n, &me).await {
+            Ok(x) => x,
+            Err(e) => {
+                a.say("watcher", &format!("{tag}: {}", crate::sh::head(&errm(&e), 200)), None);
+                continue;
+            }
+        };
         let cr: Vec<String> = if v["reviewDecision"] == "CHANGES_REQUESTED" { pushers(&r, n).await } else { vec![] };
         let tr = |c: &Value| MA.contains(&c["as"].as_str().unwrap_or("")) || (c["k"] == "review" && c["t"].as_str().map(|t| t.starts_with("[review: CHANGES_REQUESTED]")).unwrap_or(false) && c["rid"].as_str().map(|x| cr.iter().any(|y| y == x)).unwrap_or(false));
         let mut nw: Vec<Value> = cs.into_iter().filter(|c| a.db.n("select count(*) from cm where id=? or id=?", pa![format!("{r}:{}", c["id"].as_str().unwrap_or("")), c["id"].as_str().unwrap_or("").to_string()]) == 0).collect();
