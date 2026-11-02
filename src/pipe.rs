@@ -1630,6 +1630,13 @@ async fn pick(a: &Ax, h: &str) -> Option<i64> {
         if j["kind"] == "hunt" && a.hold("hunter") {
             continue;
         }
+        if !pin && (j["kind"] == "rebase" || j["kind"] == "review") {
+            let tl = a.db.n("select coalesce(sum(ln),0) from hs where on_=1", pa![]);
+            let rr = a.db.n("select count(*) from jobs where kind in ('rebase','review') and st not in ('ready','done','drop','vet','park','approve')", pa![]);
+            if rr >= (tl / 2).max(1) {
+                continue;
+            }
+        }
         if pin && d["h"].as_str().map(|x| x != h).unwrap_or(false) {
             continue;
         }

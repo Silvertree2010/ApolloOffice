@@ -93,12 +93,28 @@ fn state(a: &Ax) -> Value {
             wv[*x]["md"] = json!(a.md(x));
         }
     }
+    for x in a.db.all("select st, count(*) n, max(id) j from jobs where st in ('hunt','repro','fix','ci','review','gate','submit') group by st", pa![]) {
+        let w = match x["st"].as_str().unwrap_or("") {
+            "hunt" => "hunter",
+            "fix" => "fixer",
+            "review" => "reviewer",
+            "gate" => "submit",
+            s => s,
+        };
+        if wv[w].is_object() && x["n"].as_i64().unwrap_or(0) > 0 {
+            wv[w]["n"] = json!(wv[w]["n"].as_i64().unwrap_or(0) + x["n"].as_i64().unwrap_or(0));
+            if wv[w]["st"] != "work" {
+                wv[w]["st"] = json!("work");
+                wv[w]["job"] = x["j"].clone();
+            }
+        }
+    }
     let lm = a.db.kg("lm");
     json!({
         "t": now(), "v": crate::app::V,
         "o": o, "w": wv, "fl": fl, "ln": ln, "cil": cil, "hst": hst,
         "hs": a.db.all("select id, ln, dk, on_ from hs order by id='local' desc, id", pa![]),
-        "q": a.db.all("select id,repo,num,kind,title,url,st,why,pr,t0,t1,json_extract(d,'$.h') h from jobs where st not in ('done','drop') order by st='approve' desc, st='vet', id limit 60", pa![]),
+        "q": a.db.all("select id,repo,num,kind,title,url,st,why,pr,t0,t1,json_extract(d,'$.h') h from jobs where st not in ('done','drop') order by st in ('hunt','repro','fix','ci','review','gate','submit') desc, st='approve' desc, st='vet', id limit 60", pa![]),
         "dn": a.db.all("select id,repo,num,kind,title,url,st,why,pr,t1 from jobs where st in ('done','drop') order by t1 desc limit 25", pa![]),
         "pr": a.db.all("select repo,num,st,title,url,upd,merged from prs order by t0 desc limit 40", pa![]),
         "mg": a.db.all("select substr(merged,1,10) d, count(*) n from prs where merged is not null and merged >= date('now','-30 day') group by 1 order by 1", pa![]),
