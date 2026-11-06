@@ -34,7 +34,7 @@ async fn ck(a: &Ax, k: &str) -> bool {
         "an" => a.hc.get("https://api.anthropic.com/").timeout(std::time::Duration::from_secs(15)).send().await.is_ok(),
         h => match ho(a, h) {
             Some(x) => {
-                let o = hraw(&x, &format!("{{ {HW}; }} 2>/dev/null; {}", if x.dk { "docker inspect -f '{{.State.Running}}' apollo-office | grep -q true" } else { "true" }), 45).await;
+                let o = hraw(&x, &format!("{{ {HW}; }} 2>/dev/null; {}", if x.dk { "docker inspect -f '{{.State.Status}}' apollo-office | grep -qx running" } else { "true" }), 45).await;
                 if o.c == 0 {
                     a.lv.lock().unwrap().hst.insert(h.to_string(), hw(&o.o));
                 }
@@ -59,6 +59,11 @@ pub async fn probe(a: &Ax, ks: &[String]) {
     }
     l.o.off = !*l.o.net.get("gh").unwrap_or(&true) || !*l.o.net.get("an").unwrap_or(&true);
     LAST.store(now(), Ordering::Relaxed);
+}
+
+pub fn down(a: &Ax, k: &str) {
+    FAIL.lock().unwrap().insert(k.to_string(), 2);
+    a.lv.lock().unwrap().o.net.insert(k.to_string(), false);
 }
 
 pub async fn all(a: &Ax) {

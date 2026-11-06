@@ -32,6 +32,7 @@ fn mig(c: &Connection) {
     let _ = c.execute("alter table hs add column cpu int default 0", []);
     let _ = c.execute("alter table rp add column bud real default 0", []);
     let _ = c.execute("alter table rp add column feat int default 0", []);
+    let _ = c.execute("alter table rp add column skl text default ''", []);
 }
 
 pub type P = Vec<Box<dyn ToSql + Send>>;

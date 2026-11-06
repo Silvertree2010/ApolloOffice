@@ -29,7 +29,9 @@ pub fn rp(a: &Ax, r: &str) -> Value {
 
 fn oe(o: &Out, s: &str, h: &str) -> X {
     let m = format!("{h}: {} → exit {}: {}", crate::sh::head(s, 80), o.c, crate::sh::last(if o.e.trim().is_empty() { o.o.trim() } else { o.e.trim() }, 300));
-    if crate::app::netish(&m) {
+    if crate::app::hostish(&m) {
+        X::Host(h.to_string(), m)
+    } else if crate::app::netish(&m) {
         X::Net(m)
     } else {
         X::E(m)
@@ -1534,6 +1536,24 @@ async fn go(a: &Ax, id: i64, h: &str) {
             }
             idle_all(a, id);
         }
+        Err(X::Host(hh, m)) => {
+            crate::net::down(a, &hh);
+            let mut jj = a.db.jg(id).unwrap_or(j.clone());
+            let n = jj.d["ir"].as_i64().unwrap_or(0) + 1;
+            idle_all(a, id);
+            if n > 5 {
+                a.db.jset(id, &[("st", json!("drop")), ("why", json!(format!("machine kept failing: {}", crate::sh::head(&m, 260))))]);
+                a.say("submit", &format!("{} dropped after {} machine failures: {m}", jj.tag(), n - 1), Some(id));
+            } else {
+                jj.d["ir"] = json!(n);
+                let pin = jj.st == "submit" || jj.d["rs"].as_bool().unwrap_or(false) || jj.d["rp"].as_bool().unwrap_or(false);
+                if !pin {
+                    jj.d.as_object_mut().map(|o| o.remove("h"));
+                }
+                a.db.jset(id, &[("st", json!(if jj.st == "submit" { "submit" } else { "ready" })), ("d", jj.d.clone())]);
+                a.say("ci", &format!("[{hh}] machine unavailable, {} goes back to the queue: {}", jj.tag(), crate::sh::head(&m, 160)), Some(id));
+            }
+        }
         Err(x) => {
             let m = match &x {
                 X::Drop(m) => m.clone(),
@@ -1696,6 +1716,14 @@ fn hn(a: &Ax) -> i64 {
     (l - 1 - hf).clamp(1, cap)
 }
 
+pub fn hy(a: &Ax, r: &str) -> f64 {
+    let t = now() - 14 * 86_400_000;
+    let h = a.db.n("select count(*) from jobs where repo=? and kind='hunt' and t0>?", pa![r.to_string(), t]);
+    let m = a.db.n("select count(*) from jobs j join prs p on p.repo=j.repo and p.num=j.pr where j.repo=? and j.kind='fix' and j.num=0 and j.t0>? and p.st='merged'", pa![r.to_string(), t]);
+    let s = a.db.n("select count(*) from prs where repo=? and st='open' and t0<?", pa![r.to_string(), now() - 7 * 86_400_000]);
+    (m as f64 + 1.0) / (h as f64 + 2.0) / (1.0 + s as f64 / 10.0)
+}
+
 fn mk_hunt(a: &Ax) -> bool {
     let on = a.db.all("select repo from jobs where kind='hunt' and st not in ('done','drop','park')", pa![]);
     if on.len() as i64 >= hn(a) {
@@ -1706,7 +1734,8 @@ fn mk_hunt(a: &Ax) -> bool {
     let act: Vec<String> = a.act.lock().unwrap().iter().map(|k| k.split(' ').next().unwrap_or("").to_string()).collect();
     let cnt = |r: &str| a.db.n("select count(*) from jobs where kind='hunt' and repo=? and t0>?", pa![r.to_string(), d0]);
     let mut c: Vec<String> = rs.into_iter().filter(|r| !act.contains(r) && !on.iter().any(|x| x["repo"].as_str() == Some(r.as_str())) && { let b = bl(a, r); b > 0 && qn(a, r, "'vet','ready'") < 4 * b }).collect();
-    c.sort_by_key(|r| cnt(r));
+    let sc = |r: &str| (cnt(r) as f64 + 1.0) / hy(a, r);
+    c.sort_by(|x, y| sc(x).partial_cmp(&sc(y)).unwrap_or(std::cmp::Ordering::Equal));
     let Some(r) = c.first() else { return false };
     a.db.jnew(r, 0, "hunt", &format!("Hunt for bugs in {r}"), &format!("https://github.com/{r}"), "ready", "hunter slot", json!({}), None, 99.0);
     a.say("hunter", &format!("starting a hunt in {r}"), None);

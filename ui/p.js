@@ -91,24 +91,57 @@
     cfg = await get("/api/cfg");
     show("Repos", "repos");
     const rs = cfg.repos;
-    B.innerHTML = `<div class="sec"><h4>Add a repository</h4><div class="box"><form id="fa" class="acts" style="margin:0"><input type="text" name="full" placeholder="owner/name or GitHub link" style="flex:1;min-width:200px"><button class="pri">Add</button></form><div class="msg" id="am"></div></div></div>
-    <div class="sec"><h4>${rs.length} ${rs.length === 1 ? "repository" : "repositories"}</h4>${rs.map((r) => `<form class="box" data-r="${esc(r.full)}"><div class="hd2"><b>${esc(r.full)}</b>${tg("on_", r.on_, "active")}</div>
+    let op = new Set();
+    try { op = new Set(JSON.parse(sessionStorage.getItem("ao.ro") || "[]")); } catch {}
+    const chip = (c, t, ti) => `<span class="chip ${c}" title="${esc(ti || "")}">${t}</span>`;
+    const st = (r) => {
+      const x = r.st || {}, c = [];
+      if (!yes(r.on_)) c.push(chip("", "paused", "Not active"));
+      if (!r.ci) c.push(chip("bad", "no tests", "No test command"));
+      if (x.red) c.push(chip("bad", "main red", "CI is red on the default branch, jobs wait"));
+      if (yes(r.iss)) c.push(chip(x.iv > 0 ? "" : "info", x.iv > 0 ? `issues · every ${x.iv >= 60 ? x.iv / 60 + " h" : x.iv + " min"}` : "issues", x.iv > 0 ? "Issues here rarely become PRs, so the Scout checks less often" : "Works on open issues"));
+      if (yes(r.hunt)) c.push(chip("info", "hunt", "Hunts for bugs itself"));
+      if (yes(r.feat)) c.push(chip("info", "features", "Builds requested features"));
+      c.push(chip(r.mode === "auto" ? "ok" : "", r.mode === "auto" ? "auto PR" : "approve", r.mode === "auto" ? "Submits pull requests automatically" : "Waits for your approval"));
+      return c.join("");
+    };
+    const nums = (r) => {
+      const x = r.st || {};
+      const it = (v, l, c, ti) => `<span title="${esc(ti)}"><b class="${c || ""}">${v ?? 0}</b> ${l}</span>`;
+      return [it(x.m14, "merged", "ok2", "Merged in the last 14 days"), it(x.op, "open", "", "Open pull requests"), x.old ? it(x.old, "open > 7 d", "bad2", "Open longer than 7 days without merge") : "", yes(r.iss) ? it(`${x.ik || 0}/${x.is || 0}`, "issues → PR", x.is >= 30 && !x.ik ? "bad2" : "", "Issues taken in the last 14 days that became a pull request") : "", it(x.q, "queued", "", "Jobs waiting in Vet or ready"), it(usd(x.usd || 0), "14 d", "", "API cost in the last 14 days")].filter(Boolean).join("");
+    };
+    B.innerHTML = `<div class="sec"><div class="box"><form id="fa" class="acts" style="margin:0"><input type="text" name="full" placeholder="Add a repository: owner/name or GitHub link" style="flex:1;min-width:200px"><button class="pri">Add</button></form><div class="msg" id="am"></div></div></div>
+    <div class="sec"><div class="rh"><h4>${rs.length} ${rs.length === 1 ? "repository" : "repositories"}</h4>${rs.length > 4 ? `<input type="text" id="rq" placeholder="Filter" autocomplete="off">` : ""}</div>${rs.map((r) => `<form class="box rr" data-r="${esc(r.full)}"><details ${op.has(r.full) ? "open" : ""}><summary><span class="rn">${esc(r.full)}</span><span class="rc">${st(r)}</span><span class="rs">${nums(r)}</span></summary>
       ${r.ci ? "" : `<div class="warn">No test command found. Enter the command that runs this repository's tests, otherwise nothing happens here.</div>`}
       <div class="fm">
+        <label>Status</label>${tg("on_", r.on_, "active")}
         <label>Work on</label><div class="acts" style="margin:0">${tg("iss", r.iss, "open issues")}${tg("hunt", r.hunt, "hunt for bugs itself")}${tg("feat", r.feat, "build requested features")}</div>
+        <label>Skip labels</label><input type="text" name="skl" value="${esc(r.skl || "")}" placeholder="e.g. area:kernel, needs-design">
+        <div class="hint">Issues with one of these labels are never picked up. Labels like paused, blocked, on hold, epic or tracking are always skipped.</div>
         <label>Test command</label><input type="text" name="ci" value="${esc(r.ci)}" placeholder="e.g. cargo test, npm test, pytest">
         <div class="hint">Runs from the repository root. A fix is only submitted when this passes.</div>
         <label>Setup command</label><input type="text" name="setup" value="${esc(r.setup)}" placeholder="optional, e.g. npm ci">
         <div class="hint">Runs before every job, after checkout.</div>
         <label>Pull requests</label><select name="mode"><option value="ask" ${r.mode !== "auto" ? "selected" : ""}>wait for my approval</option><option value="auto" ${r.mode === "auto" ? "selected" : ""}>submit automatically</option></select>
-        <label>Max open PRs</label><input type="number" name="maxo" min="0" max="10000" value="${r.maxo}">
-        <label>Max new PRs per day</label><input type="number" name="maxd" min="0" max="10000" value="${r.maxd}">
-        <label>Daily budget</label><input type="number" name="bud" min="0" step="0.01" value="${r.bud || 0}"><div class="hint">USD for API keys, 0 = no limit. Jobs of this repository wait until midnight once it is used up.</div>
+        <label>Limits</label><div class="lm"><span>open</span><input type="number" name="maxo" min="0" max="10000" value="${r.maxo}"><span>new per day</span><input type="number" name="maxd" min="0" max="10000" value="${r.maxd}"><span>USD per day</span><input type="number" name="bud" min="0" step="0.01" value="${r.bud || 0}"></div>
+        <div class="hint">Most open PRs at once and new PRs per day. The daily budget counts API keys only, 0 = no limit.</div>
         <label>PR footer</label>${tg("nm", r.nm ?? 1, "mention ApolloOffice with a link")}
         <div class="hint">The AI note and the Co-Authored-By trailers are always added.</div>
-        <label>Your rules</label><textarea name="rules" placeholder="optional, e.g. only issues labeled bug; never touch the plugin API">${esc(r.rules)}</textarea>
+        <label>Your rules</label><textarea name="rules" placeholder="optional, e.g. never touch the plugin API">${esc(r.rules)}</textarea>
       </div>
-      <div class="acts"><button class="pri" data-op="set">Save</button><button type="button" data-op="detect">Detect test command</button><span class="sp"></span><button type="button" class="dng" data-op="del">Remove</button></div><div class="msg"></div></form>`).join("") || `<div class="empty">No repository yet.</div>`}</div>`;
+      <div class="acts"><button class="pri" data-op="set" disabled>Saved</button><button type="button" data-op="detect">Detect test command</button><span class="sp"></span><button type="button" class="dng" data-op="del">Remove</button></div><div class="msg"></div></details></form>`).join("") || `<div class="empty">No repository yet.</div>`}</div>`;
+    if ($("rq")) $("rq").oninput = (e) => { const q = e.target.value.trim().toLowerCase(); for (const f of B.querySelectorAll("form.rr")) f.hidden = q && !f.dataset.r.toLowerCase().includes(q); };
+    for (const d of B.querySelectorAll("form.rr details")) d.ontoggle = () => {
+      const k = d.closest("form").dataset.r;
+      d.open ? op.add(k) : op.delete(k);
+      try { sessionStorage.setItem("ao.ro", JSON.stringify([...op])); } catch {}
+    };
+    for (const f of B.querySelectorAll("form.rr")) {
+      const sb = f.querySelector('[data-op="set"]');
+      const dirty = () => { sb.disabled = false; sb.textContent = "Save changes"; f.querySelector(".msg").textContent = ""; };
+      f.addEventListener("input", dirty);
+      f.addEventListener("change", dirty);
+    }
     $("fa").onsubmit = async (e) => {
       e.preventDefault();
       const b = e.target.querySelector("button"), m = $("am");
@@ -137,15 +170,15 @@
           busy(b, true, "Detecting…");
           const r = await post({ op: "detect", full }, "/api/repo");
           busy(b, false, "Detect test command");
-          if (r.ci) { f.ci.value = r.ci; if (r.setup && !f.setup.value) f.setup.value = r.setup; m.textContent = "Detected. Save to keep it."; }
+          if (r.ci) { f.ci.value = r.ci; if (r.setup && !f.setup.value) f.setup.value = r.setup; f.dispatchEvent(new Event("change")); m.textContent = "Detected. Save to keep it."; }
           else m.textContent = "Nothing detected.";
           return;
         }
         busy(b, true, "Saving…");
         const r = await post({ op: "set", full, ...fv(f) }, "/api/repo");
-        busy(b, false, "Save");
-        m.className = r.error ? "msg bad2" : "msg";
-        m.textContent = r.error || "Saved.";
+        if (r.error) { busy(b, false, "Save changes"); m.className = "msg bad2"; m.textContent = r.error; return; }
+        busy(b, true, "Saved");
+        m.className = "msg"; m.textContent = "";
       };
     }
   };
@@ -258,9 +291,15 @@
     const s = cfg.set, u = cfg.upd || {};
     const keys = cfg.prov.filter((p) => p.key);
     const ol = cfg.prov.find((p) => p.id === "ollama");
-    const ust = u.ready && u.ready !== A.S?.v ? `Update ${esc(u.ready)} is downloaded.` : u.err ? `Last check: ${esc(u.err)}` : u.latest ? `Latest release: ${esc(u.latest)}` : "Not checked yet.";
-    B.innerHTML = `<form id="fs">
-      <div class="sec"><h4>Providers</h4><div class="box"><div class="fm" style="margin:0">
+    const vg = (x, y) => { const a = String(x || "").replace(/^v/, "").split(".").map(Number), b = String(y || "").replace(/^v/, "").split(".").map(Number); for (let i = 0; i < 3; i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0); return false; };
+    const nu = u.ready && vg(u.ready, A.S?.v);
+    const ust = nu ? `Update ${esc(u.ready)} is downloaded.` : u.err ? `Last check: ${esc(u.err)}` : u.latest ? `Latest release: ${esc(u.latest)}` : "Not checked yet.";
+    const TB = [["gen", "General"], ["md", "Models"], ["prov", "Providers"], ["ntf", "Notifications"], ["int", "Integrations"], ["sys", "System"]];
+    let tb = "gen";
+    try { tb = localStorage.getItem("ao.st") || "gen"; } catch {}
+    if (!TB.some(([k]) => k === tb)) tb = "gen";
+    B.innerHTML = `<div class="tabs stb" role="tablist">${TB.map(([k, l]) => `<button type="button" role="tab" data-tb="${k}">${l}</button>`).join("")}</div><form id="fs">
+      <div data-tab="prov" class="sec"><h4>Providers</h4><div class="box"><div class="fm" style="margin:0">
         ${keys.map((p) => `<label>${esc(p.nm)}</label><input type="password" autocomplete="off" data-key="${p.id}" placeholder="${p.has ? "saved · type to replace, clear with a single space" : "API key"}">`).join("")}
         <label>Claude Code token</label><input type="password" autocomplete="off" data-key="cc" placeholder="${cfg.prov.find((p) => p.id === "cc").tok ? "saved · type to replace, clear with a single space" : "optional, from claude setup-token"}">
         <label>or keychain item</label><input type="text" name="cckc" value="${esc(s.prov?.cc?.kc || "")}" placeholder="optional, macOS keychain service name">
@@ -269,27 +308,27 @@
         <label>Ollama context</label><input type="number" name="octx" min="2048" step="1024" value="${s.prov?.ollama?.ctx || 32768}"><div class="hint">Tokens per request. Ollama's default of 4096 is too small for the workers.</div>
         <div class="hint">Keys are stored encrypted on this computer. Claude Code and Codex use their own CLI logins. Pick a model per worker under Models below.</div>
       </div></div></div>
-      <div class="sec"><h4>Models</h4><div class="box"><div class="fm" style="margin:0">
+      <div data-tab="md" class="sec"><h4>Models</h4><div class="box"><div class="fm" style="margin:0">
         ${["scout", "guard", "vet", "hunter", "repro", "fixer", "reviewer", "watcher"].map((w) => `<label>${esc(A.NM?.[w] || w)}</label><div class="ck"><span style="flex:1">${RK[w].map(([k, l]) => esc((RK[w].length > 1 ? l + ": " : "") + (A.mdn ? A.mdn(s.md[k]) : s.md[k]))).join(" · ")}</span><button type="button" data-role="${w}">Change</button></div>`).join("")}
         <div class="hint">Also reachable with the gear on each worker's card.</div>
       </div></div></div>
-      <div class="sec"><h4>Sign in</h4><div class="box">${cfg.google ? `<div class="ck"><b class="ok2">Google</b> ${esc(cfg.google)} can sign in.</div><div class="acts"><button type="button" class="dng" id="gu">Disconnect Google</button></div>` : `<div class="ck">Sign in with a one-time link from <code>apollo-office login-link</code>, or connect a Google account.</div><div class="acts"><button type="button" id="gl">Connect Google account</button></div>`}</div></div>
-      <div class="sec"><h4>Work</h4><div class="box"><div class="fm" style="margin:0">
+      <div data-tab="gen" class="sec"><h4>Sign in</h4><div class="box">${cfg.google ? `<div class="ck"><b class="ok2">Google</b> ${esc(cfg.google)} can sign in.</div><div class="acts"><button type="button" class="dng" id="gu">Disconnect Google</button></div>` : `<div class="ck">Sign in with a one-time link from <code>apollo-office login-link</code>, or connect a Google account.</div><div class="acts"><button type="button" id="gl">Connect Google account</button></div>`}</div></div>
+      <div data-tab="gen" class="sec"><h4>Work</h4><div class="box"><div class="fm" style="margin:0">
         <label>Hunters</label><input type="number" name="hunters" min="0" max="12" value="${s.hunters}"><div class="hint">How many bug hunts may run at once (only in repos with hunting on).</div>
         <label>Daily token limit</label><input type="number" name="tokday" min="0" value="${s.tokday}"><div class="hint">0 = no limit. The office always pauses when a provider reports a usage limit.</div>
         <label>Working hours</label><div class="acts" style="margin:0;align-items:center">${tg("whon", s.wh?.on, "only work from")}<input type="time" name="whf" value="${esc(s.wh?.from || "08:00")}" style="width:auto"> to <input type="time" name="wht" value="${esc(s.wh?.to || "22:00")}" style="width:auto"></div><div class="hint">Outside these hours the office pauses; running steps finish first. Times of this computer.</div>
       </div></div></div>
-      <div class="sec"><h4>Appearance</h4><div class="box"><div class="fm" style="margin:0">
+      <div data-tab="gen" class="sec"><h4>Appearance</h4><div class="box"><div class="fm" style="margin:0">
         <label>Theme</label><select id="thm"><option value="dark">Dark</option><option value="light">Light</option><option value="system">Like the system</option></select>
         <div class="hint">Saved in this browser.</div>
       </div></div></div>
-      <div class="sec"><h4>Notifications</h4><div class="box"><div class="fm" style="margin:0">
+      <div data-tab="ntf" class="sec"><h4>Notifications</h4><div class="box"><div class="fm" style="margin:0">
         <label>In this browser</label><label class="ck"><input type="checkbox" id="bnt"> show a desktop notification when a pull request waits for review</label>
         <div class="hint" id="bnh">Only while this tab is open somewhere.</div>
         <label>ntfy topic URL</label><input type="text" name="ntfy" value="${esc(s.ntfy)}" placeholder="https://ntfy.sh/your-secret-topic">
         <label>Discord webhook</label><input type="text" name="discord" value="${esc(s.discord)}" placeholder="https://discord.com/api/webhooks/…">
       </div><div class="acts"><button type="button" id="bt">Send test</button></div></div></div>
-      <div class="sec"><h4>API</h4><div class="box">
+      <div data-tab="int" class="sec"><h4>API</h4><div class="box">
         <div class="ck">${cfg.api.on ? `<b class="ok2">On</b> token created ${new Date(cfg.api.t0).toLocaleDateString()}${cfg.api.last ? ", last used " + new Date(cfg.api.last).toLocaleString() : ", not used yet"}` : "Off. Create a token to send bug reports from your own tools (error trackers, CI, scripts)."}</div>
         <div id="atk" hidden><input type="text" readonly id="atv" style="margin-top:8px"><div class="hint" style="margin-top:6px">Copy it now, it is shown only once.</div></div>
         <pre class="df" style="margin-top:8px;white-space:pre-wrap">curl -X POST http://127.0.0.1:${cfg.api.port}/v1/report \\
@@ -297,27 +336,40 @@
   -d '{"repo":"owner/name","title":"Crash on empty input","body":"Steps and what happens","logs":"stack trace","src":"Sentry"}'</pre>
         <div class="hint">Or send <code>{"repo":"owner/name","issue":42}</code> to have an existing issue picked up now. <code>GET /v1/report?id=…</code> returns the state and the PR link. Reports go through Guard and Vet like issues; only this computer can reach the API.</div>
         <div class="acts"><button type="button" id="an">${cfg.api.on ? "Replace token" : "Create token"}</button>${cfg.api.on ? `<button type="button" class="dng" id="ao">Revoke</button>` : ""}</div></div></div>
-      <div class="sec"><h4>Error trackers</h4><div class="box">
+      <div data-tab="int" class="sec"><h4>Error trackers</h4><div class="box">
         <div class="ck">${cfg.hook.on ? `<b class="ok2">On</b> link created ${new Date(cfg.hook.t0).toLocaleDateString()}` : "Off. Create a link to let Sentry or GlitchTip send errors as reports."}</div>
         <div id="htk" hidden><input type="text" readonly id="htv" style="margin-top:8px"><div class="hint" style="margin-top:6px">Copy it now, the key is shown only once. Replace owner/name with the repository.</div></div>
         <div class="hint" style="margin-top:6px">Sentry: add an internal integration with this webhook URL and alert rule actions. GlitchTip: add it as a webhook alert. The office has to be reachable from the internet for this, for example through a tunnel; use that address instead of 127.0.0.1. The same error goes into one report. Senders that can set headers can pass the key as <code>X-Hook-Key</code> instead of in the URL. The key can only create reports; replace the link if it leaks.</div>
         <div class="hint">GitHub Actions: a failed run can report itself with <code>Silvertree2010/ApolloOffice/report</code>, see the README.</div>
         <div class="acts"><button type="button" id="hn">${cfg.hook.on ? "Replace link" : "Create link"}</button>${cfg.hook.on ? `<button type="button" class="dng" id="ho">Revoke</button>` : ""}</div></div></div>
-      <div class="sec"><h4>Updates</h4><div class="box">${tg("updates", s.updates, "install updates automatically when the office is idle")}<div class="msg" id="um">${ust}</div><div class="acts"><button type="button" id="uc">Check now</button>${u.ready && u.ready !== A.S?.v ? `<button type="button" class="pri" id="ua">Install and restart</button>` : ""}</div></div></div>
-      <div class="sec"><h4>Export and import</h4><div class="box"><div class="ck">Settings, repositories, machines and models as a JSON file. API keys, tokens, logins and notification addresses are not included.</div>
+      <div data-tab="sys" class="sec"><h4>Updates</h4><div class="box">${tg("updates", s.updates, "install updates automatically when the office is idle")}<div class="msg" id="um">${ust}</div><div class="acts"><button type="button" id="uc">Check now</button>${nu ? `<button type="button" class="pri" id="ua">Install and restart</button>` : ""}</div></div></div>
+      <div data-tab="sys" class="sec"><h4>Export and import</h4><div class="box"><div class="ck">Settings, repositories, machines and models as a JSON file. API keys, tokens, logins and notification addresses are not included.</div>
         <div class="acts"><button type="button" id="ex">Export</button><button type="button" id="im">Import…</button><input type="file" id="imf" accept="application/json,.json" hidden></div><div class="msg" id="xm"></div></div></div>
-      <div class="sec"><h4>This installation</h4><div class="box"><div class="fm" style="margin:0">
+      <div data-tab="sys" class="sec"><h4>This installation</h4><div class="box"><div class="fm" style="margin:0">
         <label>Start at login</label>${tg("auto", cfg.auto, "start ApolloOffice when I log in")}
         <label>Data folder</label><span class="mono" style="font-size:12px;word-break:break-all">${esc(cfg.data)}</span>
         <label>Version</label><span class="mono" style="font-size:12px">${esc(A.S?.v || "")} · ${esc(cfg.asset)}</span>
       </div></div></div>
-      <div class="acts"><button class="pri">Save</button></div><div class="msg" id="sm"></div></form>
-      <div class="sec dz"><h4>Danger zone</h4><div class="box">
+      <div class="sbar" id="sbar" hidden><span id="sm">Unsaved changes</span><span class="sp"></span><button type="button" id="sx">Discard</button><button class="pri">Save</button></div></form>
+      <div data-tab="sys" class="sec dz"><h4>Danger zone</h4><div class="box">
         <div class="dzr"><div><b>Sign out everywhere</b><div class="hint">Ends every session, including this one. You need a new link from <code>apollo-office login-link</code>.</div></div><button type="button" class="dng" data-dz="logout">Sign out everywhere</button></div>
         <div class="dzr"><div><b>Clear job history</b><div class="hint">Deletes finished and dropped jobs and their log. Pull requests and costs stay.</div></div><button type="button" class="dng" data-dz="history">Clear history</button></div>
         <div class="dzr"><div><b>Reset settings</b><div class="hint">Models, limits, budgets, notifications and paused workers go back to defaults. Keys, repositories and machines stay.</div></div><button type="button" class="dng" data-dz="reset">Reset settings</button></div>
         <div class="dzr"><div><b>Delete all data</b><div class="hint">Deletes repositories, machines, jobs, pull request history, costs, settings and stored API keys. Nothing on GitHub changes. Type <code>delete</code> to confirm.</div><input type="text" id="dzw" placeholder="delete" autocomplete="off" style="margin-top:6px;max-width:160px"></div><button type="button" class="dng" data-dz="wipe">Delete everything</button></div>
         <div class="msg" id="dzm"></div></div></div>`;
+    const stab = (k) => {
+      tb = k;
+      try { localStorage.setItem("ao.st", k); } catch {}
+      for (const b of B.querySelectorAll("[data-tb]")) b.classList.toggle("on", b.dataset.tb === k);
+      for (const x of B.querySelectorAll("[data-tab]")) x.hidden = x.dataset.tab !== k;
+    };
+    for (const b of B.querySelectorAll("[data-tb]")) b.onclick = () => stab(b.dataset.tb);
+    stab(tb);
+    const ign = new Set(["thm", "bnt", "imf", "atv", "htv", "dzw"]);
+    const dirty = (e) => { if (ign.has(e.target.id)) return; $("sbar").hidden = false; $("sbar").className = "sbar"; $("sm").className = ""; $("sm").textContent = "Unsaved changes"; };
+    $("fs").addEventListener("input", dirty);
+    $("fs").addEventListener("change", dirty);
+    $("sx").onclick = () => settings();
     $("thm").value = window.TH.get();
     $("thm").onchange = (e) => window.TH.set(e.target.value);
     try { $("bnt").checked = localStorage.getItem("ao.nt") === "1" && "Notification" in window && Notification.permission === "granted"; } catch {}
@@ -366,12 +418,14 @@
       for (const e of f.querySelectorAll("[data-key]")) {
         if (!e.value) continue;
         const r = await post({ id: e.dataset.key, key: e.value.trim() }, "/api/prov");
-        if (r.error) { $("sm").className = "msg bad2"; $("sm").textContent = r.error; return; }
+        if (r.error) { $("sbar").hidden = false; $("sm").className = "bad2"; $("sm").textContent = r.error; return; }
       }
       const r = await post({ wh: { on: v.whon, from: v.whf, to: v.wht }, hunters: v.hunters, tokday: v.tokday, ntfy: v.ntfy, discord: v.discord, auto: v.auto, updates: v.updates, ollama: v.ollama, octx: v.octx, cckc: v.cckc, test }, "/api/set");
-      if (r.error) { $("sm").className = "msg bad2"; $("sm").textContent = r.error; return; }
+      if (r.error) { $("sbar").hidden = false; $("sm").className = "bad2"; $("sm").textContent = r.error; return; }
       await settings();
-      $("sm").textContent = test ? "Saved and test sent." : "Saved.";
+      const sb = $("sbar");
+      sb.hidden = false; sb.className = "sbar done"; $("sm").textContent = test ? "Saved and test sent." : "Saved.";
+      setTimeout(() => { if (sb.isConnected && sb.classList.contains("done")) sb.hidden = true; }, 1800);
     };
     $("fs").onsubmit = (e) => { e.preventDefault(); send(false); };
     for (const b of B.querySelectorAll("[data-role]")) b.onclick = () => role(b.dataset.role);
@@ -494,6 +548,9 @@
   A.hosts = hosts;
   $("bSet").innerHTML = A.GEAR;
   $("bSet").onclick = settings;
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "s" && !dr.hidden && cur === "set" && $("sbar") && !$("sbar").hidden) { e.preventDefault(); $("fs").requestSubmit(); }
+  });
   let asked = false;
   A.onState = (s) => {
     if (!asked && (s.nr === 0 || !s.hs.length)) { asked = true; setup(); }

@@ -66,14 +66,22 @@ async fn scout1(a: &Ax) -> R<()> {
     let no = Regex::new(r"(?i)\b(enhancement|feature|question|wontfix|won't fix|duplicate|invalid|discussion|idea|roadmap|docs?|documentation)\b").unwrap();
     let ft = Regex::new(r"(?i)^\s*(\[?feat(ure)?\]?|\[?request\]?|idea|proposal)[:\] ]").unwrap();
     let nf = Regex::new(r"(?i)\b(question|wontfix|won't fix|duplicate|invalid|discussion|docs?|documentation)\b").unwrap();
-    let rs = a.db.all("select full, feat from rp where on_=1 and iss=1 and ci<>''", pa![]);
+    let hold = Regex::new(r"(?i)paused|blocked|on[- ]?hold|frozen|needs[- ]?(design|decision|discussion|triage|info)|\b(epic|tracking|meta|umbrella|rfc)\b").unwrap();
+    let rs = a.db.all("select full, feat, skl from rp where on_=1 and iss=1 and ci<>''", pa![]);
     for r in rs {
         let fe = r["feat"].as_i64().unwrap_or(0) == 1;
+        let sk = skl(r["skl"].as_str().unwrap_or(""));
         let r = r["full"].as_str().unwrap_or("").to_string();
         let b = bl(a, &r);
         if b == 0 || qn(a, &r, "'vet','ready'") >= 4 * b {
             continue;
         }
+        let sw = format!("sc:{r}");
+        let iv = ivl(a, &r);
+        if iv > 0 && a.db.kg(&sw).as_i64().map(|t| now() - t < iv).unwrap_or(false) {
+            continue;
+        }
+        a.db.ks(&sw, &json!(now()));
         a.held("scout").await;
         a.st("scout", "work", None, "");
         let is = ghj(&["issue", "list", "-R", &r, "--state", "open", "--limit", "200", "--json", "number,title,body,author,updatedAt,labels,assignees,url"], 120).await.map_err(X::E)?;
@@ -91,12 +99,22 @@ async fn scout1(a: &Ax) -> R<()> {
                 continue;
             }
             let nx = if fe { &nf } else { &no };
-            if i["labels"].as_array().map(|l| l.iter().any(|x| nx.is_match(x["name"].as_str().unwrap_or("")))).unwrap_or(false) || (!fe && ft.is_match(i["title"].as_str().unwrap_or(""))) {
+            if i["labels"].as_array().map(|l| l.iter().any(|x| { let ln = x["name"].as_str().unwrap_or(""); nx.is_match(ln) || hold.is_match(ln) || sk.iter().any(|k| k == &ln.to_lowercase()) })).unwrap_or(false) || (!fe && ft.is_match(i["title"].as_str().unwrap_or(""))) {
                 a.db.run("insert into seen(repo,num,upd) values(?,?,?) on conflict do update set upd=excluded.upd", pa![r.clone(), n, up]);
                 continue;
             }
             nw.push(i);
         }
+        let mut nk = vec![];
+        for i in nw {
+            let n = i["number"].as_i64().unwrap_or(0);
+            if crate::gh::refs(&r, n).await.map(|x| !crate::gh::live(x).is_empty()).unwrap_or(false) {
+                a.db.run("insert into seen(repo,num,upd) values(?,?,?) on conflict do update set upd=excluded.upd", pa![r.clone(), n, i["updatedAt"].as_str().unwrap_or("").to_string()]);
+            } else {
+                nk.push(i);
+            }
+        }
+        let nw = nk;
         if nw.is_empty() {
             continue;
         }
@@ -140,6 +158,23 @@ async fn scout1(a: &Ax) -> R<()> {
     }
     a.st("scout", "idle", None, "");
     Ok(())
+}
+
+pub fn skl(s: &str) -> Vec<String> {
+    s.split([',', '\n']).map(|x| x.trim().to_lowercase()).filter(|x| !x.is_empty()).collect()
+}
+
+pub fn ivl(a: &Ax, r: &str) -> i64 {
+    let t = now() - 14 * 86_400_000;
+    let n = a.db.n("select count(*) from jobs where repo=? and num>0 and kind='fix' and t0>?", pa![r.to_string(), t]);
+    let k = a.db.n("select count(*) from jobs where repo=? and num>0 and kind='fix' and t0>? and st not in ('drop','vet')", pa![r.to_string(), t]);
+    if n >= 30 && k == 0 {
+        6 * 3_600_000
+    } else if n >= 30 && k * 20 < n {
+        3_600_000
+    } else {
+        0
+    }
 }
 
 pub async fn scout(a: Ax) {
@@ -410,6 +445,7 @@ async fn watch1(a: &Ax) -> R<()> {
     need(a, "watcher", &["gh"]).await?;
     a.st("watcher", "work", None, "");
     let me = crate::gh::login(a).await;
+    let mut lu: std::collections::HashMap<String, std::collections::HashMap<i64, String>> = Default::default();
     for p in a.db.all("select * from prs where st='open' or (st='merged' and merged>strftime('%Y-%m-%dT%H:%M:%SZ','now','-2 days'))", pa![]) {
         a.held("watcher").await;
         let r = p["repo"].as_str().unwrap_or("").to_string();
@@ -427,6 +463,20 @@ async fn watch1(a: &Ax) -> R<()> {
                 late(a, &r, n, &me, &v).await?;
             }
             continue;
+        }
+        let ag = p["upd"].as_str().and_then(|u| chrono::DateTime::parse_from_rfc3339(u).ok()).map(|u| now() - u.timestamp_millis()).unwrap_or(0);
+        let gap = if ag > 14 * 86_400_000 { 6 * 3_600_000 } else if ag > 7 * 86_400_000 { 3_600_000 } else { 0 };
+        if gap > 0 {
+            let sk = format!("ws:{r}#{n}");
+            if !lu.contains_key(&r) {
+                let m: std::collections::HashMap<i64, String> = ghj(&["pr", "list", "-R", &r, "--state", "open", "--author", "@me", "--limit", "1000", "--json", "number,updatedAt"], 120).await.ok().and_then(|v| v.as_array().cloned()).unwrap_or_default().iter().map(|x| (x["number"].as_i64().unwrap_or(0), x["updatedAt"].as_str().unwrap_or("").to_string())).collect();
+                lu.insert(r.clone(), m);
+            }
+            let ch = lu.get(&r).and_then(|m| m.get(&n)).map(|u| Some(u.as_str()) != p["upd"].as_str()).unwrap_or(false);
+            if !ch && a.db.kg(&sk).as_i64().map(|t| now() - t < gap).unwrap_or(false) {
+                continue;
+            }
+            a.db.ks(&sk, &json!(now()));
         }
         let v = match ghj(&["pr", "view", &n.to_string(), "-R", &r, "--json", "state,mergedAt,updatedAt,title,url,mergeable,headRefName,headRepositoryOwner,headRepository,baseRefName,reviewDecision"], 60).await {
             Ok(v) => v,
@@ -547,6 +597,14 @@ pub async fn watch(a: Ax) {
 #[cfg(test)]
 mod t {
     use super::*;
+
+    #[test]
+    fn skip_labels_and_machine_errors() {
+        assert_eq!(skl(" Area:Kernel, needs-design\n\n"), vec!["area:kernel", "needs-design"]);
+        assert!(crate::app::hostish("node-2: git clone → exit 1: Error response from daemon: Container apollo-office is paused, unpause the container before exec"));
+        assert!(crate::app::hostish("ssh: connect to host 10.0.0.2 port 22: Connection refused"));
+        assert!(!crate::app::hostish("error[E0425]: cannot find value `x` in this scope"));
+    }
 
     #[test]
     fn pend() {

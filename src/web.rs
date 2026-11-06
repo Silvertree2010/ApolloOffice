@@ -145,7 +145,19 @@ async fn checks(a: &Ax) -> Value {
 }
 
 fn cfg(a: &Ax) -> Value {
-    json!({"repos": a.db.all("select * from rp order by full", pa![]), "hosts": a.db.all("select * from hs order by id='local' desc, id", pa![]), "set": a.set(), "data": a.dd.display().to_string(), "auto": crate::sys::autostart_on(&a.dd), "prov": crate::prov::status(a), "google": crate::goog::linked(a)["email"], "upd": a.db.kg("upd"), "asset": crate::upd::asset(), "api": {"on": a.db.kg("api")["h"].is_string(), "t0": a.db.kg("api")["t0"], "last": a.db.kg("api")["last"], "port": a.port}, "hook": {"on": a.db.kg("hook")["h"].is_string(), "t0": a.db.kg("hook")["t0"]}})
+    let rs: Vec<Value> = a.db.all("select * from rp order by full", pa![]).into_iter().map(|mut r| { let f = r["full"].as_str().unwrap_or("").to_string(); r["st"] = rst(a, &f); r }).collect();
+    json!({"repos": rs, "hosts": a.db.all("select * from hs order by id='local' desc, id", pa![]), "set": a.set(), "data": a.dd.display().to_string(), "auto": crate::sys::autostart_on(&a.dd), "prov": crate::prov::status(a), "google": crate::goog::linked(a)["email"], "upd": a.db.kg("upd"), "asset": crate::upd::asset(), "api": {"on": a.db.kg("api")["h"].is_string(), "t0": a.db.kg("api")["t0"], "last": a.db.kg("api")["last"], "port": a.port}, "hook": {"on": a.db.kg("hook")["h"].is_string(), "t0": a.db.kg("hook")["t0"]}})
+}
+
+fn rst(a: &Ax, r: &str) -> Value {
+    let t = now() - 14 * 86_400_000;
+    let o = a.db.one("select sum(p.st='merged') mg, sum(p.st='open') op, sum(p.st='open' and p.t0<?) old from prs p where p.repo=? and p.t0>?", pa![now() - 7 * 86_400_000, r.to_string(), now() - 90 * 86_400_000]).unwrap_or(json!({}));
+    let m14 = a.db.n("select count(*) from prs where repo=? and st='merged' and merged>strftime('%Y-%m-%dT%H:%M:%SZ','now','-14 days')", pa![r.to_string()]);
+    let is = a.db.n("select count(*) from jobs where repo=? and num>0 and kind='fix' and t0>?", pa![r.to_string(), t]);
+    let ik = a.db.n("select count(*) from jobs j join prs p on p.repo=j.repo and p.num=j.pr where j.repo=? and j.num>0 and j.kind='fix' and j.t0>?", pa![r.to_string(), t]);
+    let q = a.db.n("select count(*) from jobs where repo=? and st in ('vet','ready')", pa![r.to_string()]);
+    let usd = a.db.one("select sum(usd) u from cost where repo=? and t>?", pa![r.to_string(), t]).map(|x| x["u"].as_f64().unwrap_or(0.0)).unwrap_or(0.0);
+    json!({"m14": m14, "op": o["op"], "old": o["old"], "is": is, "ik": ik, "q": q, "usd": usd, "hy": crate::pipe::hy(a, r), "iv": crate::wk::ivl(a, r) / 60_000, "red": !a.db.kg(&format!("cired:{r}")).is_null()})
 }
 
 fn costs(a: &Ax) -> Value {
@@ -262,7 +274,7 @@ fn sets(a: &Ax, b: &Value) {
     }
 }
 
-const RPF: &[&str] = &["iss", "hunt", "feat", "nm", "on_", "maxo", "maxd", "bud", "ci", "setup", "rules", "mode"];
+const RPF: &[&str] = &["iss", "hunt", "feat", "nm", "on_", "maxo", "maxd", "bud", "ci", "setup", "rules", "mode", "skl"];
 const HSF: &[&str] = &["id", "ssh", "dk", "ln", "ci", "gb", "raw", "no", "cpu"];
 
 fn export(a: &Ax) -> Value {
@@ -730,7 +742,7 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
                     js(json!({"full": r, "ci": c, "setup": s, "cfg": cfg(a)}))
                 }
                 "set" => {
-                    for (k, kind) in [("iss", 0), ("hunt", 0), ("feat", 0), ("nm", 0), ("on_", 0), ("maxo", 1), ("maxd", 1), ("bud", 3), ("ci", 2), ("setup", 2), ("rules", 2), ("mode", 2)] {
+                    for (k, kind) in [("iss", 0), ("hunt", 0), ("feat", 0), ("nm", 0), ("on_", 0), ("maxo", 1), ("maxd", 1), ("bud", 3), ("ci", 2), ("setup", 2), ("rules", 2), ("mode", 2), ("skl", 2)] {
                         let v = &b[k];
                         if v.is_null() {
                             continue;

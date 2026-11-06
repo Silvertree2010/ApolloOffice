@@ -95,13 +95,14 @@ pub enum X {
     Back(String),
     Lim(String),
     Net(String),
+    Host(String, String),
     E(String),
 }
 
 impl std::fmt::Display for X {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            X::Drop(s) | X::Back(s) | X::Lim(s) | X::Net(s) | X::E(s) => write!(f, "{s}"),
+            X::Drop(s) | X::Back(s) | X::Lim(s) | X::Net(s) | X::E(s) | X::Host(_, s) => write!(f, "{s}"),
         }
     }
 }
@@ -118,6 +119,10 @@ pub fn drop<T>(s: impl Into<String>) -> R<T> {
 
 pub fn netish(s: &str) -> bool {
     regex::Regex::new(r"(?i)could not resolve|timed out|connection (reset|refused|closed)|network is unreachable|ENOTFOUND|ECONN|EAI_AGAIN|kex_exchange|Broken pipe|ssh: connect|error connecting|Could not resolve host|TLS handshake").unwrap().is_match(s)
+}
+
+pub fn hostish(s: &str) -> bool {
+    regex::Regex::new(r"(?i)container \S+ is (paused|not running|restarting)|no such container|cannot connect to the docker daemon|is the docker daemon running|machine \S+ is gone|connection closed by|kex_exchange|ssh: connect|permission denied \(publickey|host key verification failed|ssh_exchange_identification|connection timed out during banner").unwrap().is_match(s)
 }
 
 pub fn ddir(o: Option<PathBuf>) -> PathBuf {

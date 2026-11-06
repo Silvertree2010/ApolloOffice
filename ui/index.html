@@ -145,6 +145,32 @@ button.dng { color: var(--bad); }
 #dr .pb { flex: 1; overflow: auto; padding: 14px 16px 40px; }
 .tabs { display: flex; gap: 4px; }
 .tabs button.on { background: var(--l); border-color: var(--t3); }
+.stb { position: sticky; top: 0; z-index: 2; margin: -14px -16px 18px; padding: 10px 16px; background: var(--p); border-bottom: 1px solid var(--l); flex-wrap: wrap; }
+.sbar { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; gap: 8px; margin: 14px -16px -40px; padding: 10px 16px; background: var(--p); border-top: 1px solid var(--l); font: 12px var(--m); color: var(--t1); }
+.sbar.done { color: var(--ok); }
+.sbar.done button { display: none; }
+.rh { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; }
+.rh h4 { margin: 0; flex: 1; }
+.rh input { max-width: 200px; }
+.rr { padding: 0; }
+.rr summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; padding: 10px 12px; }
+.rr summary::-webkit-details-marker { display: none; }
+.rr summary:hover { background: var(--h); border-radius: var(--r); }
+.rr .rn { font: 600 13px var(--m); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rr .rn::before { content: "▸"; display: inline-block; width: 14px; color: var(--t3); transition: transform .15s; }
+.rr details[open] .rn::before { transform: rotate(90deg); }
+.rr .rc { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.rr .rc .chip { padding: 3px 6px; font-size: 10px; }
+.rr .rs { grid-column: 1 / -1; display: flex; gap: 14px; flex-wrap: wrap; padding-left: 14px; font: 11px var(--m); color: var(--t3); }
+.rr .rs b { color: var(--t1); font-weight: 500; }
+.rr .rs b.ok2 { color: var(--ok); } .rr .rs b.bad2 { color: var(--bad); }
+.rr details > :not(summary) { margin-left: 12px; margin-right: 12px; }
+.rr details > .msg { margin-bottom: 10px; }
+.rr details > .acts { margin-bottom: 10px; }
+.lm { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--t3); font-size: 11px; }
+.lm input[type=number] { width: 90px; }
+button:disabled { opacity: .55; cursor: default; }
+@media (max-width: 560px) { .rr summary { grid-template-columns: 1fr; } .rr .rc { justify-content: flex-start; } }
 .sec { margin: 0 0 18px; }
 .sec h4 { font: 600 11px/1 var(--m); letter-spacing: .1em; text-transform: uppercase; color: var(--t2); margin: 0 0 8px; }
 .box { border: 1px solid var(--l); border-radius: var(--r); padding: 10px 12px; margin: 0 0 8px; background: var(--g); }
