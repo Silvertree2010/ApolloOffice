@@ -184,7 +184,11 @@ pub async fn run(p: &str, a: &[String], r: Rq<'_>) -> Out {
                     }
                     o.push_str(&s);
                     if !kp && o.len() > MAXO * 2 {
-                        o = o.split_off(o.len() - MAXO);
+                        let mut k = o.len() - MAXO;
+                        while !o.is_char_boundary(k) {
+                            k += 1;
+                        }
+                        o = o.split_off(k);
                     }
                 }
             }
