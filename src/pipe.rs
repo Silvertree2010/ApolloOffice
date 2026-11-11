@@ -1772,6 +1772,7 @@ async fn lane(a: Ax, h: String, k: i64) {
 }
 
 static ENS: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<String>>> = std::sync::LazyLock::new(Default::default);
+static STL: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<String>>> = std::sync::LazyLock::new(Default::default);
 static ING: std::sync::LazyLock<std::sync::Mutex<std::collections::HashSet<String>>> = std::sync::LazyLock::new(Default::default);
 
 pub async fn lanes(a: Ax) {
@@ -1784,11 +1785,23 @@ pub async fn lanes(a: Ax) {
                 if ING.lock().unwrap().insert(x.id.clone()) {
                     let (a2, id) = (a.clone(), x.id.clone());
                     tokio::spawn(async move {
-                        a2.say("ci", &format!("[{id}] preparing the build container"), None);
+                        if !STL.lock().unwrap().contains(&id) {
+                            a2.say("ci", &format!("[{id}] preparing the build container"), None);
+                        }
                         match crate::sh::ensure(&a2, &id).await {
-                            Ok(()) => {
+                            Ok(fr) => {
                                 a2.db.ks(&format!("up:{id}"), &json!(true));
                                 ENS.lock().unwrap().insert(id.clone());
+                                if fr {
+                                    STL.lock().unwrap().remove(&id);
+                                } else {
+                                    STL.lock().unwrap().insert(id.clone());
+                                    let id = id.clone();
+                                    tokio::spawn(async move {
+                                        tokio::time::sleep(std::time::Duration::from_secs(600)).await;
+                                        ENS.lock().unwrap().remove(&id);
+                                    });
+                                }
                             }
                             Err(m) => a2.say("ci", &format!("[{id}] machine not ready: {m}"), None),
                         }

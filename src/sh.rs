@@ -425,7 +425,7 @@ WORKDIR /work
 
 pub fn dkup(h: &Ho, cpu: i64) -> String {
     format!(
-        "command -v docker >/dev/null || {{ echo 'docker is not installed'; exit 2; }}\ndocker info >/dev/null 2>&1 || {{ echo 'docker is not running'; exit 2; }}\nif ! docker image inspect {im} >/dev/null 2>&1; then docker build -q -t {im} - <<'DOCKERFILE'\n{DF}DOCKERFILE\nfi\nold=$(docker inspect -f '{{{{.Config.Image}}}}' {CT} 2>/dev/null)\nini=$(docker inspect -f '{{{{.HostConfig.Init}}}} {{{{.State.Paused}}}}' {CT} 2>/dev/null)\nif [ -n \"$old\" ] && {{ [ \"$old\" != {im} ] || [ \"$ini\" = 'false false' ] || [ \"$ini\" = '<nil> false' ]; }}; then docker rm -f {CT} >/dev/null 2>&1; fi\nr=$(docker inspect -f '{{{{.State.Running}}}}' {CT} 2>/dev/null)\nm=$(( $(docker info --format '{{{{.MemTotal}}}}' 2>/dev/null || echo 0) / 1048576 - 3072 ))\n[ \"$m\" -lt 2048 ] && m=2048\nif [ -z \"$r\" ]; then docker run -d --init --name {CT} --restart unless-stopped --cpus {cpu} --cpu-shares 128 --memory \"$m\"m --memory-swap \"$m\"m -v apollo-office-work:/work -v apollo-office-cargo:/usr/local/cargo/registry {im} sleep infinity >/dev/null 2>&1 || [ \"$(docker inspect -f '{{{{.State.Running}}}}' {CT} 2>/dev/null)\" = true ] || docker start {CT} >/dev/null || exit 3; elif [ \"$r\" != true ]; then docker start {CT} >/dev/null || exit 3; fi\ndocker update --cpus {cpu} --cpu-shares 128 --memory \"$m\"m --memory-swap \"$m\"m {CT} >/dev/null 2>&1\ndocker images apollo-office-build --format '{{{{.Repository}}}}:{{{{.Tag}}}}' | grep -vx {im} | xargs -r docker rmi >/dev/null 2>&1\necho ok {}\n",
+        "command -v docker >/dev/null || {{ echo 'docker is not installed'; exit 2; }}\ndocker info >/dev/null 2>&1 || {{ echo 'docker is not running'; exit 2; }}\nif ! docker image inspect {im} >/dev/null 2>&1; then docker build -q -t {im} - <<'DOCKERFILE'\n{DF}DOCKERFILE\nfi\nold=$(docker inspect -f '{{{{.Config.Image}}}}' {CT} 2>/dev/null)\nini=$(docker inspect -f '{{{{.HostConfig.Init}}}} {{{{.State.Paused}}}}' {CT} 2>/dev/null)\nif [ -n \"$old\" ] && {{ [ \"$old\" != {im} ] || [ \"$ini\" = 'false false' ] || [ \"$ini\" = '<nil> false' ]; }}; then docker rm -f {CT} >/dev/null 2>&1; fi\nst=''\n{{ [ \"$ini\" = 'false true' ] || [ \"$ini\" = '<nil> true' ]; }} && st=' stale'\nr=$(docker inspect -f '{{{{.State.Running}}}}' {CT} 2>/dev/null)\nm=$(( $(docker info --format '{{{{.MemTotal}}}}' 2>/dev/null || echo 0) / 1048576 - 3072 ))\n[ \"$m\" -lt 2048 ] && m=2048\nif [ -z \"$r\" ]; then docker run -d --init --name {CT} --restart unless-stopped --cpus {cpu} --cpu-shares 128 --memory \"$m\"m --memory-swap \"$m\"m -v apollo-office-work:/work -v apollo-office-cargo:/usr/local/cargo/registry {im} sleep infinity >/dev/null 2>&1 || [ \"$(docker inspect -f '{{{{.State.Running}}}}' {CT} 2>/dev/null)\" = true ] || docker start {CT} >/dev/null || exit 3; elif [ \"$r\" != true ]; then docker start {CT} >/dev/null || exit 3; fi\ndocker update --cpus {cpu} --cpu-shares 128 --memory \"$m\"m --memory-swap \"$m\"m {CT} >/dev/null 2>&1\ndocker images apollo-office-build --format '{{{{.Repository}}}}:{{{{.Tag}}}}' | grep -vx {im} | xargs -r docker rmi >/dev/null 2>&1\necho \"ok {}$st\"\n",
         h.id,
         im = im()
     )
@@ -444,18 +444,18 @@ pub async fn orph(a: &Ax, id: &str) {
     }
 }
 
-pub async fn ensure(a: &Ax, id: &str) -> Result<(), String> {
+pub async fn ensure(a: &Ax, id: &str) -> Result<bool, String> {
     let Some(h) = ho(a, id) else { return Err("unknown machine".into()) };
     if !h.dk {
         let r = hraw(&h, &format!("mkdir -p \"{}\" && git --version >/dev/null && echo ok", hb(a, &h)), 60).await;
-        return if r.c == 0 { Ok(()) } else { Err(format!("{}{}", r.o, r.e).trim().chars().take(300).collect()) };
+        return if r.c == 0 { Ok(true) } else { Err(format!("{}{}", r.o, r.e).trim().chars().take(300).collect()) };
     }
     let n = hraw(&h, "getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 4", 30).await.o.trim().parse::<i64>().unwrap_or(4);
     let cpu = if h.cpu > 0 { h.cpu.min(n) } else { (n - 1).max(1) };
     a.db.ks(&format!("cpu:{id}"), &serde_json::json!(cpu));
     let r = hraw(&h, &dkup(&h, cpu), 3600).await;
     if r.c == 0 {
-        Ok(())
+        Ok(!r.o.contains(" stale"))
     } else {
         Err(format!("{}{}", r.o, r.e).trim().chars().rev().take(400).collect::<String>().chars().rev().collect())
     }

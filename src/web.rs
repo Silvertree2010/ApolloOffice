@@ -806,7 +806,7 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
                     a.db.run("insert into hs(id,ssh,dk,ln,ci,gb,raw,on_,t0,no,cpu) values(?,?,?,?,?,?,?,?,?,?,?) on conflict(id) do update set ssh=excluded.ssh, dk=excluded.dk, ln=excluded.ln, ci=excluded.ci, gb=excluded.gb, raw=excluded.raw, on_=excluded.on_, no=excluded.no, cpu=excluded.cpu", pa![id.clone(), ssh, dk as i64, b["ln"].as_i64().unwrap_or(1).clamp(1, 8), b["ci"].as_i64().unwrap_or(1).clamp(1, 8), b["gb"].as_i64().unwrap_or(50).clamp(5, 10000), (!dk) as i64, b["on"].as_bool().unwrap_or(true) as i64, now(), no, b["cpu"].as_i64().unwrap_or(0).clamp(0, 256)]);
                     a.db.kd(&format!("up:{id}"));
                     match crate::sh::ensure(a, &id).await {
-                        Ok(()) => {
+                        Ok(_) => {
                             if dk {
                                 a.db.ks(&format!("up:{id}"), &json!(true));
                             }
