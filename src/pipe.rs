@@ -297,7 +297,19 @@ async fn prep(a: &Ax, j: &mut Job) -> R<()> {
     // like lts/* or a broken Node install are reported rather than silently passed).
     let pf = x(a, j, &format!("bash -c {} 2>&1", q(ENV_PREFLIGHT)), 120).await;
     if pf.c != 0 {
-        return Err(oe(&pf, "environment preflight", &j.h()));
+        let diagnostic = crate::sh::last(
+            if pf.e.trim().is_empty() {
+                pf.o.trim()
+            } else {
+                pf.e.trim()
+            },
+            300,
+        );
+        let message = format!("environment preflight failed (exit {}): {diagnostic}", pf.c);
+        if crate::app::hostish(&message) || crate::app::netish(&message) {
+            return Err(oe(&pf, "environment preflight", &j.h()));
+        }
+        return drop(message);
     }
     let su = rp(a, &j.repo)["setup"].as_str().unwrap_or("").trim().to_string();
     if !su.is_empty() {
