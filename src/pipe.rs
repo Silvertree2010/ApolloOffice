@@ -10,6 +10,35 @@ use std::collections::BTreeSet;
 
 pub const RND: u64 = 2;
 const CIT: u64 = 150 * 60;
+const ENV_PREFLIGHT: &str = r#"command -v git >/dev/null 2>&1 || { echo "git missing in build environment"; exit 1; }
+if [ -f .nvmrc ]; then
+  want=$(sed 's/#.*//' .nvmrc | head -n1 | tr -d ' \t\r')
+  if [ -z "$want" ]; then echo "unsupported empty .nvmrc requirement"; exit 1; fi
+  command -v node >/dev/null 2>&1 || { echo "node missing but .nvmrc requires Node $want; rebuild the build image"; exit 1; }
+  have=$(node -v 2>&1) || { echo "node failed to run: $have"; exit 1; }
+  case "$have" in v[0-9]*) ;; *) echo "node returned an invalid version: $have"; exit 1 ;; esac
+  have=${have#v}
+  case "$have" in *[!0-9.]*|'') echo "node returned an invalid version: $have"; exit 1 ;; esac
+  case "$want" in v*) want=${want#v} ;; esac
+  case "$want" in
+    *[!0-9.]* )
+      nvm_file="${NVM_DIR:-$HOME/.nvm}/nvm.sh"
+      if [ -s "$nvm_file" ]; then . "$nvm_file"; fi
+      command -v nvm >/dev/null 2>&1 || { echo "unsupported .nvmrc requirement '$want': install nvm to resolve this alias"; exit 1; }
+      resolved=$(nvm version "$want" 2>&1) || { echo "unsupported .nvmrc requirement '$want': $resolved"; exit 1; }
+      case "$resolved" in v[0-9]*) ;; *) echo "unsupported .nvmrc requirement '$want': nvm could not resolve it"; exit 1 ;; esac
+      resolved=${resolved#v}
+      case "$resolved" in *[!0-9.]*|'') echo "unsupported .nvmrc requirement '$want': nvm returned an invalid version"; exit 1 ;; esac
+      wmaj=${resolved%%.*} ;;
+    *) wmaj=${want%%.*} ;;
+  esac
+  case "$wmaj" in ''|*[!0-9]*) echo "unsupported .nvmrc requirement '$want': no Node major version"; exit 1 ;; esac
+  hmaj=${have%%.*}
+  if [ "$wmaj" != "$hmaj" ]; then echo "node incompatible: repo requires Node $want but build environment has Node $have; rebuild the build image"; exit 1; fi
+  echo "preflight ok: node $have (wants $want)"
+else
+  echo "preflight ok: git present, no .nvmrc requirement"
+fi"#;
 
 pub fn gitb() -> String {
     std::env::var("APOLLO_OFFICE_REMOTE").unwrap_or_else(|_| "https://github.com/".into())
@@ -266,26 +295,9 @@ async fn prep(a: &Ax, j: &mut Job) -> R<()> {
     // into a clear instruction to rebuild the build image. git is always required;
     // Node checks only apply when the repo pins a plain version via .nvmrc (aliases
     // like lts/* or a broken Node install are reported rather than silently passed).
-    let preflight = r#"command -v git >/dev/null || { echo "git missing in build environment"; exit 1; }
-if [ -f .nvmrc ]; then
-  want=$(sed 's/#.*//' .nvmrc | head -n1 | tr -d ' \t\r' | sed 's/^v//')
-  case "$want" in
-    ''|*[!0-9.]*)
-      echo "preflight: .nvmrc requirement '$want' is not a plain version (alias/empty); skipping Node major check" ;;
-    *)
-      wmaj=${want%%.*}
-      command -v node >/dev/null || { echo "node missing but .nvmrc requires Node $want; rebuild the build image"; exit 1; }
-      have=$(node -v 2>&1) || { echo "node failed to run: $have"; exit 1; }
-      have=${have#v}; hmaj=${have%%.*}
-      if [ "$wmaj" != "$hmaj" ]; then echo "node incompatible: repo requires Node $want but build environment has Node $have; rebuild the build image"; exit 1; fi
-      echo "preflight ok: node $have (wants $want)" ;;
-  esac
-else
-  echo "preflight ok: git present, no .nvmrc requirement"
-fi"#;
-    let pf = x(a, j, &format!("bash -c {} 2>&1", q(preflight)), 120).await;
+    let pf = x(a, j, &format!("bash -c {} 2>&1", q(ENV_PREFLIGHT)), 120).await;
     if pf.c != 0 {
-        return drop(format!("environment preflight failed (exit {}): {}", pf.c, crate::sh::last(pf.o.trim(), 300)));
+        return Err(oe(&pf, "environment preflight", &j.h()));
     }
     let su = rp(a, &j.repo)["setup"].as_str().unwrap_or("").trim().to_string();
     if !su.is_empty() {
@@ -1892,6 +1904,69 @@ pub async fn guard(a: Ax) {
 #[cfg(test)]
 mod t {
     use super::*;
+
+    #[cfg(unix)]
+    fn run_preflight(nvmrc: Option<&str>, node_body: &str, nvm_resolved: &str) -> std::process::Output {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = std::env::temp_dir().join(format!(
+            "apollo-preflight-{}-{}",
+            std::process::id(),
+            hex::encode(rand::random::<[u8; 8]>())
+        ));
+        let bin = root.join("bin");
+        let nvm_dir = root.join("nvm");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::create_dir_all(&nvm_dir).unwrap();
+        if let Some(requirement) = nvmrc {
+            std::fs::write(root.join(".nvmrc"), requirement).unwrap();
+        }
+        for (name, body) in [
+            ("git", "exit 0"),
+            ("node", node_body),
+            ("nvm", "printf '%s\\n' \"$NVM_RESOLVED\""),
+        ] {
+            let path = bin.join(name);
+            std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+            let mut permissions = std::fs::metadata(&path).unwrap().permissions();
+            permissions.set_mode(0o700);
+            std::fs::set_permissions(path, permissions).unwrap();
+        }
+        let output = std::process::Command::new("/bin/bash")
+            .arg("-c")
+            .arg(ENV_PREFLIGHT)
+            .current_dir(&root)
+            .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
+            .env("NVM_DIR", &nvm_dir)
+            .env("NVM_RESOLVED", nvm_resolved)
+            .output()
+            .unwrap();
+        let _ = std::fs::remove_dir_all(root);
+        output
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn environment_preflight_checks_pinned_node_versions_and_aliases() {
+        let no_nvmrc = run_preflight(None, "echo broken-node >&2; exit 9", "");
+        assert!(no_nvmrc.status.success());
+
+        let pinned = run_preflight(
+            Some("v20.1.0 # keep the major stable\n"),
+            "printf 'v20.19.0\n'",
+            "",
+        );
+        assert!(pinned.status.success(), "{}", String::from_utf8_lossy(&pinned.stderr));
+
+        let alias = run_preflight(Some("lts/argon\n"), "printf 'v20.19.0\n'", "v20.20.0");
+        assert!(alias.status.success(), "{}", String::from_utf8_lossy(&alias.stderr));
+
+        let mismatch = run_preflight(Some("18\n"), "printf 'v20.19.0\n'", "");
+        assert!(!mismatch.status.success());
+
+        let unresolved = run_preflight(Some("lts/unknown\n"), "printf 'v20.19.0\n'", "N/A");
+        assert!(!unresolved.status.success());
+    }
 
     #[cfg(unix)]
     #[tokio::test]
