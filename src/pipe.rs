@@ -260,6 +260,15 @@ async fn prep(a: &Ax, j: &mut Job) -> R<()> {
         ok(a, j, &format!("git checkout -q -B {} refs/ao/head", q(&br)), 1800).await?;
         j.d["old"] = json!(ok(a, j, "git rev-parse HEAD", 60).await?);
     }
+    // Environment preflight: fail fast with an actionable message when the build
+    // container lacks git/node or ships a Node major that the repo's .nvmrc rejects.
+    // This turns a cryptic mid-setup crash (e.g. "libuv crash. Detected 20.19.2")
+    // into a clear instruction to rebuild the build image.
+    let preflight = r#"command -v git >/dev/null || { echo "git missing in build environment"; exit 1; }; command -v node >/dev/null || { echo "node missing in build environment"; exit 1; }; have=$(node -v | tr -d v); hmaj=${have%%.*}; want=; if [ -f .nvmrc ]; then want=$(tr -dc 0-9. < .nvmrc); fi; wmaj=${want%%.*}; if [ -n "$wmaj" ] && [ "$wmaj" != "$hmaj" ]; then echo "node incompatible: repo requires Node $want but build environment has Node $have; rebuild the build image"; exit 1; fi; echo "preflight ok: node $have (wants ${want:-no requirement})""#;
+    let pf = x(a, j, &format!("bash -c {} 2>&1", q(preflight)), 120).await;
+    if pf.c != 0 {
+        return drop(format!("environment preflight failed (exit {}): {}", pf.c, crate::sh::last(pf.o.trim(), 300)));
+    }
     let su = rp(a, &j.repo)["setup"].as_str().unwrap_or("").trim().to_string();
     if !su.is_empty() {
         a.say("repro", &format!("[{}] setup: {}", j.h(), crate::sh::head(&su, 80)), Some(j.id));
