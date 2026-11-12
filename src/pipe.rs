@@ -263,8 +263,26 @@ async fn prep(a: &Ax, j: &mut Job) -> R<()> {
     // Environment preflight: fail fast with an actionable message when the build
     // container lacks git/node or ships a Node major that the repo's .nvmrc rejects.
     // This turns a cryptic mid-setup crash (e.g. "libuv crash. Detected 20.19.2")
-    // into a clear instruction to rebuild the build image.
-    let preflight = r#"command -v git >/dev/null || { echo "git missing in build environment"; exit 1; }; command -v node >/dev/null || { echo "node missing in build environment"; exit 1; }; have=$(node -v | tr -d v); hmaj=${have%%.*}; want=; if [ -f .nvmrc ]; then want=$(tr -dc 0-9. < .nvmrc); fi; wmaj=${want%%.*}; if [ -n "$wmaj" ] && [ "$wmaj" != "$hmaj" ]; then echo "node incompatible: repo requires Node $want but build environment has Node $have; rebuild the build image"; exit 1; fi; echo "preflight ok: node $have (wants ${want:-no requirement})""#;
+    // into a clear instruction to rebuild the build image. git is always required;
+    // Node checks only apply when the repo pins a plain version via .nvmrc (aliases
+    // like lts/* or a broken Node install are reported rather than silently passed).
+    let preflight = r#"command -v git >/dev/null || { echo "git missing in build environment"; exit 1; }
+if [ -f .nvmrc ]; then
+  want=$(sed 's/#.*//' .nvmrc | head -n1 | tr -d ' \t\r' | sed 's/^v//')
+  case "$want" in
+    ''|*[!0-9.]*)
+      echo "preflight: .nvmrc requirement '$want' is not a plain version (alias/empty); skipping Node major check" ;;
+    *)
+      wmaj=${want%%.*}
+      command -v node >/dev/null || { echo "node missing but .nvmrc requires Node $want; rebuild the build image"; exit 1; }
+      have=$(node -v 2>&1) || { echo "node failed to run: $have"; exit 1; }
+      have=${have#v}; hmaj=${have%%.*}
+      if [ "$wmaj" != "$hmaj" ]; then echo "node incompatible: repo requires Node $want but build environment has Node $have; rebuild the build image"; exit 1; fi
+      echo "preflight ok: node $have (wants $want)" ;;
+  esac
+else
+  echo "preflight ok: git present, no .nvmrc requirement"
+fi"#;
     let pf = x(a, j, &format!("bash -c {} 2>&1", q(preflight)), 120).await;
     if pf.c != 0 {
         return drop(format!("environment preflight failed (exit {}): {}", pf.c, crate::sh::last(pf.o.trim(), 300)));
