@@ -426,7 +426,7 @@ COPY --from=node24 /usr/local/include/node /usr/local/include/node
 RUN ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -sf ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
     && curl -fsSL https://fnm.vercel.app/install -o /tmp/install-fnm.sh \
-    && bash /tmp/install-fnm.sh --install-dir /usr/local/bin --skip-shell \
+    && bash /tmp/install-fnm.sh --install-dir /usr/local/bin --skip-shell --release v1.39.0 \
     && rm -f /tmp/install-fnm.sh \
     && node --version | grep -Eq '^v24\.' \
     && npm --version >/dev/null && fnm --version >/dev/null
