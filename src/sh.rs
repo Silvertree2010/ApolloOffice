@@ -595,8 +595,9 @@ mod tests {
         std::fs::set_permissions(&fnm, permissions).unwrap();
 
         let script = format!(
-            "{PRE}cd {} && printf 'entered\n'; cd /this-directory-must-not-exist-ao-fnm-test >/dev/null 2>&1 && echo invalid || echo denied",
-            q(&root.display().to_string())
+            "{}cd {} && printf 'entered\n'; cd /this-directory-must-not-exist-ao-fnm-test >/dev/null 2>&1 && echo invalid || echo denied",
+            super::PRE,
+            super::q(&root.display().to_string())
         );
         let output = std::process::Command::new("/bin/bash")
             .arg("-c")
