@@ -708,14 +708,49 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
                 }
                 "requeue" => {
                     if let Some(j) = a.db.jg(id) {
-                        if j.st == "drop" && j.kind == "fix" {
+                        if (j.st == "drop" && (j.kind == "fix" || j.kind == "review")) || (j.st == "done" && j.kind == "review") {
                             let mut d = j.d.clone();
-                            for k in ["h", "rs", "rp", "br", "f", "f0", "sq", "known", "vt"] {
-                                d.as_object_mut().map(|o| o.remove(k));
+                            let drop_keys: &[&str] = if j.kind == "review" {
+                                &["h", "rs", "rp", "f", "f0", "sq", "known", "vt", "old", "base", "pbase"]
+                            } else {
+                                &["h", "rs", "rp", "br", "f", "f0", "sq", "known", "vt"]
+                            };
+                            for k in drop_keys {
+                                d.as_object_mut().map(|o| o.remove(*k));
+                            }
+                            if j.kind == "review" {
+                                if let Some(ch) = b["change"].as_str().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+                                    d["change"] = json!(crate::sh::head(ch, 4000));
+                                }
                             }
                             a.db.kd(&format!("kill:{id}"));
                             a.db.run("delete from kv where k=? or k like ?", pa![format!("cired:{}", j.repo), format!("cired:{}@%", j.repo)]);
-                            a.db.jset(id, &[("st", json!(if j.why.starts_with("Guard") || j.why.starts_with("Vet") { "vet" } else { "ready" })), ("why", json!("requeued by the owner")), ("d", d)]);
+                            let next = if j.kind == "fix" && (j.why.starts_with("Guard") || j.why.starts_with("Vet")) { "vet" } else { "ready" };
+                            a.db.jset(id, &[("st", json!(next)), ("why", json!("requeued by the owner")), ("d", d)]);
+                        }
+                    }
+                }
+                "review" => {
+                    let Some(r) = rid(b["repo"].as_str().unwrap_or("")) else { return er(StatusCode::BAD_REQUEST, "use owner/name") };
+                    let n = b["num"].as_i64().unwrap_or(0);
+                    let ch = crate::sh::head(b["change"].as_str().unwrap_or("").trim(), 4000);
+                    if let Some(p) = a.db.one("select * from prs where repo=? and num=? and st='open'", pa![r.clone(), n]) {
+                        if !ch.is_empty() {
+                            if a.db.n("select count(*) from jobs where repo=? and pr=? and kind='review' and st not in ('done','drop')", pa![r.clone(), n]) == 0 {
+                                let br = p["d"]["branch"].as_str().unwrap_or("").to_string();
+                                let hd = p["d"]["head"].as_str().unwrap_or("").to_string();
+                                if !br.is_empty() && !hd.is_empty() {
+                                    a.db.jnew(&r, n, "review", p["title"].as_str().unwrap_or(""), p["url"].as_str().unwrap_or(""), "ready", &ch, json!({"change": ch, "comment": format!("Owner requested change:\n{ch}"), "branch": br, "head": hd, "test_cmd": p["d"]["test_cmd"]}), Some(n), -1.0);
+                                    a.flow("watcher", "fixer", "review");
+                                    a.say("watcher", &format!("{r}#{n}: change requested by owner, sent to Fixer"), None);
+                                }
+                            }
+                        } else {
+                            let mut d = p["d"].clone();
+                            d["seen"] = json!(false);
+                            a.db.run("update prs set upd='', d=? where repo=? and num=?", pa![d.to_string(), r.clone(), n]);
+                            a.db.run("delete from cm where id like ?", pa![format!("{r}:%")]);
+                            a.say("watcher", &format!("{r}#{n}: queued for re-check"), None);
                         }
                     }
                 }

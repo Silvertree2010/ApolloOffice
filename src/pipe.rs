@@ -1235,6 +1235,18 @@ async fn submit(a: &Ax, j: &mut Job) -> R<(String, i64)> {
     }
     let pn = j.pr.unwrap_or(0);
     if j.kind == "rebase" || j.kind == "review" {
+        if j.kind == "review" {
+            if let Some(p) = a.db.one("select d from prs where repo=? and num=?", pa![j.repo.clone(), pn]) {
+                let mut d = p["d"].clone();
+                if f["test_cmd"].as_str().map(|s| !s.is_empty()).unwrap_or(false) {
+                    d["test_cmd"] = f["test_cmd"].clone();
+                }
+                if f["tests"].as_array().map(|x| !x.is_empty()).unwrap_or(false) {
+                    d["tests"] = f["tests"].clone();
+                }
+                a.db.run("update prs set d=? where repo=? and num=?", pa![d.to_string(), j.repo.clone(), pn]);
+            }
+        }
         let u = format!("https://github.com/{}/pull/{pn}", j.repo);
         a.say("submit", &format!("PR #{pn} updated ({})", j.kind), Some(j.id));
         a.note(if j.kind == "rebase" { "Rebased" } else { "Review applied" }, &format!("{}#{pn}: {}\n{u}", j.repo, f["title"].as_str().unwrap_or("")), 2);

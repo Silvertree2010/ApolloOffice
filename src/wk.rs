@@ -487,9 +487,10 @@ async fn watch1(a: &Ax) -> R<()> {
         };
         let up = v["updatedAt"].as_str().unwrap_or("").to_string();
         let st = if v["mergedAt"].is_string() { "merged".to_string() } else { v["state"].as_str().unwrap_or("OPEN").to_lowercase() };
-        a.db.run("update prs set st=?, title=?, upd=?, merged=? where repo=? and num=?", pa![st.clone(), v["title"].as_str().unwrap_or("").to_string(), up.clone(), v["mergedAt"].as_str().map(String::from), r.clone(), n]);
+        a.db.run("update prs set st=?, title=?, merged=? where repo=? and num=?", pa![st.clone(), v["title"].as_str().unwrap_or("").to_string(), v["mergedAt"].as_str().map(String::from), r.clone(), n]);
         let tag = format!("{r}#{n}");
         if st == "merged" {
+            a.db.run("update prs set upd=? where repo=? and num=?", pa![up.clone(), r.clone(), n]);
             a.note("Merged", &format!("{tag} {}\n{}", v["title"].as_str().unwrap_or(""), v["url"].as_str().unwrap_or("")), 3);
             a.flow("watcher", "submit", "merged");
             a.say("watcher", &format!("{tag} merged"), None);
@@ -499,6 +500,7 @@ async fn watch1(a: &Ax) -> R<()> {
             continue;
         }
         if st == "closed" {
+            a.db.run("update prs set upd=? where repo=? and num=?", pa![up.clone(), r.clone(), n]);
             a.note("Closed without merge", &format!("{tag} {}\n{}", v["title"].as_str().unwrap_or(""), v["url"].as_str().unwrap_or("")), 4);
             a.say("watcher", &format!("{tag} closed without merge"), None);
             continue;
@@ -509,6 +511,9 @@ async fn watch1(a: &Ax) -> R<()> {
             a.db.jnew(&r, n, "rebase", v["title"].as_str().unwrap_or(""), v["url"].as_str().unwrap_or(""), "ready", &format!("merge conflict with {}", v["baseRefName"].as_str().unwrap_or("")), json!({"branch": hrn, "head": hd, "test_cmd": p["d"]["test_cmd"]}), Some(n), -1.0);
             a.flow("watcher", "fixer", "rebase");
             a.say("watcher", &format!("{tag} has a merge conflict, sent to rebase"), None);
+        }
+        if a.db.n("select count(*) from jobs where repo=? and pr=? and kind='review' and st not in ('done','drop')", pa![r.clone(), n]) > 0 {
+            continue;
         }
         if p["upd"].as_str() == Some(up.as_str()) && p["d"]["seen"].as_bool().unwrap_or(false) {
             continue;
@@ -524,12 +529,16 @@ async fn watch1(a: &Ax) -> R<()> {
         let cr: Vec<String> = if v["reviewDecision"] == "CHANGES_REQUESTED" { pushers(&r, n).await } else { vec![] };
         let tr = |c: &Value| MA.contains(&c["as"].as_str().unwrap_or("")) || (c["k"] == "review" && c["t"].as_str().map(|t| t.starts_with("[review: CHANGES_REQUESTED]")).unwrap_or(false) && c["rid"].as_str().map(|x| cr.iter().any(|y| y == x)).unwrap_or(false));
         let mut nw: Vec<Value> = cs.into_iter().filter(|c| a.db.n("select count(*) from cm where id=? or id=?", pa![format!("{r}:{}", c["id"].as_str().unwrap_or("")), c["id"].as_str().unwrap_or("").to_string()]) == 0).collect();
-        for c in &nw {
-            a.db.run("insert or ignore into cm(id,t) values(?,?)", pa![format!("{r}:{}", c["id"].as_str().unwrap_or("")), now()]);
-        }
         if first && !nw.is_empty() {
             let lc = ghj(&["pr", "view", &n.to_string(), "-R", &r, "--json", "commits", "--jq", ".commits[-1].committedDate"], 60).await.ok().and_then(|x| x.as_str().map(String::from)).unwrap_or_default();
-            nw = pending(nw, &lc);
+            let pend = pending(nw.clone(), &lc);
+            for c in &nw {
+                let cid = c["id"].as_str().unwrap_or("");
+                if !pend.iter().any(|p| p["id"].as_str() == Some(cid)) {
+                    a.db.run("insert or ignore into cm(id,t) values(?,?)", pa![format!("{r}:{cid}"), now()]);
+                }
+            }
+            nw = pend;
         }
         if first {
             let mut d = p["d"].clone();
@@ -566,7 +575,7 @@ async fn watch1(a: &Ax) -> R<()> {
                         Err(e) => a.say("watcher", &format!("{tag}: reply failed: {e}"), None),
                     }
                 }
-                if act && ma && a.db.n("select count(*) from jobs where repo=? and pr=? and kind='review' and st not in ('done','drop')", pa![r.clone(), n]) == 0 {
+                if act && ma {
                     let ch = js["change"].as_str().unwrap_or("").to_string();
                     a.db.jnew(&r, n, "review", v["title"].as_str().unwrap_or(""), v["url"].as_str().unwrap_or(""), "ready", &ch, json!({"change": ch, "comment": crate::sh::head(&mc.iter().map(|c| format!("{}: {}", c["by"].as_str().unwrap_or(""), c["t"].as_str().unwrap_or(""))).collect::<Vec<_>>().join("\n\n"), 6000), "branch": hrn, "head": hd, "test_cmd": p["d"]["test_cmd"]}), Some(n), -1.0);
                     a.flow("watcher", "fixer", "review");
@@ -577,7 +586,11 @@ async fn watch1(a: &Ax) -> R<()> {
                     a.note(&format!("Comment on {tag}"), &format!("{by}: {}\n\nDraft reply:\n{}\n{}", crate::sh::head(okc.last().and_then(|c| c["t"].as_str()).unwrap_or(""), 600), js["draft"].as_str().unwrap_or("-"), v["url"].as_str().unwrap_or("")), 3);
                 }
             }
+            for c in &nw {
+                a.db.run("insert or ignore into cm(id,t) values(?,?)", pa![format!("{r}:{}", c["id"].as_str().unwrap_or("")), now()]);
+            }
         }
+        a.db.run("update prs set upd=? where repo=? and num=?", pa![up, r.clone(), n]);
     }
     a.st("watcher", "idle", None, "");
     Ok(())
