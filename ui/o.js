@@ -448,7 +448,8 @@
       const wk = cn > 0 || w.st === "work";
       t.querySelector(".md").textContent = n === "ci" || n === "submit" ? "no model" : mdn(w.md);
       t.querySelector(".md").title = w.md || "";
-      t.querySelector(".sy").textContent = w.say || "…";
+      const ev = !w.say && (S.ev || []).find((e) => e.w === n);
+      t.querySelector(".sy").textContent = w.say || (ev ? `${ago(ev.t)} · ${ev.m}` : "…");
       t.className = "tile " + (wk ? "work" : "") + (w.hold ? " hold" : "");
       t.querySelector(".stt").textContent = w.hold ? "paused" : wk ? "work" + (cn > 1 ? " ×" + cn : "") : w.st === "sleep" ? "sleep" : "idle";
       t.querySelector(".ft").textContent = w.tk ? kt(w.tk) + " tok" : "";
@@ -459,6 +460,32 @@
   const rn = (j) => (j.repo.split("/")[1] || j.repo) + (j.num ? "#" + j.num : "");
   const sel = new Set();
   const jrow = (j, x) => `<div class="row${j.st === "approve" ? " apr" : ""}">${j.st === "approve" && x ? `<input type="checkbox" class="bk" data-k="${j.id}" ${sel.has(j.id) ? "checked" : ""} aria-label="select">` : ""}<span class="pill ${STC[j.st] || ""}">${esc(j.kind !== "fix" ? j.kind + "·" + j.st : j.st)}</span><div class="ti"><a class="a" href="#" data-j="${j.id}">${esc(j.title)}</a><div class="w">${esc(j.st === "ci" && S.cil[j.id] ? S.cil[j.id] : j.why || "")}</div></div><span class="rp">${esc(rn(j))}${j.st === "approve" ? ` <button class="go" data-j="${j.id}">review</button>` : ""}${x && j.st !== "approve" ? ` <button class="x" data-d="${j.id}" title="drop">✕</button>` : ""}${!x && j.st === "drop" && j.kind === "fix" ? ` <button class="x" data-rq="${j.id}" title="try again">↻</button>` : ""}</span></div>`;
+
+  let lW = "", lQ = "", lWrap = false, lastLog = "";
+  try { lWrap = localStorage.getItem("ao.lw") === "1"; } catch {}
+  const initLog = () => {
+    const sw = $("logW"), sq = $("logQ"), wb = $("logWrap"), lg = $("log");
+    if (!sw || !sq || !wb || !lg || sw.dataset.inited) return;
+    sw.dataset.inited = "1";
+    sw.innerHTML = `<option value="">All workers</option>` + ORD.map((w) => `<option value="${w}">${esc(NM[w])}</option>`).join("");
+    wb.classList.toggle("on", lWrap);
+    lg.classList.toggle("wrap", lWrap);
+    sw.onchange = () => { lW = sw.value; rlog(); };
+    sq.oninput = () => { lQ = sq.value.trim().toLowerCase(); rlog(); };
+    wb.onclick = () => {
+      lWrap = !lWrap;
+      try { localStorage.setItem("ao.lw", lWrap ? "1" : "0"); } catch {}
+      wb.classList.toggle("on", lWrap);
+      lg.classList.toggle("wrap", lWrap);
+    };
+  };
+  const rlog = () => {
+    initLog();
+    if (!S) return;
+    const evs = (S.ev || []).filter((e) => (!lW || e.w === lW) && (!lQ || (e.m || "").toLowerCase().includes(lQ) || (NM[e.w] || e.w || "").toLowerCase().includes(lQ))).slice(0, 80);
+    const html = evs.length ? evs.map((e) => `<div><span class="tm">${hm(e.t)}</span><span style="color:${SK[e.w] ? hl(e.w) : "inherit"}">${esc(NM[e.w] || e.w)}</span><span>${esc(e.m)}</span></div>`).join("") : `<div class="empty">no matching log entries</div>`;
+    if (html !== lastLog) { lastLog = html; $("log").innerHTML = html; }
+  };
 
   const lists = () => {
     const q = S.q;
@@ -474,7 +501,7 @@
     const days = [...Array(30)].map((_, i) => new Date(Date.now() - (29 - i) * 86400000).toISOString().slice(0, 10));
     const mx = Math.max(1, ...days.map((d) => m[d] || 0));
     $("bars").innerHTML = days.map((d) => `<i class="${m[d] ? "" : "z"}" style="height:${m[d] ? Math.max(8, (m[d] / mx) * 100) : 2}%" title="${d}: ${m[d] || 0}"></i>`).join("");
-    $("log").innerHTML = S.ev.slice(0, 30).map((e) => `<div><span class="tm">${hm(e.t)}</span><span style="color:${SK[e.w] ? hl(e.w) : "inherit"}">${esc(NM[e.w] || e.w)}</span><span>${esc(e.m)}</span></div>`).join("");
+    rlog();
   };
 
   const chips = () => {

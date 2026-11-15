@@ -128,9 +128,17 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
 .bars { display: flex; align-items: flex-end; gap: 2px; height: 30px; margin: 0 0 6px; flex: none; }
 .bars i { flex: 1; background: var(--ok); opacity: .75; min-height: 1px; border-radius: 1px 1px 0 0; }
 .bars i.z { background: var(--l); opacity: 1; }
+.lh { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex: none; }
+.lh select, .lh input { padding: 3px 6px; font-size: 11px; }
+.lh select { width: auto; flex: none; }
+.lh input { min-width: 0; flex: 1; }
+.lh button { padding: 3px 7px; font-size: 10px; }
+.lh button.on { background: var(--l); border-color: var(--t3); color: var(--t1); }
 .log { font: 11px/1.45 var(--m); color: var(--t2); }
 .log div { display: grid; grid-template-columns: 38px 58px minmax(0, 1fr); gap: 6px; white-space: nowrap; }
 .log div span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.log.wrap div { white-space: normal; }
+.log.wrap div span:last-child { white-space: pre-wrap; word-break: break-word; overflow: visible; text-overflow: clip; }
 .log .tm { color: var(--t3); }
 .row.apr .a { color: var(--ok); }
 button.go { color: #0b0c0e; background: var(--ok); border-color: var(--ok); padding: 3px 7px; font-size: 10px; }
@@ -270,7 +278,7 @@ pre.df .ad { color: var(--ok); } pre.df .rm { color: var(--bad); } pre.df .hh { 
   <div class="side">
     <div class="card"><h2>Queue <span id="qn"></span></h2><div class="bd" id="queue"></div></div>
     <div class="card"><h2>Pull requests <span id="prn"></span></h2><div class="bars" id="bars" title="merges per day, last 30 days"></div><div class="bd" id="prs"></div></div>
-    <div class="card"><h2>Log</h2><div class="bd log" id="log"></div></div>
+    <div class="card"><h2>Log</h2><div class="lh"><select id="logW" aria-label="Filter log by worker"><option value="">All workers</option></select><input type="text" id="logQ" placeholder="Search log" aria-label="Search log" autocomplete="off"><button type="button" id="logWrap">Wrap</button></div><div class="bd log" id="log"></div></div>
   </div>
 </main>
 <div id="dr" hidden><div class="pn"><div class="ph"><h3 id="drT"></h3><button id="drX">Close</button></div><div class="pb" id="drB"></div></div></div>
