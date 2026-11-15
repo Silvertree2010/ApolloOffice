@@ -458,7 +458,15 @@
 
   const rn = (j) => (j.repo.split("/")[1] || j.repo) + (j.num ? "#" + j.num : "");
   const sel = new Set();
-  const jrow = (j, x) => `<div class="row${j.st === "approve" ? " apr" : ""}">${j.st === "approve" && x ? `<input type="checkbox" class="bk" data-k="${j.id}" ${sel.has(j.id) ? "checked" : ""} aria-label="select">` : ""}<span class="pill ${STC[j.st] || ""}">${esc(j.kind !== "fix" ? j.kind + "·" + j.st : j.st)}</span><div class="ti"><a class="a" href="#" data-j="${j.id}">${esc(j.title)}</a><div class="w">${esc(j.st === "ci" && S.cil[j.id] ? S.cil[j.id] : j.why || "")}</div></div><span class="rp">${esc(rn(j))}${j.st === "approve" ? ` <button class="go" data-j="${j.id}">review</button>` : ""}${x && j.st !== "approve" ? ` <button class="x" data-d="${j.id}" title="drop">✕</button>` : ""}${!x && j.st === "drop" && j.kind === "fix" ? ` <button class="x" data-rq="${j.id}" title="try again">↻</button>` : ""}</span></div>`;
+  const PIPE = [["scout", "Scout"], ["guard", "Guard"], ["vet", "Vet"], ["repro", "Repro"], ["fix", "Fixer"], ["ci", "CI"], ["review", "Reviewer"], ["submit", "Submit"]];
+  const dropAt = (why) => { const w = (why || "").toLowerCase(); if (w.startsWith("guard")) return 1; if (w.startsWith("vet")) return 2; if (w.startsWith("repro")) return 3; if (w.startsWith("ci")) return 5; if (w.startsWith("review")) return 6; if (w.startsWith("submit")) return 7; return 4; };
+  const pIdx = (j) => ({ vet: 2, ready: 3, hunt: 3, repro: 3, fix: 4, ci: 5, review: 6, approve: 7, gate: 7, submit: 7, done: 8 }[j.st] ?? (j.st === "drop" ? dropAt(j.why) : 0));
+  const pbar = (j) => {
+    const at = pIdx(j), done = j.st === "done", drop = j.st === "drop";
+    return `<div class="pbar" title="Pipeline: ${PIPE.map((s) => s[1]).join(" → ")}">${PIPE.map((s, i) => `<i class="${done || i < at ? "ok" : i === at ? (drop ? "bad" : "run") : ""}" title="${esc(s[1])}"></i>`).join("")}</div>`;
+  };
+  window.AO.pbar = pbar;
+  const jrow = (j, x) => `<div class="row${j.st === "approve" ? " apr" : ""}">${j.st === "approve" && x ? `<input type="checkbox" class="bk" data-k="${j.id}" ${sel.has(j.id) ? "checked" : ""} aria-label="select">` : ""}<span class="pill ${STC[j.st] || ""}">${esc(j.kind !== "fix" ? j.kind + "·" + j.st : j.st)}</span><div class="ti"><a class="a" href="#" data-j="${j.id}">${esc(j.title)}</a><div class="w">${esc(j.st === "ci" && S.cil[j.id] ? S.cil[j.id] : j.why || "")}</div>${pbar(j)}</div><span class="rp">${esc(rn(j))}${j.st === "approve" ? ` <button class="go" data-j="${j.id}">review</button>` : ""}${x && j.st !== "approve" ? ` <button class="x" data-d="${j.id}" title="drop">✕</button>` : ""}${!x && j.st === "drop" && j.kind === "fix" ? ` <button class="x" data-rq="${j.id}" title="try again">↻</button>` : ""}</span></div>`;
 
   const lists = () => {
     const q = S.q;

@@ -493,21 +493,44 @@
   };
   A.health = health;
 
+  const dur = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? s + "s" : s < 3600 ? Math.floor(s / 60) + "m " + (s % 60) + "s" : Math.floor(s / 3600) + "h " + Math.floor((s % 3600) / 60) + "m"; };
+  const stepTrace = (j) => {
+    const asc = [...(j.ev || [])].reverse(), phases = [];
+    for (const e of asc) {
+      const p = phases[phases.length - 1];
+      if (!p || p.w !== e.w) phases.push({ w: e.w, evs: [e], t0: e.t, t1: e.t });
+      else { p.evs.push(e); p.t1 = e.t; }
+    }
+    if (!phases.length) return `<div class="empty">no step events recorded yet</div>`;
+    return `<div class="steps">${phases.map((p, idx) => {
+      const last = idx === phases.length - 1, tail = p.evs[p.evs.length - 1]?.m || "";
+      const bad = (last && j.st === "drop") || /\b(fail|error|blocked|reject|cannot)\b/i.test(tail);
+      const act = last && !["done", "drop"].includes(j.st);
+      const st = act ? "work" : bad ? "bad" : "ok";
+      const lb = act ? "ACTIVE" : bad ? "FAIL" : "PASS";
+      const tm = (t) => new Date(t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+      return `<details class="step"${idx === 0 || last || bad ? " open" : ""}><summary><span class="sn">Step ${idx + 1}</span><span class="pill ${st}">${lb}</span><span class="sw">${esc(A.NM?.[p.w] || p.w)}</span><span class="sm">${esc(tail)}</span><span class="sd">${p.evs.length} ev · ${dur(p.t1 - p.t0)}</span></summary><div class="sevs">${p.evs.map((e) => `<div class="sev"><span class="tm">${tm(e.t)}</span><span>${esc(e.m)}</span></div>`).join("")}</div></details>`;
+    }).join("")}</div>`;
+  };
+
   const job = async (id) => {
     const j = await get("/api/job?id=" + id);
     if (j.error) return;
     jid = id;
     show(j.st === "approve" ? "Review pull request" : "Job " + id, "job");
     const tag = (j.repo.split("/")[1] || j.repo) + (j.num ? "#" + j.num : "");
+    const meta = [j.cx ? "complexity: " + j.cx : "", j.feat ? "feature" : "", j.t0 ? "elapsed: " + dur((j.t1 || Date.now()) - j.t0) : ""].filter(Boolean).join(" · ");
+    const bar = A.pbar ? A.pbar(j) : "";
     const cs = j.cost && j.cost.n ? `<div class="msg">Cost: ${j.cost.usd != null ? usd(j.cost.usd) + " API" : ""}${j.cost.usd != null && j.cost.val != null ? " · " : ""}${j.cost.val != null ? usd(j.cost.val) + " login value" : ""}${j.cost.usd == null && j.cost.val == null ? "unknown" : ""} · ${Math.round((j.cost.ti || 0) / 1000)}k in, ${Math.round((j.cost.tou || 0) / 1000)}k out</div>` : "";
     const ev = (j.ev || []).map((e) => `<div><span class="tm">${new Date(e.t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span><span>${esc(e.w)}</span><span>${esc(e.m)}</span></div>`).join("");
     if (j.st === "approve") {
-      B.innerHTML = `<div class="sec"><div class="box"><div class="hd2"><b>${esc(j.repo)}${j.num ? " #" + j.num : j.ext ? " (reported by " + esc(j.ext) + ")" : " (found by Hunter)"}</b>${j.url ? `<a class="a" href="#" data-u="${esc(j.url)}">${j.num ? "open issue" : "open repository"}</a>` : ""}</div><div class="msg">Built and tested on ${esc(j.h || "")}. Nothing is on GitHub yet.</div>${cs}</div></div>
+      B.innerHTML = `<div class="sec"><div class="box"><div class="hd2"><b>${esc(j.repo)}${j.num ? " #" + j.num : j.ext ? " (reported by " + esc(j.ext) + ")" : " (found by Hunter)"}</b>${j.url ? `<a class="a" href="#" data-u="${esc(j.url)}">${j.num ? "open issue" : "open repository"}</a>` : ""}</div><div class="msg">Built and tested on ${esc(j.h || "")}. Nothing is on GitHub yet.${meta ? " · " + esc(meta) : ""}</div>${cs}${bar}</div></div>
       <div class="sec"><h4>Pull request</h4><input type="text" id="pt" value="${esc(j.pt || j.title)}"><textarea id="pb" style="min-height:220px;margin-top:8px">${esc(j.pb || "")}</textarea></div>
       ${j.proof ? `<div class="sec"><h4>Proof</h4><pre class="df">${esc((j.proof.a || "") + "\n\n" + (j.proof.b || ""))}</pre></div>` : ""}
       <div class="sec"><h4>Diff</h4>${dview(j.df)}</div>
       <div class="acts"><button class="pri" id="ba">Submit pull request</button><button class="dng" id="bd">Drop</button></div><div class="msg" id="jm"></div>
-      <div class="sec" style="margin-top:20px"><h4>Log</h4><div class="log">${ev}</div></div>`;
+      <div class="sec" style="margin-top:20px"><h4>Step-by-step execution</h4>${stepTrace(j)}</div>
+      <div class="sec"><h4>Log</h4><div class="log">${ev}</div></div>`;
       $("ba").onclick = async () => {
         busy($("ba"), true, "Submitting…");
         const r = await post({ a: "approve", id, pt: $("pt").value, pb: $("pb").value });
@@ -520,9 +543,10 @@
       };
       return;
     }
-    B.innerHTML = `<div class="sec"><div class="box"><div class="hd2"><b>${esc(j.title)}</b><span class="pill">${esc(j.st)}</span></div><div class="msg">${esc(j.repo)} ${esc(tag)} · ${esc(j.kind)}${j.h ? " · " + esc(j.h) : ""}\n${esc(j.why || "")}</div>${cs}
+    B.innerHTML = `<div class="sec"><div class="box"><div class="hd2"><b>${esc(j.title)}</b><span class="pill">${esc(j.st)}</span></div><div class="msg">${esc(j.repo)} ${esc(tag)} · ${esc(j.kind)}${j.h ? " · " + esc(j.h) : ""}${meta ? " · " + esc(meta) : ""}\n${esc(j.why || "")}</div>${cs}${bar}
       <div class="acts">${j.url ? `<button data-u="${esc(j.url)}">Open on GitHub</button>` : ""}${!["done", "drop"].includes(j.st) ? `<button class="dng" data-d="${id}">Drop</button>` : ""}${j.st === "drop" && j.kind === "fix" ? `<button data-rq="${id}">Try again</button>` : ""}</div></div></div>
       ${j.df ? `<div class="sec"><h4>Diff</h4>${dview(j.df)}</div>` : ""}
+      <div class="sec"><h4>Step-by-step execution</h4>${stepTrace(j)}</div>
       <div class="sec"><h4>Log</h4><div class="log">${ev || `<div class="empty">nothing yet</div>`}</div></div>`;
   };
   A.job = job;

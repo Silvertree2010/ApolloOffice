@@ -115,7 +115,7 @@ fn state(a: &Ax) -> Value {
         "o": o, "w": wv, "fl": fl, "ln": ln, "cil": cil, "hst": hst,
         "hs": a.db.all("select id, ln, dk, on_ from hs order by id='local' desc, id", pa![]),
         "q": a.db.all("select id,repo,num,kind,title,url,st,why,pr,t0,t1,json_extract(d,'$.h') h from jobs where st not in ('done','drop') order by st in ('hunt','repro','fix','ci','review','gate','submit') desc, st='approve' desc, st='vet', id limit 60", pa![]),
-        "dn": a.db.all("select id,repo,num,kind,title,url,st,why,pr,t1 from jobs where st in ('done','drop') order by t1 desc limit 25", pa![]),
+        "dn": a.db.all("select id,repo,num,kind,title,url,st,why,pr,t0,t1 from jobs where st in ('done','drop') order by t1 desc limit 25", pa![]),
         "pr": a.db.all("select repo,num,st,title,url,upd,merged from prs order by t0 desc limit 40", pa![]),
         "mg": a.db.all("select substr(merged,1,10) d, count(*) n from prs where merged is not null and merged >= date('now','-30 day') group by 1 order by 1", pa![]),
         "ev": a.db.all("select t,w,m,j from ev order by id desc limit 60", pa![]),
@@ -656,7 +656,7 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
         ("GET", "/api/job") => {
             let id: i64 = qv("id").parse().unwrap_or(0);
             match a.db.one("select * from jobs where id=?", pa![id]) {
-                Some(j) => js(json!({"id": j["id"], "repo": j["repo"], "num": j["num"], "kind": j["kind"], "title": j["title"], "url": j["url"], "st": j["st"], "why": j["why"], "pt": j["d"]["pt"], "pb": j["d"]["pb"], "df": j["d"]["df"], "proof": j["d"]["proof"], "known": j["d"]["known"], "h": j["d"]["h"], "ext": j["d"]["ext"]["src"], "cost": a.db.one("select sum(case when sub=0 then usd end) usd, sum(case when sub=1 then usd end) val, sum(tin+tcw+tcr) ti, sum(tout) tou, count(*) n from cost where job=?", pa![id]), "ev": a.db.all("select t,w,m from ev where j=? order by id desc limit 80", pa![id])})),
+                Some(j) => js(json!({"id": j["id"], "repo": j["repo"], "num": j["num"], "kind": j["kind"], "title": j["title"], "url": j["url"], "st": j["st"], "why": j["why"], "pr": j["pr"], "t0": j["t0"], "t1": j["t1"], "cx": j["d"]["cx"], "feat": j["d"]["feat"], "last_review": j["d"]["last_review"], "pt": j["d"]["pt"], "pb": j["d"]["pb"], "df": j["d"]["df"], "proof": j["d"]["proof"], "known": j["d"]["known"], "h": j["d"]["h"], "ext": j["d"]["ext"]["src"], "cost": a.db.one("select sum(case when sub=0 then usd end) usd, sum(case when sub=1 then usd end) val, sum(tin+tcw+tcr) ti, sum(tout) tou, count(*) n from cost where job=?", pa![id]), "ev": a.db.all("select t,w,m from ev where j=? order by id desc limit 80", pa![id])})),
                 None => er(StatusCode::NOT_FOUND, "no such job"),
             }
         }
@@ -1143,5 +1143,26 @@ mod t {
         assert_eq!(a.db.jg(x["id"].as_i64().unwrap()).unwrap().d["ext"]["n"], 2);
         let z = rep(&a, &json!({"repo": "o/r", "title": "t", "body": "b", "fp": "sentry:2"})).unwrap();
         assert_ne!(x["id"], z["id"]);
+    }
+
+    #[tokio::test]
+    async fn state_and_job_include_pipeline_timing_metadata() {
+        let db = crate::db::Db::mem();
+        let id = db.jnew("o/r", 7, "fix", "t", "https://github.com/o/r/issues/7", "done", "merged", json!({"cx": "complex", "feat": true, "last_review": {"verdict": {"ok": true}}}), Some(9), 0.0);
+        let a = std::sync::Arc::new(crate::app::App::new(db, std::env::temp_dir(), 1, "x".into()));
+
+        let s = state(&a);
+        let dn = s["dn"].as_array().unwrap();
+        assert_eq!(dn.len(), 1);
+        assert!(dn[0]["t0"].as_i64().unwrap_or(0) > 0);
+
+        let r = api(&a, &Method::GET, "/api/job", &format!("id={id}"), Value::Null).await;
+        let bytes = axum::body::to_bytes(r.into_body(), 1_000_000).await.unwrap();
+        let v: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(v["cx"], "complex");
+        assert_eq!(v["feat"], true);
+        assert_eq!(v["pr"], 9);
+        assert!(v["t0"].as_i64().unwrap_or(0) > 0);
+        assert_eq!(v["last_review"]["verdict"]["ok"], true);
     }
 }
