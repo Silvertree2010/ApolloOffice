@@ -118,7 +118,7 @@ fn state(a: &Ax) -> Value {
         "dn": a.db.all("select id,repo,num,kind,title,url,st,why,pr,t1 from jobs where st in ('done','drop') order by t1 desc limit 25", pa![]),
         "pr": a.db.all("select repo,num,st,title,url,upd,merged from prs order by t0 desc limit 40", pa![]),
         "mg": a.db.all("select substr(merged,1,10) d, count(*) n from prs where merged is not null and merged >= date('now','-30 day') group by 1 order by 1", pa![]),
-        "ev": a.db.all("select t,w,m,j from ev order by id desc limit 60", pa![]),
+        "ev": a.db.all("select t,w,m,j from ev order by id desc limit 120", pa![]),
         "n": Value::Object(a.db.all("select st, count(*) n from jobs group by st", pa![]).into_iter().map(|x| (x["st"].as_str().unwrap_or("").to_string(), x["n"].clone())).collect()),
         "lm": if now() - lm["t"].as_i64().unwrap_or(0) < 180_000 { lm } else { Value::Null },
         "nr": a.db.n("select count(*) from rp", pa![]),
@@ -1143,5 +1143,15 @@ mod t {
         assert_eq!(a.db.jg(x["id"].as_i64().unwrap()).unwrap().d["ext"]["n"], 2);
         let z = rep(&a, &json!({"repo": "o/r", "title": "t", "body": "b", "fp": "sentry:2"})).unwrap();
         assert_ne!(x["id"], z["id"]);
+    }
+
+    #[test]
+    fn state_returns_up_to_120_events() {
+        let db = crate::db::Db::mem();
+        for i in 0..75 {
+            db.run("insert into ev(t,w,m,j) values(?,?,?,null)", pa![1000 + i, "scout", format!("ev {i}")]);
+        }
+        let a = std::sync::Arc::new(crate::app::App::new(db, std::env::temp_dir(), 1, "x".into()));
+        assert_eq!(state(&a)["ev"].as_array().unwrap().len(), 75);
     }
 }
