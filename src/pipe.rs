@@ -10,34 +10,25 @@ use std::collections::BTreeSet;
 
 pub const RND: u64 = 2;
 const CIT: u64 = 150 * 60;
-const ENV_PREFLIGHT: &str = r#"command -v git >/dev/null 2>&1 || { echo "git missing in build environment"; exit 1; }
+const NODE_VERSION_SELECTION: &str = r#"if [ "${APOLLO_OFFICE_FNM:-}" != 1 ] || ! command -v fnm >/dev/null 2>&1; then exit 0; fi
+if [ -f .nvmrc ] || [ -f .node-version ] || { [ -f package.json ] && python3 -c 'import json,sys; e=json.load(open("package.json", encoding="utf-8")).get("engines", {}); sys.exit(0 if isinstance(e, dict) and isinstance(e.get("node"), str) and e["node"].strip() else 1)' >/dev/null 2>&1; }; then
+  fnm use --install-if-missing --resolve-engines
+fi"#;
+const NODE_VERSION_DIAGNOSTIC: &str = r#"source=
+required=
 if [ -f .nvmrc ]; then
-  want=$(sed 's/#.*//' .nvmrc | head -n1 | tr -d ' \t\r')
-  if [ -z "$want" ]; then echo "unsupported empty .nvmrc requirement"; exit 1; fi
-  command -v node >/dev/null 2>&1 || { echo "node missing but .nvmrc requires Node $want; rebuild the build image"; exit 1; }
-  have=$(node -v 2>&1) || { echo "node failed to run: $have"; exit 1; }
-  case "$have" in v[0-9]*) ;; *) echo "node returned an invalid version: $have"; exit 1 ;; esac
-  have=${have#v}
-  case "$have" in *[!0-9.]*|'') echo "node returned an invalid version: $have"; exit 1 ;; esac
-  case "$want" in v*) want=${want#v} ;; esac
-  case "$want" in
-    *[!0-9.]* )
-      nvm_file="${NVM_DIR:-$HOME/.nvm}/nvm.sh"
-      if [ -s "$nvm_file" ]; then . "$nvm_file"; fi
-      command -v nvm >/dev/null 2>&1 || { echo "unsupported .nvmrc requirement '$want': install nvm to resolve this alias"; exit 1; }
-      resolved=$(nvm version "$want" 2>&1) || { echo "unsupported .nvmrc requirement '$want': $resolved"; exit 1; }
-      case "$resolved" in v[0-9]*) ;; *) echo "unsupported .nvmrc requirement '$want': nvm could not resolve it"; exit 1 ;; esac
-      resolved=${resolved#v}
-      case "$resolved" in *[!0-9.]*|'') echo "unsupported .nvmrc requirement '$want': nvm returned an invalid version"; exit 1 ;; esac
-      wmaj=${resolved%%.*} ;;
-    *) wmaj=${want%%.*} ;;
-  esac
-  case "$wmaj" in ''|*[!0-9]*) echo "unsupported .nvmrc requirement '$want': no Node major version"; exit 1 ;; esac
-  hmaj=${have%%.*}
-  if [ "$wmaj" != "$hmaj" ]; then echo "node incompatible: repo requires Node $want but build environment has Node $have; rebuild the build image"; exit 1; fi
-  echo "preflight ok: node $have (wants $want)"
-else
-  echo "preflight ok: git present, no .nvmrc requirement"
+  source=.nvmrc
+  required=$(sed 's/#.*//' .nvmrc | sed -n '/[^[:space:]]/{s/^[[:space:]]*//;s/[[:space:]]*$//;p;q;}')
+elif [ -f .node-version ]; then
+  source=.node-version
+  required=$(sed 's/#.*//' .node-version | sed -n '/[^[:space:]]/{s/^[[:space:]]*//;s/[[:space:]]*$//;p;q;}')
+elif [ -f package.json ] && command -v python3 >/dev/null 2>&1; then
+  source=package.json
+  required=$(python3 -c 'import json; e=json.load(open("package.json", encoding="utf-8")).get("engines", {}); print(e.get("node", "") if isinstance(e, dict) else "")' 2>/dev/null) || required=
+fi
+if [ -n "$required" ]; then
+  have=$(node --version 2>/dev/null) || have=unavailable
+  printf 'Node hint: %s requests %s; the environment reports %s. Check version selection and setup tooling.\n' "$source" "$required" "$have"
 fi"#;
 
 pub fn gitb() -> String {
@@ -289,34 +280,34 @@ async fn prep(a: &Ax, j: &mut Job) -> R<()> {
         ok(a, j, &format!("git checkout -q -B {} refs/ao/head", q(&br)), 1800).await?;
         j.d["old"] = json!(ok(a, j, "git rev-parse HEAD", 60).await?);
     }
-    // Environment preflight: fail fast with an actionable message when the build
-    // container lacks git/node or ships a Node major that the repo's .nvmrc rejects.
-    // This turns a cryptic mid-setup crash (e.g. "libuv crash. Detected 20.19.2")
-    // into a clear instruction to rebuild the build image. git is always required;
-    // Node checks only apply when the repo pins a plain version via .nvmrc (aliases
-    // like lts/* or a broken Node install are reported rather than silently passed).
-    let pf = x(a, j, &format!("bash -c {} 2>&1", q(ENV_PREFLIGHT)), 120).await;
-    if pf.c != 0 {
-        let diagnostic = crate::sh::last(
-            if pf.e.trim().is_empty() {
-                pf.o.trim()
-            } else {
-                pf.e.trim()
-            },
-            300,
+    // Best-effort Node provisioning only in the managed build image. Do not
+    // reject a repository here: its setup may install or select Node itself.
+    let node_selection = x(a, j, &format!("bash -c {} 2>&1", q(NODE_VERSION_SELECTION)), 360).await;
+    if node_selection.c != 0 {
+        a.say(
+            "repro",
+            &format!(
+                "[{}] optional Node selection failed (setup will continue): {}",
+                j.h(),
+                crate::sh::last(node_selection.all().trim(), 240)
+            ),
+            Some(j.id),
         );
-        let message = format!("environment preflight failed (exit {}): {diagnostic}", pf.c);
-        if crate::app::hostish(&message) || crate::app::netish(&message) {
-            return Err(oe(&pf, "environment preflight", &j.h()));
-        }
-        return drop(message);
     }
     let su = rp(a, &j.repo)["setup"].as_str().unwrap_or("").trim().to_string();
     if !su.is_empty() {
         a.say("repro", &format!("[{}] setup: {}", j.h(), crate::sh::head(&su, 80)), Some(j.id));
         let r = x(a, j, &format!("to 1800 bash -c {} 2>&1 | tail -c 3000; exit ${{PIPESTATUS[0]}}", q(&su)), 1900).await;
         if r.c != 0 {
-            return drop(format!("setup command failed (exit {}): {}", r.c, crate::sh::last(r.o.trim(), 300)));
+            let mut reason = format!("setup command failed (exit {}): {}", r.c, crate::sh::last(r.o.trim(), 300));
+            // Diagnostic only: the original setup error remains authoritative.
+            // In particular, a repository may install Node through its own setup.
+            let hint = x(a, j, &format!("bash -c {} 2>&1", q(NODE_VERSION_DIAGNOSTIC)), 60).await;
+            if hint.c == 0 && !hint.o.trim().is_empty() {
+                reason.push('\n');
+                reason.push_str(&crate::sh::last(hint.o.trim(), 500));
+            }
+            return drop(reason);
         }
         ok(a, j, "git checkout -q -- . 2>/dev/null; true", 60).await?;
     }
@@ -1918,39 +1909,32 @@ mod t {
     use super::*;
 
     #[cfg(unix)]
-    fn run_preflight(nvmrc: Option<&str>, node_body: &str, nvm_resolved: &str) -> std::process::Output {
+    fn run_node_script(script: &str, nvmrc: Option<&str>, node_version: Option<&str>, package: Option<&str>, enable_fnm: bool) -> std::process::Output {
         use std::os::unix::fs::PermissionsExt;
 
         let root = std::env::temp_dir().join(format!(
-            "apollo-preflight-{}-{}",
+            "apollo-node-env-{}-{}",
             std::process::id(),
             hex::encode(rand::random::<[u8; 8]>())
         ));
         let bin = root.join("bin");
-        let nvm_dir = root.join("nvm");
         std::fs::create_dir_all(&bin).unwrap();
-        std::fs::create_dir_all(&nvm_dir).unwrap();
-        if let Some(requirement) = nvmrc {
-            std::fs::write(root.join(".nvmrc"), requirement).unwrap();
+        for (file, body) in [(".nvmrc", nvmrc), (".node-version", node_version), ("package.json", package)] {
+            if let Some(body) = body {
+                std::fs::write(root.join(file), body).unwrap();
+            }
         }
-        for (name, body) in [
-            ("git", "exit 0"),
-            ("node", node_body),
-            ("nvm", "printf '%s\\n' \"$NVM_RESOLVED\""),
-        ] {
-            let path = bin.join(name);
-            std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
-            let mut permissions = std::fs::metadata(&path).unwrap().permissions();
-            permissions.set_mode(0o700);
-            std::fs::set_permissions(path, permissions).unwrap();
-        }
+        let fnm = bin.join("fnm");
+        std::fs::write(&fnm, "#!/bin/sh\nprintf 'fnm-called: %s\\n' \"$*\"\n").unwrap();
+        let mut permissions = std::fs::metadata(&fnm).unwrap().permissions();
+        permissions.set_mode(0o700);
+        std::fs::set_permissions(&fnm, permissions).unwrap();
         let output = std::process::Command::new("/bin/bash")
             .arg("-c")
-            .arg(ENV_PREFLIGHT)
+            .arg(script)
             .current_dir(&root)
-            .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
-            .env("NVM_DIR", &nvm_dir)
-            .env("NVM_RESOLVED", nvm_resolved)
+            .env("PATH", format!("{}:{}", bin.display(), std::env::var("PATH").unwrap_or_default()))
+            .env("APOLLO_OFFICE_FNM", if enable_fnm { "1" } else { "0" })
             .output()
             .unwrap();
         let _ = std::fs::remove_dir_all(root);
@@ -1959,25 +1943,52 @@ mod t {
 
     #[cfg(unix)]
     #[test]
-    fn environment_preflight_checks_pinned_node_versions_and_aliases() {
-        let no_nvmrc = run_preflight(None, "echo broken-node >&2; exit 9", "");
-        assert!(no_nvmrc.status.success());
+    fn node_selection_is_optional_and_supports_version_sources() {
+        let none = run_node_script(NODE_VERSION_SELECTION, None, None, None, true);
+        assert!(none.status.success());
+        assert!(none.stdout.is_empty());
 
-        let pinned = run_preflight(
-            Some("v20.1.0 # keep the major stable\n"),
-            "printf 'v20.19.0\n'",
-            "",
-        );
-        assert!(pinned.status.success(), "{}", String::from_utf8_lossy(&pinned.stderr));
+        let pinned = run_node_script(NODE_VERSION_SELECTION, Some("v24.1.0\n"), None, None, true);
+        assert!(pinned.status.success());
+        assert!(String::from_utf8_lossy(&pinned.stdout).contains("fnm-called: use --install-if-missing --resolve-engines"));
 
-        let alias = run_preflight(Some("lts/argon\n"), "printf 'v20.19.0\n'", "v20.20.0");
-        assert!(alias.status.success(), "{}", String::from_utf8_lossy(&alias.stderr));
+        let node_version = run_node_script(NODE_VERSION_SELECTION, None, Some("22\n"), None, true);
+        assert!(node_version.status.success());
+        assert!(String::from_utf8_lossy(&node_version.stdout).contains("fnm-called: use"));
 
-        let mismatch = run_preflight(Some("18\n"), "printf 'v20.19.0\n'", "");
-        assert!(!mismatch.status.success());
+        let engine = run_node_script(NODE_VERSION_SELECTION, None, None, Some(r#"{"engines":{"node":">=22 <25"}}"#), true);
+        assert!(engine.status.success());
+        assert!(String::from_utf8_lossy(&engine.stdout).contains("fnm-called: use"));
 
-        let unresolved = run_preflight(Some("lts/unknown\n"), "printf 'v20.19.0\n'", "N/A");
-        assert!(!unresolved.status.success());
+        let no_engine = run_node_script(NODE_VERSION_SELECTION, None, None, Some(r#"{"name":"no-node-requirement"}"#), true);
+        assert!(no_engine.status.success());
+        assert!(no_engine.stdout.is_empty());
+
+        let host = run_node_script(NODE_VERSION_SELECTION, Some("24\n"), None, None, false);
+        assert!(host.status.success());
+        assert!(host.stdout.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn node_diagnostic_only_reports_existing_requirements() {
+        let none = run_node_script(NODE_VERSION_DIAGNOSTIC, None, None, None, false);
+        assert!(none.status.success());
+        assert!(none.stdout.is_empty());
+
+        let pinned = run_node_script(NODE_VERSION_DIAGNOSTIC, Some("24 # pinned major\n"), None, None, false);
+        let message = String::from_utf8_lossy(&pinned.stdout);
+        assert!(pinned.status.success());
+        assert!(message.contains(".nvmrc requests 24;"), "{message}");
+
+        let node_version = run_node_script(NODE_VERSION_DIAGNOSTIC, None, Some("22\n"), None, false);
+        assert!(String::from_utf8_lossy(&node_version.stdout).contains(".node-version requests 22;"));
+
+        let engine = run_node_script(NODE_VERSION_DIAGNOSTIC, None, None, Some(r#"{"engines":{"node":">=20 <25"}}"#), false);
+        assert!(String::from_utf8_lossy(&engine.stdout).contains("package.json requests >=20 <25;"));
+
+        let ignored = run_node_script(NODE_VERSION_DIAGNOSTIC, None, None, Some(r#"{"name":"no-engines"}"#), false);
+        assert!(ignored.stdout.is_empty());
     }
 
     #[cfg(unix)]
