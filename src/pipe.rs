@@ -1952,6 +1952,10 @@ mod t {
         assert!(pinned.status.success());
         assert!(String::from_utf8_lossy(&pinned.stdout).contains("fnm-called: use --install-if-missing --resolve-engines"));
 
+        let alias = run_node_script(NODE_VERSION_SELECTION, Some("lts/iron\n"), None, None, true);
+        assert!(alias.status.success());
+        assert!(String::from_utf8_lossy(&alias.stdout).contains("fnm-called: use"));
+
         let node_version = run_node_script(NODE_VERSION_SELECTION, None, Some("22\n"), None, true);
         assert!(node_version.status.success());
         assert!(String::from_utf8_lossy(&node_version.stdout).contains("fnm-called: use"));
