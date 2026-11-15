@@ -423,9 +423,20 @@ ENV CARGO_TERM_COLOR=never CARGO_INCREMENTAL=0 PIP_BREAK_SYSTEM_PACKAGES=1
 WORKDIR /work
 "#;
 
+/// Computes Docker container CPU allocation capped by both host CPUs and the Docker daemon NCPU ceiling.
+pub fn cap_docker_cpu(host_cpus: i64, docker_ncpu: Option<i64>, configured: i64) -> i64 {
+    let host = host_cpus.max(1);
+    let cap = docker_ncpu.filter(|&d| d > 0).map_or(host, |d| host.min(d));
+    if configured > 0 {
+        configured.min(cap)
+    } else {
+        (host - 1).clamp(1, cap)
+    }
+}
+
 pub fn dkup(h: &Ho, cpu: i64) -> String {
     format!(
-        "command -v docker >/dev/null || {{ echo 'docker is not installed'; exit 2; }}\ndocker info >/dev/null 2>&1 || {{ echo 'docker is not running'; exit 2; }}\nif ! docker image inspect {im} >/dev/null 2>&1; then docker build -q -t {im} - <<'DOCKERFILE'\n{DF}DOCKERFILE\nfi\nold=$(docker inspect -f '{{{{.Config.Image}}}}' {CT} 2>/dev/null)\nini=$(docker inspect -f '{{{{.HostConfig.Init}}}} {{{{.State.Paused}}}}' {CT} 2>/dev/null)\nif [ -n \"$old\" ] && {{ [ \"$old\" != {im} ] || [ \"$ini\" = 'false false' ] || [ \"$ini\" = '<nil> false' ]; }}; then docker rm -f {CT} >/dev/null 2>&1; fi\nst=''\n{{ [ \"$ini\" = 'false true' ] || [ \"$ini\" = '<nil> true' ]; }} && st=' stale'\nr=$(docker inspect -f '{{{{.State.Running}}}}' {CT} 2>/dev/null)\nm=$(( $(docker info --format '{{{{.MemTotal}}}}' 2>/dev/null || echo 0) / 1048576 - 3072 ))\n[ \"$m\" -lt 2048 ] && m=2048\nif [ -z \"$r\" ]; then docker run -d --init --name {CT} --restart unless-stopped --cpus {cpu} --cpu-shares 128 --memory \"$m\"m --memory-swap \"$m\"m -v apollo-office-work:/work -v apollo-office-cargo:/usr/local/cargo/registry {im} sleep infinity >/dev/null 2>&1 || [ \"$(docker inspect -f '{{{{.State.Running}}}}' {CT} 2>/dev/null)\" = true ] || docker start {CT} >/dev/null || exit 3; elif [ \"$r\" != true ]; then docker start {CT} >/dev/null || exit 3; fi\ndocker update --cpus {cpu} --cpu-shares 128 --memory \"$m\"m --memory-swap \"$m\"m {CT} >/dev/null 2>&1\ndocker images apollo-office-build --format '{{{{.Repository}}}}:{{{{.Tag}}}}' | grep -vx {im} | xargs -r docker rmi >/dev/null 2>&1\necho \"ok {}$st\"\n",
+        "command -v docker >/dev/null || {{ echo 'docker is not installed'; exit 2; }}\ndocker info >/dev/null 2>&1 || {{ echo 'docker is not running'; exit 2; }}\nif ! docker image inspect {im} >/dev/null 2>&1; then docker build -q -t {im} - <<'DOCKERFILE'\n{DF}DOCKERFILE\nfi\nold=$(docker inspect -f '{{{{.Config.Image}}}}' {CT} 2>/dev/null)\nini=$(docker inspect -f '{{{{.HostConfig.Init}}}} {{{{.State.Paused}}}}' {CT} 2>/dev/null)\nif [ -n \"$old\" ] && {{ [ \"$old\" != {im} ] || [ \"$ini\" = 'false false' ] || [ \"$ini\" = '<nil> false' ]; }}; then docker rm -f {CT} >/dev/null 2>&1; fi\nst=''\n{{ [ \"$ini\" = 'false true' ] || [ \"$ini\" = '<nil> true' ]; }} && st=' stale'\nr=$(docker inspect -f '{{{{.State.Running}}}}' {CT} 2>/dev/null)\nm=$(( $(docker info --format '{{{{.MemTotal}}}}' 2>/dev/null || echo 0) / 1048576 - 3072 ))\n[ \"$m\" -lt 2048 ] && m=2048\nif [ -z \"$r\" ]; then out=$(docker run -d --init --name {CT} --restart unless-stopped --cpus {cpu} --cpu-shares 128 --memory \"$m\"m --memory-swap \"$m\"m -v apollo-office-work:/work -v apollo-office-cargo:/usr/local/cargo/registry {im} sleep infinity 2>&1) || [ \"$(docker inspect -f '{{{{.State.Running}}}}' {CT} 2>/dev/null)\" = true ] || docker start {CT} >/dev/null 2>&1 || {{ printf '%s\\n' \"$out\" >&2; exit 3; }}; elif [ \"$r\" != true ]; then docker start {CT} >/dev/null || exit 3; fi\ndocker update --cpus {cpu} --cpu-shares 128 --memory \"$m\"m --memory-swap \"$m\"m {CT} >/dev/null 2>&1\ndocker images apollo-office-build --format '{{{{.Repository}}}}:{{{{.Tag}}}}' | grep -vx {im} | xargs -r docker rmi >/dev/null 2>&1\necho \"ok {}$st\"\n",
         h.id,
         im = im()
     )
@@ -450,8 +461,11 @@ pub async fn ensure(a: &Ax, id: &str) -> Result<bool, String> {
         let r = hraw(&h, &format!("mkdir -p \"{}\" && git --version >/dev/null && echo ok", hb(a, &h)), 60).await;
         return if r.c == 0 { Ok(true) } else { Err(format!("{}{}", r.o, r.e).trim().chars().take(300).collect()) };
     }
-    let n = hraw(&h, "getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 4", 30).await.o.trim().parse::<i64>().unwrap_or(4);
-    let cpu = if h.cpu > 0 { h.cpu.min(n) } else { (n - 1).max(1) };
+    let probe = hraw(&h, "getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 4; docker info --format '{{.NCPU}}' 2>/dev/null || echo 0", 30).await.o;
+    let mut ls = probe.lines();
+    let n = ls.next().and_then(|s| s.trim().parse::<i64>().ok()).unwrap_or(4);
+    let dcpu = ls.next().and_then(|s| s.trim().parse::<i64>().ok()).filter(|&v| v > 0);
+    let cpu = cap_docker_cpu(n, dcpu, h.cpu);
     a.db.ks(&format!("cpu:{id}"), &serde_json::json!(cpu));
     let r = hraw(&h, &dkup(&h, cpu), 3600).await;
     if r.c == 0 {
@@ -542,6 +556,21 @@ mod t {
         assert!(r.o.ends_with("BUNDLE_STREAM_OK"));
         let nested=hx(&a,"local","to 3 bash -c 'printf nested-timeout-ok'",5).await;
         assert_eq!(nested.c,0,"{}",nested.all());assert_eq!(nested.o,"nested-timeout-ok");
+    }
+
+    #[test]
+    fn docker_cpu_cap_respects_daemon_ncpu_ceiling() {
+        assert_eq!(cap_docker_cpu(16, Some(12), 0), 12);
+        assert_eq!(cap_docker_cpu(16, Some(12), 15), 12);
+        assert_eq!(cap_docker_cpu(16, Some(12), 6), 6);
+        assert_eq!(cap_docker_cpu(16, Some(16), 0), 15);
+        assert_eq!(cap_docker_cpu(16, None, 0), 15);
+        assert_eq!(cap_docker_cpu(1, Some(1), 0), 1);
+
+        let h = Ho { id: "local".into(), ssh: "".into(), dk: true, ln: 1, ci: 1, gb: 50, on: true, no: vec![], cpu: 0 };
+        let s = dkup(&h, 12);
+        assert!(s.contains("out=$(docker run -d"));
+        assert!(s.contains("printf '%s\\n' \"$out\" >&2"));
     }
 
 }
