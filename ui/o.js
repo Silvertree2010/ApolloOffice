@@ -458,7 +458,8 @@
 
   const rn = (j) => (j.repo.split("/")[1] || j.repo) + (j.num ? "#" + j.num : "");
   const sel = new Set();
-  const jrow = (j, x) => `<div class="row${j.st === "approve" ? " apr" : ""}">${j.st === "approve" && x ? `<input type="checkbox" class="bk" data-k="${j.id}" ${sel.has(j.id) ? "checked" : ""} aria-label="select">` : ""}<span class="pill ${STC[j.st] || ""}">${esc(j.kind !== "fix" ? j.kind + "·" + j.st : j.st)}</span><div class="ti"><a class="a" href="#" data-j="${j.id}">${esc(j.title)}</a><div class="w">${esc(j.st === "ci" && S.cil[j.id] ? S.cil[j.id] : j.why || "")}</div></div><span class="rp">${esc(rn(j))}${j.st === "approve" ? ` <button class="go" data-j="${j.id}">review</button>` : ""}${x && j.st !== "approve" ? ` <button class="x" data-d="${j.id}" title="drop">✕</button>` : ""}${!x && j.st === "drop" && j.kind === "fix" ? ` <button class="x" data-rq="${j.id}" title="try again">↻</button>` : ""}</span></div>`;
+  const canRepro = (j) => j.st === "drop" && j.kind === "fix" && ((j.why || "").startsWith("Vet") || (j.why || "").startsWith("Guard"));
+  const jrow = (j, x) => `<div class="row${j.st === "approve" ? " apr" : ""}">${j.st === "approve" && x ? `<input type="checkbox" class="bk" data-k="${j.id}" ${sel.has(j.id) ? "checked" : ""} aria-label="select">` : ""}<span class="pill ${STC[j.st] || ""}">${esc(j.kind !== "fix" ? j.kind + "·" + j.st : j.st)}</span><div class="ti"><a class="a" href="#" data-j="${j.id}">${esc(j.title)}</a><div class="w">${esc(j.st === "ci" && S.cil[j.id] ? S.cil[j.id] : j.why || "")}</div></div><span class="rp">${esc(rn(j))}${j.st === "approve" ? ` <button class="go" data-j="${j.id}">review</button>` : ""}${x && j.st !== "approve" ? ` <button class="x" data-d="${j.id}" title="drop">✕</button>` : ""}${!x && canRepro(j) ? ` <button class="x" data-rr="${j.id}" title="Skip Vet/Guard and send to Repro">→ Repro</button>` : ""}${!x && j.st === "drop" && j.kind === "fix" ? ` <button class="x" data-rq="${j.id}" title="try again">↻</button>` : ""}</span></div>`;
 
   const lists = () => {
     const q = S.q;
@@ -534,6 +535,8 @@
     if (d) { post({ a: "drop", id: Number(d.dataset.d) }).then(apply); return; }
     const rq = e.target.closest("[data-rq]");
     if (rq) { post({ a: "requeue", id: Number(rq.dataset.rq) }).then(apply); return; }
+    const rr = e.target.closest("[data-rr]");
+    if (rr) { post({ a: "repro", id: Number(rr.dataset.rr) }).then((s) => { apply(s); if (rr.closest("#drB") && window.AO.job) window.AO.job(Number(rr.dataset.rr)); }); return; }
     const jb = e.target.closest("[data-j]");
     if (jb) { e.preventDefault(); window.AO.job && window.AO.job(Number(jb.dataset.j)); }
   });

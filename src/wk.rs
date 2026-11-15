@@ -59,6 +59,13 @@ pub fn errm(e: &X) -> String {
     }
 }
 
+/// Returns whether an issue's labels or title explicitly request a feature/enhancement.
+pub fn feat_match(labels: &[&str], title: &str) -> bool {
+    let fl = Regex::new(r"(?i)\b(enhancement|feature|feat|request|idea|proposal)\b").unwrap();
+    let ft = Regex::new(r"(?i)^\s*(\[?feat(ure)?\]?|\[?request\]?|idea|proposal)[:\] ]").unwrap();
+    labels.iter().any(|l| fl.is_match(l)) || ft.is_match(title)
+}
+
 async fn scout1(a: &Ax) -> R<()> {
     need(a, "scout", &["gh"]).await?;
     a.st("scout", "work", None, "");
@@ -67,8 +74,9 @@ async fn scout1(a: &Ax) -> R<()> {
     let ft = Regex::new(r"(?i)^\s*(\[?feat(ure)?\]?|\[?request\]?|idea|proposal)[:\] ]").unwrap();
     let nf = Regex::new(r"(?i)\b(question|wontfix|won't fix|duplicate|invalid|discussion|docs?|documentation)\b").unwrap();
     let hold = Regex::new(r"(?i)paused|blocked|on[- ]?hold|frozen|needs[- ]?(design|decision|discussion|triage|info)|\b(epic|tracking|meta|umbrella|rfc)\b").unwrap();
-    let rs = a.db.all("select full, feat, skl from rp where on_=1 and iss=1 and ci<>''", pa![]);
+    let rs = a.db.all("select full, iss, feat, skl from rp where on_=1 and (iss=1 or feat=1) and ci<>''", pa![]);
     for r in rs {
+        let iss_on = r["iss"].as_i64().unwrap_or(1) == 1;
         let fe = r["feat"].as_i64().unwrap_or(0) == 1;
         let sk = skl(r["skl"].as_str().unwrap_or(""));
         let r = r["full"].as_str().unwrap_or("").to_string();
@@ -102,6 +110,13 @@ async fn scout1(a: &Ax) -> R<()> {
             if i["labels"].as_array().map(|l| l.iter().any(|x| { let ln = x["name"].as_str().unwrap_or(""); nx.is_match(ln) || hold.is_match(ln) || sk.iter().any(|k| k == &ln.to_lowercase()) })).unwrap_or(false) || (!fe && ft.is_match(i["title"].as_str().unwrap_or(""))) {
                 a.db.run("insert into seen(repo,num,upd) values(?,?,?) on conflict do update set upd=excluded.upd", pa![r.clone(), n, up]);
                 continue;
+            }
+            if !iss_on && fe {
+                let lbs: Vec<&str> = i["labels"].as_array().map(|l| l.iter().filter_map(|x| x["name"].as_str()).collect()).unwrap_or_default();
+                if !feat_match(&lbs, i["title"].as_str().unwrap_or("")) {
+                    a.db.run("insert into seen(repo,num,upd) values(?,?,?) on conflict do update set upd=excluded.upd", pa![r.clone(), n, up]);
+                    continue;
+                }
             }
             nw.push(i);
         }
@@ -613,5 +628,14 @@ mod t {
         assert_eq!(v.len(), 1);
         assert_eq!(v[0]["at"], "2026-10-19T10:00:00Z");
         assert_eq!(pending(vec![c("2026-10-18T10:00:00Z")], "").len(), 1);
+    }
+
+    #[test]
+    fn feat_match_identifies_feature_tickets() {
+        assert!(feat_match(&["enhancement"], "Add dark mode"));
+        assert!(feat_match(&["triage", "Feature Request"], "Support config"));
+        assert!(feat_match(&[], "[feat] Support batch export"));
+        assert!(feat_match(&[], "proposal: Retry downloads"));
+        assert!(!feat_match(&["bug", "high-priority"], "Crash on empty input"));
     }
 }

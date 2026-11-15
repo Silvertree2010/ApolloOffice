@@ -706,7 +706,8 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
                         a.db.jset(id, &[("st", json!("submit")), ("why", json!("approved, submitting")), ("d", j.d)]);
                     }
                 }
-                "requeue" => {
+                "requeue" | "repro" => {
+                    let force_repro = b["a"].as_str() == Some("repro");
                     if let Some(j) = a.db.jg(id) {
                         if j.st == "drop" && j.kind == "fix" {
                             let mut d = j.d.clone();
@@ -715,7 +716,9 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
                             }
                             a.db.kd(&format!("kill:{id}"));
                             a.db.run("delete from kv where k=? or k like ?", pa![format!("cired:{}", j.repo), format!("cired:{}@%", j.repo)]);
-                            a.db.jset(id, &[("st", json!(if j.why.starts_with("Guard") || j.why.starts_with("Vet") { "vet" } else { "ready" })), ("why", json!("requeued by the owner")), ("d", d)]);
+                            let st = if !force_repro && (j.why.starts_with("Guard") || j.why.starts_with("Vet")) { "vet" } else { "ready" };
+                            let why = if force_repro { "sent to Repro by the owner" } else { "requeued by the owner" };
+                            a.db.jset(id, &[("st", json!(st)), ("why", json!(why)), ("d", d)]);
                         }
                     }
                 }
@@ -742,6 +745,7 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
                     js(json!({"full": r, "ci": c, "setup": s, "cfg": cfg(a)}))
                 }
                 "set" => {
+                    let prev = a.db.one("select iss, feat, skl from rp where full=?", pa![r.clone()]);
                     for (k, kind) in [("iss", 0), ("hunt", 0), ("feat", 0), ("nm", 0), ("on_", 0), ("maxo", 1), ("maxd", 1), ("bud", 3), ("ci", 2), ("setup", 2), ("rules", 2), ("mode", 2), ("skl", 2)] {
                         let v = &b[k];
                         if v.is_null() {
@@ -768,6 +772,15 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
                                 s = crate::sh::head(&s, 4000);
                                 a.db.run(&format!("update rp set {k}=? where full=?"), pa![s, r.clone()]);
                             }
+                        }
+                    }
+                    if let (Some(p), Some(c)) = (prev, a.db.one("select iss, feat, skl from rp where full=?", pa![r.clone()])) {
+                        let recheck = (p["iss"].as_i64().unwrap_or(0) == 0 && c["iss"].as_i64().unwrap_or(0) == 1)
+                            || (p["feat"].as_i64().unwrap_or(0) == 0 && c["feat"].as_i64().unwrap_or(0) == 1)
+                            || p["skl"].as_str().unwrap_or("") != c["skl"].as_str().unwrap_or("");
+                        if recheck {
+                            a.db.run("delete from seen where repo=?", pa![r.clone()]);
+                            a.db.kd(&format!("sc:{r}"));
                         }
                     }
                     a.db.run("delete from kv where k=? or k like ?", pa![format!("cired:{r}"), format!("cired:{r}@%")]);
@@ -874,7 +887,10 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
                 "history" => {
                     a.db.run("delete from jobs where st in ('done','drop')", pa![]);
                     a.db.run("delete from ev where j is null or j not in (select id from jobs)", pa![]);
-                    a.say("scout", "job history cleared", None);
+                    a.db.run("delete from seen", pa![]);
+                    a.db.run("delete from kv where k like 'sc:%' or k like 'cired:%'", pa![]);
+                    a.sw.notify_one();
+                    a.say("scout", "job history and scout cache cleared", None);
                 }
                 "reset" => {
                     for k in ["set", "hold", "man"] {
@@ -1143,5 +1159,37 @@ mod t {
         assert_eq!(a.db.jg(x["id"].as_i64().unwrap()).unwrap().d["ext"]["n"], 2);
         let z = rep(&a, &json!({"repo": "o/r", "title": "t", "body": "b", "fp": "sentry:2"})).unwrap();
         assert_ne!(x["id"], z["id"]);
+    }
+
+    #[tokio::test]
+    async fn repro_action_bypasses_vet_and_history_clears_seen() {
+        let db = crate::db::Db::mem();
+        db.run("insert into rp(full,iss,feat,ci,on_) values('o/r',1,0,'cargo test',1)", pa![]);
+        db.run("insert into seen(repo,num,upd) values('o/r',1,'2026-01-01T00:00:00Z')", pa![]);
+        db.ks("sc:o/r", &json!(123));
+        let j1 = db.jnew("o/r", 10, "fix", "feature x", "", "drop", "Vet: unclear", json!({"vt": {"ok": false}, "known": "k"}), None, 0.0);
+        let j2 = db.jnew("o/r", 11, "fix", "feature y", "", "drop", "Vet: unclear", json!({"vt": {"ok": false}}), None, 0.0);
+        let a = std::sync::Arc::new(crate::app::App::new(db, std::env::temp_dir(), 1, "x".into()));
+
+        api(&a, &Method::POST, "/api/repo", "", json!({"op": "set", "full": "o/r", "feat": true})).await;
+        assert_eq!(a.db.n("select count(*) from seen where repo='o/r'", pa![]), 0);
+        assert!(a.db.kg("sc:o/r").is_null());
+
+        api(&a, &Method::POST, "/api/act", "", json!({"a": "repro", "id": j1})).await;
+        let g1 = a.db.jg(j1).unwrap();
+        assert_eq!(g1.st, "ready");
+        assert!(g1.d.get("vt").is_none());
+
+        api(&a, &Method::POST, "/api/act", "", json!({"a": "requeue", "id": j2})).await;
+        assert_eq!(a.db.jg(j2).unwrap().st, "vet");
+
+        a.db.run("insert into seen(repo,num,upd) values('o/r',2,'2026-01-01T00:00:00Z')", pa![]);
+        a.db.ks("sc:o/r", &json!(456));
+        a.db.ks("cired:o/r", &json!(true));
+        a.db.jnew("o/r", 12, "fix", "old", "", "done", "merged", json!({}), None, 0.0);
+        api(&a, &Method::POST, "/api/danger", "", json!({"op": "history"})).await;
+        assert_eq!(a.db.n("select count(*) from seen", pa![]), 0);
+        assert!(a.db.kg("sc:o/r").is_null());
+        assert!(a.db.kg("cired:o/r").is_null());
     }
 }
