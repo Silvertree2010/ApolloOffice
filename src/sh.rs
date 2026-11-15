@@ -588,14 +588,14 @@ mod tests {
         // Simulate a valid fnm shell environment, but an unavailable Node pin.
         std::fs::write(
             &fnm,
-            "#!/bin/sh\\nif [ \\"$1\\" = env ]; then echo 'export FNM_MULTISHELL_PATH=/tmp/apollo-fnm-test'; exit 0; fi\\nexit 9\\n",
+            "#!/bin/sh\nif [ \"$1\" = env ]; then echo 'export FNM_MULTISHELL_PATH=/tmp/apollo-fnm-test'; exit 0; fi\nexit 9\n",
         ).unwrap();
         let mut permissions = std::fs::metadata(&fnm).unwrap().permissions();
         permissions.set_mode(0o700);
         std::fs::set_permissions(&fnm, permissions).unwrap();
 
         let script = format!(
-            "{PRE}cd {} && printf 'entered\\n'; cd /this-directory-must-not-exist-ao-fnm-test >/dev/null 2>&1 && echo invalid || echo denied",
+            "{PRE}cd {} && printf 'entered\n'; cd /this-directory-must-not-exist-ao-fnm-test >/dev/null 2>&1 && echo invalid || echo denied",
             q(&root.display().to_string())
         );
         let output = std::process::Command::new("/bin/bash")
@@ -607,7 +607,7 @@ mod tests {
             .unwrap();
         let _ = std::fs::remove_dir_all(root);
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
-        assert_eq!(String::from_utf8_lossy(&output.stdout), "entered\\ndenied\\n");
+        assert_eq!(String::from_utf8_lossy(&output.stdout), "entered\ndenied\n");
     }
 
     #[cfg(unix)]
