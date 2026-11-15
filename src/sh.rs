@@ -571,6 +571,45 @@ mod tests {
         assert_eq!(super::clip("short", 6000), "short");
     }
 
+
+    #[cfg(unix)]
+    #[test]
+    fn fnm_activation_does_not_turn_successful_cd_into_a_failure() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = std::env::temp_dir().join(format!(
+            "apollo-fnm-cd-{}-{}",
+            std::process::id(),
+            hex::encode(rand::random::<[u8; 8]>())
+        ));
+        let bin = root.join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let fnm = bin.join("fnm");
+        // Simulate a valid fnm shell environment, but an unavailable Node pin.
+        std::fs::write(
+            &fnm,
+            "#!/bin/sh\\nif [ \\"$1\\" = env ]; then echo 'export FNM_MULTISHELL_PATH=/tmp/apollo-fnm-test'; exit 0; fi\\nexit 9\\n",
+        ).unwrap();
+        let mut permissions = std::fs::metadata(&fnm).unwrap().permissions();
+        permissions.set_mode(0o700);
+        std::fs::set_permissions(&fnm, permissions).unwrap();
+
+        let script = format!(
+            "{PRE}cd {} && printf 'entered\\n'; cd /this-directory-must-not-exist-ao-fnm-test >/dev/null 2>&1 && echo invalid || echo denied",
+            q(&root.display().to_string())
+        );
+        let output = std::process::Command::new("/bin/bash")
+            .arg("-c")
+            .arg(script)
+            .env("APOLLO_OFFICE_FNM", "1")
+            .env("PATH", format!("{}:{}", bin.display(), std::env::var("PATH").unwrap_or_default()))
+            .output()
+            .unwrap();
+        let _ = std::fs::remove_dir_all(root);
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        assert_eq!(String::from_utf8_lossy(&output.stdout), "entered\\ndenied\\n");
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn timeout_kills_child_processes() {
