@@ -582,7 +582,7 @@ mod tests {
             std::process::id(),
             hex::encode(rand::random::<[u8; 8]>())
         ));
-        let bin = root.join("bin");
+        let bin = root.join(".local").join("bin");
         std::fs::create_dir_all(&bin).unwrap();
         let fnm = bin.join("fnm");
         // Simulate a valid fnm shell environment, but an unavailable Node pin.
@@ -603,6 +603,7 @@ mod tests {
             .arg("-c")
             .arg(script)
             .env("APOLLO_OFFICE_FNM", "1")
+            .env("HOME", &root)
             .env("PATH", format!("{}:{}", bin.display(), std::env::var("PATH").unwrap_or_default()))
             .output()
             .unwrap();
