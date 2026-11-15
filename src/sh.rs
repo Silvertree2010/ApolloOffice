@@ -341,7 +341,7 @@ pub fn hbid(a: &App, h: &str) -> String {
     ho(a, h).map(|x| hb(a, &x)).unwrap_or_else(|| "/work".into())
 }
 
-pub const PRE: &str = "ulimit -n 10240 2>/dev/null; export PATH=\"$HOME/.cargo/bin:$HOME/.local/bin:$HOME/go/bin:/usr/local/go/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\" CARGO_TERM_COLOR=never NO_COLOR=1 CI=1 GIT_TERMINAL_PROMPT=0 CARGO_PROFILE_DEV_DEBUG=line-tables-only CARGO_PROFILE_TEST_DEBUG=line-tables-only CARGO_PROFILE_RELEASE_LTO=off CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 CARGO_PROFILE_BENCH_LTO=off; to() { s=$1; shift; if command -v timeout >/dev/null 2>&1 && timeout --version 2>/dev/null | head -n 1 | grep -q 'coreutils'; then timeout -k 10 \"$s\" \"$@\"; else \"$@\"; fi; }\n";
+pub const PRE: &str = "ulimit -n 10240 2>/dev/null; export PATH=\"$HOME/.cargo/bin:$HOME/.local/bin:$HOME/go/bin:/usr/local/go/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\" CARGO_TERM_COLOR=never NO_COLOR=1 CI=1 GIT_TERMINAL_PROMPT=0 CARGO_PROFILE_DEV_DEBUG=line-tables-only CARGO_PROFILE_TEST_DEBUG=line-tables-only CARGO_PROFILE_RELEASE_LTO=off CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 CARGO_PROFILE_BENCH_LTO=off; to() { s=$1; shift; if command -v timeout >/dev/null 2>&1 && timeout --version 2>/dev/null | head -n 1 | grep -q 'coreutils'; then timeout -k 10 \"$s\" \"$@\"; else \"$@\"; fi; }\nif [ \"${APOLLO_OFFICE_FNM:-}\" = 1 ] && command -v fnm >/dev/null 2>&1; then eval \"$(fnm env --shell bash --use-on-cd --resolve-engines --version-file-strategy recursive)\"; fi\n";
 
 fn sshv(h: &Ho) -> Vec<String> {
     let mut v: Vec<String> = vec!["-o".into(), "ConnectTimeout=15".into(), "-o".into(), "ServerAliveInterval=15".into(), "-o".into(), "ServerAliveCountMax=4".into(), "-o".into(), "BatchMode=yes".into()];
@@ -411,15 +411,27 @@ pub async fn hx(a: &App, id: &str, s: &str, t: u64) -> Out {
     hxl(a, id, s, t, None).await
 }
 
-pub const DF: &str = r#"FROM rust:1-trixie
+pub const DF: &str = r#"FROM node:24-trixie-slim AS node24
+FROM rust:1-trixie
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config libssl-dev clang cmake git curl ca-certificates procps xz-utils unzip libxdo-dev mesa-vulkan-drivers \
-    python3 python3-pip python3-venv python3-dev nodejs npm golang-go \
+    python3 python3-pip python3-venv python3-dev golang-go \
     libasound2-dev libfontconfig1-dev libfreetype-dev libgl1-mesa-dev libgtk-3-dev libwayland-dev \
     libx11-dev libxcursor-dev libxi-dev libxkbcommon-dev libxrandr-dev libudev-dev xvfb \
     && rm -rf /var/lib/apt/lists/*
+# Use the official Node 24 LTS distribution rather than Debian's older nodejs.
+COPY --from=node24 /usr/local/bin/node /usr/local/bin/node
+COPY --from=node24 /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=node24 /usr/local/include/node /usr/local/include/node
+RUN ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -sf ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+    && curl -fsSL https://fnm.vercel.app/install -o /tmp/install-fnm.sh \
+    && bash /tmp/install-fnm.sh --install-dir /usr/local/bin --skip-shell \
+    && rm -f /tmp/install-fnm.sh \
+    && node --version | grep -Eq '^v24\\.' \
+    && npm --version >/dev/null && fnm --version >/dev/null
 RUN rustup component add rustfmt clippy && rustup target add wasm32-unknown-unknown && npm install -g pnpm yarn && pip3 install --break-system-packages pytest
-ENV CARGO_TERM_COLOR=never CARGO_INCREMENTAL=0 PIP_BREAK_SYSTEM_PACKAGES=1
+ENV CARGO_TERM_COLOR=never CARGO_INCREMENTAL=0 PIP_BREAK_SYSTEM_PACKAGES=1 APOLLO_OFFICE_FNM=1 FNM_DIR=/opt/apollo-fnm
 WORKDIR /work
 "#;
 
