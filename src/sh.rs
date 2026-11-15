@@ -428,7 +428,7 @@ RUN ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && curl -fsSL https://fnm.vercel.app/install -o /tmp/install-fnm.sh \
     && bash /tmp/install-fnm.sh --install-dir /usr/local/bin --skip-shell \
     && rm -f /tmp/install-fnm.sh \
-    && node --version | grep -Eq '^v24\\.' \
+    && node --version | grep -Eq '^v24\.' \
     && npm --version >/dev/null && fnm --version >/dev/null
 RUN rustup component add rustfmt clippy && rustup target add wasm32-unknown-unknown && npm install -g pnpm yarn && pip3 install --break-system-packages pytest
 ENV CARGO_TERM_COLOR=never CARGO_INCREMENTAL=0 PIP_BREAK_SYSTEM_PACKAGES=1 APOLLO_OFFICE_FNM=1 FNM_DIR=/opt/apollo-fnm
