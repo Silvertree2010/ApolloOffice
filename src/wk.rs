@@ -603,6 +603,8 @@ mod t {
         assert_eq!(skl(" Area:Kernel, needs-design\n\n"), vec!["area:kernel", "needs-design"]);
         assert!(crate::app::hostish("node-2: git clone → exit 1: Error response from daemon: Container apollo-office is paused, unpause the container before exec"));
         assert!(crate::app::hostish("ssh: connect to host 10.0.0.2 port 22: Connection refused"));
+        assert!(crate::app::hostish("node-4: git clone → exit 255: bash: fork: retry: Resource temporarily unavailable"));
+        assert!(crate::app::hostish("node-4: git clone → exit 128: OCI runtime exec failed: exec failed: unable to start container process"));
         assert!(!crate::app::hostish("error[E0425]: cannot find value `x` in this scope"));
     }
 

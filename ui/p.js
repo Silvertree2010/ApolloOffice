@@ -110,10 +110,17 @@
       const it = (v, l, c, ti) => `<span title="${esc(ti)}"><b class="${c || ""}">${v ?? 0}</b> ${l}</span>`;
       return [it(x.m14, "merged", "ok2", "Merged in the last 14 days"), it(x.op, "open", "", "Open pull requests"), x.old ? it(x.old, "open > 7 d", "bad2", "Open longer than 7 days without merge") : "", yes(r.iss) ? it(`${x.ik || 0}/${x.is || 0}`, "issues → PR", x.is >= 30 && !x.ik ? "bad2" : "", "Issues taken in the last 14 days that became a pull request") : "", it(x.q, "queued", "", "Jobs waiting in Vet or ready"), it(usd(x.usd || 0), "14 d", "", "API cost in the last 14 days")].filter(Boolean).join("");
     };
+    const fun = (r) => {
+      const d = (r.st || {}).dr || {};
+      const it = (k, l, ti, c) => d[k] ? `<span title="${esc(ti)}"><b class="${c || ""}">${d[k]}</b> ${l}</span>` : "";
+      const v = [it("done", "submitted", "Fix jobs that ended in a pull request", "ok2"), it("vet", "rejected by Vet", "Vet judged the issue unsuitable: unclear, bundled, already claimed or paused"), it("guard", "blocked by Guard", "Guard found suspicious content such as hidden instructions"), it("repro", "not reproducible", "The bug could not be reproduced on the build machine"), it("fix", "no valid fix", "Fixer, CI or Reviewer could not produce a fix that passes"), it("late", "too late", "Someone else opened a PR or claimed the issue first"), it("host", "machine errors", "Dropped because a build machine failed", "bad2"), it("own", "dropped by you", "Dropped from the queue by hand")].filter(Boolean);
+      return v.length ? `<label>Last 14 days</label><div class="rs">${v.join("")}</div>` : "";
+    };
     B.innerHTML = `<div class="sec"><div class="box"><form id="fa" class="acts" style="margin:0"><input type="text" name="full" placeholder="Add a repository: owner/name or GitHub link" style="flex:1;min-width:200px"><button class="pri">Add</button></form><div class="msg" id="am"></div></div></div>
     <div class="sec"><div class="rh"><h4>${rs.length} ${rs.length === 1 ? "repository" : "repositories"}</h4>${rs.length > 4 ? `<input type="text" id="rq" placeholder="Filter" autocomplete="off">` : ""}</div>${rs.map((r) => `<form class="box rr" data-r="${esc(r.full)}"><details ${op.has(r.full) ? "open" : ""}><summary><span class="rn">${esc(r.full)}</span><span class="rc">${st(r)}</span><span class="rs">${nums(r)}</span></summary>
       ${r.ci ? "" : `<div class="warn">No test command found. Enter the command that runs this repository's tests, otherwise nothing happens here.</div>`}
       <div class="fm">
+        ${fun(r)}
         <label>Status</label>${tg("on_", r.on_, "active")}
         <label>Work on</label><div class="acts" style="margin:0">${tg("iss", r.iss, "open issues")}${tg("hunt", r.hunt, "hunt for bugs itself")}${tg("feat", r.feat, "build requested features")}</div>
         <label>Skip labels</label><input type="text" name="skl" value="${esc(r.skl || "")}" placeholder="e.g. area:kernel, needs-design">

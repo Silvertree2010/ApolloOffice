@@ -976,6 +976,12 @@ async fn reb(a: &Ax, j: &mut Job) -> R<()> {
     if x(a, j, &format!("git merge-base --is-ancestor origin/{} HEAD", q(&mn)), 60).await.c != 0 {
         return drop("branch is not on top of the default branch after rebase");
     }
+    if !j.s("fx").is_empty() {
+        let ex = ok(a, j, &format!("comm -13 <(git diff --name-only --no-renames $(git merge-base {o} origin/{m})..{o} | sort -u) <(git diff --name-only --no-renames origin/{m}..HEAD | sort -u)", o = q(&j.s("old")), m = q(&mn)), 60).await?;
+        if !ex.is_empty() {
+            return drop(format!("conflict resolution touched files outside the PR: {}", ex.lines().take(5).collect::<Vec<_>>().join(", ")));
+        }
+    }
     let dt = ok(a, j, "git status --porcelain", 60).await?;
     if !dt.is_empty() {
         return drop(format!("working tree not clean after rebase: {}", dt.lines().take(5).collect::<Vec<_>>().join(", ")));
