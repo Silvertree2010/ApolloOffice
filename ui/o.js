@@ -92,6 +92,8 @@
     px(256, 38, 140, 84, "#f3f5f8");
     px(256, 38, 140, 1, "#c9d1db");
     px(256, 38, 1, 84, "#c9d1db");
+    px(395, 38, 1, 84, "#c9d1db");
+    px(256, 121, 140, 1, "#c9d1db");
     tx("MACHINES", 262, 42, "#8a94a2");
     px(158, 6, 84, 22, "#0a0b0d");
     px(158, 6, 84, 1, "#24272d");
@@ -105,6 +107,8 @@
     px(256, 38, 140, 84, "#0f1013");
     px(256, 38, 140, 1, "#1d1f24");
     px(256, 38, 1, 84, "#1d1f24");
+    px(395, 38, 1, 84, "#1d1f24");
+    px(256, 121, 140, 1, "#1d1f24");
     tx("MACHINES", 262, 42, "#3d4045");
     px(158, 6, 84, 22, "#0a0b0d");
     px(158, 6, 84, 1, "#24272d");
@@ -308,7 +312,6 @@
     const vn = S?.o?.vn ?? (S?.w?.vet?.st === "work" ? 1 : 0);
     for (let k = 0; k < 3; k++) seat("vet", 114 + k * 36, 74, t, { st: k < vn ? "work" : "idle", seed: 11 + k, fit: k ? k + 2 : 0, fc: k + 4, vk: k }, k === 1 ? "VET" : "", k < vn);
     seat("watcher", 226, 74, t, { seed: 7 }, "WATCHER", S?.w?.watcher?.st === "work");
-    px(270, 128, 120, 1, "#1d1f24");
 
   };
 
@@ -389,7 +392,8 @@
     plant(392, 210);
     paths(t);
     intake(t);
-    RK().forEach(([h, lb], i) => rack(272 + i * 19, 100, t, h, lb));
+    const rk = RK(), rs = rk.length > 5 ? 19 : 24, r0 = 326 - ((rk.length - 1) * rs) / 2;
+    rk.forEach(([h, lb], i) => rack(Math.round(r0 + i * rs), 100, t, h, lb));
     teams(t);
     confetti(t);
     const hh = hov && hits.find((h) => h.k === hov);
@@ -497,7 +501,7 @@
     const op = S.pr.filter((p) => p.st === "open").length, mg = S.pr.filter((p) => p.st === "merged").length;
     $("prn").textContent = `${op} open · ${mg} merged`;
     $("prs").innerHTML = S.pr.length ? S.pr.slice(0, 16).map((p) => `<div class="row"><span class="pill ${p.st === "merged" ? "ok" : p.st === "closed" ? "bad" : "info"}">${esc(p.st)}</span><div class="ti"><a class="a" href="#" data-u="${esc(p.url)}">${esc(p.title)}</a></div><span class="rp">${esc(rn({ repo: p.repo, num: p.num }))}</span></div>`).join("") : `<div class="empty">no pull requests yet</div>`;
-    const m = Object.fromEntries(S.mg.map((x) => [x.d, x.n]));
+    const m = Object.fromEntries(S.mg.map((x) => [x.day, x.n]));
     const days = [...Array(30)].map((_, i) => new Date(Date.now() - (29 - i) * 86400000).toISOString().slice(0, 10));
     const mx = Math.max(1, ...days.map((d) => m[d] || 0));
     $("bars").innerHTML = days.map((d) => `<i class="${m[d] ? "" : "z"}" style="height:${m[d] ? Math.max(8, (m[d] / mx) * 100) : 2}%" title="${d}: ${m[d] || 0}"></i>`).join("");
