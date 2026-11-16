@@ -47,6 +47,7 @@ jobs:
       - name: Verify image Node and cross-repository fnm defaults
         run: |
           docker run --rm apollo-office-worker-smoke bash -euc '
+            node --version
             node --version | grep -Eq "^v24\\."
             fnm --version
             mkdir -p /work/uses-node-20 /work/no-node-version
@@ -57,5 +58,6 @@ jobs:
             node --version | grep -Eq "^v20\\."
             cd /work/no-node-version
             fnm use
+            node --version
             node --version | grep -Eq "^v24\\."
           '
