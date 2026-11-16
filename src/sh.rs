@@ -341,7 +341,7 @@ pub fn hbid(a: &App, h: &str) -> String {
     ho(a, h).map(|x| hb(a, &x)).unwrap_or_else(|| "/work".into())
 }
 
-pub const PRE: &str = "ulimit -n 10240 2>/dev/null; export PATH=\"$HOME/.cargo/bin:$HOME/.local/bin:$HOME/go/bin:/usr/local/go/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\" CARGO_TERM_COLOR=never NO_COLOR=1 CI=1 GIT_TERMINAL_PROMPT=0 CARGO_PROFILE_DEV_DEBUG=line-tables-only CARGO_PROFILE_TEST_DEBUG=line-tables-only CARGO_PROFILE_RELEASE_LTO=off CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 CARGO_PROFILE_BENCH_LTO=off; to() { s=$1; shift; if command -v timeout >/dev/null 2>&1 && timeout --version 2>/dev/null | head -n 1 | grep -q 'coreutils'; then timeout -k 10 \"$s\" \"$@\"; else \"$@\"; fi; }\nif [ \"${APOLLO_OFFICE_FNM:-}\" = 1 ] && command -v fnm >/dev/null 2>&1; then eval \"$(fnm env --shell bash --resolve-engines --version-file-strategy recursive)\"; cd() { builtin cd \"$@\" || return $?; fnm use --silent-if-unchanged >/dev/null 2>&1 || true; }; fi\n";
+pub const PRE: &str = "ulimit -n 10240 2>/dev/null; export PATH=\"$HOME/.cargo/bin:$HOME/.local/bin:$HOME/go/bin:/usr/local/go/bin:/opt/homebrew/bin:/usr/local/bin:$PATH\" CARGO_TERM_COLOR=never NO_COLOR=1 CI=1 GIT_TERMINAL_PROMPT=0 CARGO_PROFILE_DEV_DEBUG=line-tables-only CARGO_PROFILE_TEST_DEBUG=line-tables-only CARGO_PROFILE_RELEASE_LTO=off CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 CARGO_PROFILE_BENCH_LTO=off; to() { s=$1; shift; if command -v timeout >/dev/null 2>&1 && timeout --version 2>/dev/null | head -n 1 | grep -q 'coreutils'; then timeout -k 10 \"$s\" \"$@\"; else \"$@\"; fi; }\nif [ \"${APOLLO_OFFICE_FNM:-}\" = 1 ] && command -v fnm >/dev/null 2>&1; then _ao_fnm_env=$(fnm env --shell bash --resolve-engines --version-file-strategy recursive) && { eval \"$_ao_fnm_env\"; _ao_fnm_link=${FNM_MULTISHELL_PATH:-}; trap 'if [ -L \"$_ao_fnm_link\" ]; then rm -f -- \"$_ao_fnm_link\"; fi' EXIT; cd() { builtin cd \"$@\" || return $?; fnm use --silent-if-unchanged >/dev/null 2>&1 || true; }; }; fi\n";
 
 fn sshv(h: &Ho) -> Vec<String> {
     let mut v: Vec<String> = vec!["-o".into(), "ConnectTimeout=15".into(), "-o".into(), "ServerAliveInterval=15".into(), "-o".into(), "ServerAliveCountMax=4".into(), "-o".into(), "BatchMode=yes".into()];
@@ -389,7 +389,9 @@ async fn hxo(a: &App, id: &str, s: &str, t: u64, ln: Option<&(dyn Fn(&str) + Sen
     // active everywhere, including Windows/macOS without GNU coreutils timeout.
     let boundary=format!("APOLLO_JOB_{}",hex::encode(rand::random::<[u8;16]>()));
     let body=format!("if command -v timeout >/dev/null 2>&1 && timeout --version 2>/dev/null | head -n 1 | grep -q 'coreutils'; then exec timeout -k 5 {t}s bash -s; else exec bash -s; fi <<'{boundary}'\n{PRE}{s}\n{boundary}\n");
-    let i = format!("{PRE}{}{body}", jobs(a, &h));
+    // Only the inner Bash session initializes fnm; its exit trap removes
+    // its own multishell symlink after the command has completed.
+    let i = format!("{}{body}", jobs(a, &h));
     let mut command: Vec<String> = if h.dk { vec!["docker".into(), "exec".into(), "-i".into(), CT.into()] } else { vec![] };
     command.extend(["bash".into(), "-s".into()]);
     let (p, v) = if h.ssh.is_empty() {
@@ -425,13 +427,26 @@ COPY --from=node24 /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=node24 /usr/local/include/node /usr/local/include/node
 RUN ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -sf ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
-    && curl -fsSL https://fnm.vercel.app/install -o /tmp/install-fnm.sh \
-    && bash /tmp/install-fnm.sh --install-dir /usr/local/bin --skip-shell --release v1.39.0 \
-    && rm -f /tmp/install-fnm.sh \
-    && node --version | grep -Eq '^v24\.' \
-    && npm --version >/dev/null && fnm --version >/dev/null
+    && npm --version >/dev/null
+# Install an immutable, checksum-verified fnm v1.39.0 release archive.
+RUN set -eu; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) asset=fnm-linux.zip; checksum=7807664f39d39fc518da1c35ba0181e4b3267603c4b1dedeb4b5fc6ae440a224 ;; \
+      arm64) asset=fnm-arm64.zip; checksum=4eaff58b2c5bf30d0934027572dd0b5bbb60d2a1af309230b53662d4b1d45599 ;; \
+      *) echo "Unsupported architecture for fnm release" >&2; exit 1 ;; \
+    esac; \
+    curl --fail --location --retry 3 --silent --show-error "https://github.com/Schniz/fnm/releases/download/v1.39.0/$asset" -o /tmp/fnm.zip; \
+    echo "$checksum  /tmp/fnm.zip" | sha256sum --check --status; \
+    unzip -j /tmp/fnm.zip fnm -d /usr/local/bin; \
+    chmod 755 /usr/local/bin/fnm; \
+    rm /tmp/fnm.zip; \
+    fnm --version; \
+    node --version | grep -Eq '^v24\\.'
+# Prevent installing a project-specific version from changing the image default.
+ENV FNM_DIR=/opt/apollo-fnm
+RUN fnm alias system default
 RUN rustup component add rustfmt clippy && rustup target add wasm32-unknown-unknown && npm install -g pnpm yarn && pip3 install --break-system-packages pytest
-ENV CARGO_TERM_COLOR=never CARGO_INCREMENTAL=0 PIP_BREAK_SYSTEM_PACKAGES=1 APOLLO_OFFICE_FNM=1 FNM_DIR=/opt/apollo-fnm
+ENV CARGO_TERM_COLOR=never CARGO_INCREMENTAL=0 PIP_BREAK_SYSTEM_PACKAGES=1 APOLLO_OFFICE_FNM=1
 WORKDIR /work
 "#;
 
