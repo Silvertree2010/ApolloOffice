@@ -604,7 +604,7 @@ async fn ci0(a: &Ax, j: &mut Job) -> R<String> {
                 if let Some(k) = t.1.filter(|_| !it) {
                     it = true;
                     a.say("ci", &format!("[{}] {c} needs {k}, installing it", j.h()), Some(j.id));
-                    let r = hx(a, &j.h(), &format!("{}cargo install {} --locked 2>&1 | tail -3", crate::sh::PRE, q(&k)), 2400).await;
+                    let r = hx(a, &j.h(), &format!("cargo install {} --locked 2>&1 | tail -3", q(&k)), 2400).await;
                     if r.c == 0 {
                         continue;
                     }

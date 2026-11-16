@@ -52,12 +52,13 @@ jobs:
             fnm --version
             mkdir -p /work/uses-node-20 /work/no-node-version
             printf "20\\n" > /work/uses-node-20/.nvmrc
-            eval "$(fnm env --shell bash --resolve-engines)"
+            eval "$(fnm env --shell bash --resolve-engines --version-file-strategy recursive)"
+            hook() { fnm use --silent-if-unchanged || fnm use --silent-if-unchanged default; }
             cd /work/uses-node-20
             fnm use --install-if-missing
             node --version | grep -Eq "^v20\\."
             cd /work/no-node-version
-            fnm use
+            hook
             node --version
             node --version | grep -Eq "^v24\\."
           '
