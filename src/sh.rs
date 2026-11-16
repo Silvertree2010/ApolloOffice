@@ -441,7 +441,7 @@ RUN set -eu; \
     chmod 755 /usr/local/bin/fnm; \
     rm /tmp/fnm.zip; \
     fnm --version; \
-    node --version | grep -Eq '^v24\\.'
+    node --version | grep -Eq '^v24\.'
 # Prevent installing a project-specific version from changing the image default.
 ENV FNM_DIR=/opt/apollo-fnm
 RUN fnm alias system default
