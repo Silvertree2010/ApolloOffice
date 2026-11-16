@@ -590,7 +590,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn fnm_activation_does_not_turn_successful_cd_into_a_failure() {
-        use std::os::unix::fs::PermissionsExt;
+        use std::os::unix::fs::{symlink, PermissionsExt};
 
         let root = std::env::temp_dir().join(format!(
             "apollo-fnm-cd-{}-{}",
@@ -599,11 +599,15 @@ mod tests {
         ));
         let bin = root.join(".local").join("bin");
         std::fs::create_dir_all(&bin).unwrap();
+        let target = root.join("node-24");
+        std::fs::create_dir_all(&target).unwrap();
+        let multishell = root.join("fnm-multishell");
+        symlink(&target, &multishell).unwrap();
         let fnm = bin.join("fnm");
         // Simulate a valid fnm shell environment, but an unavailable Node pin.
         std::fs::write(
             &fnm,
-            "#!/bin/sh\nif [ \"$1\" = env ]; then echo 'export FNM_MULTISHELL_PATH=/tmp/apollo-fnm-test'; exit 0; fi\nexit 9\n",
+            "#!/bin/sh\nif [ \"$1\" = env ]; then printf 'export FNM_MULTISHELL_PATH=%s\\n' \"$APOLLO_TEST_MULTISHELL\"; exit 0; fi\nexit 9\n",
         ).unwrap();
         let mut permissions = std::fs::metadata(&fnm).unwrap().permissions();
         permissions.set_mode(0o700);
@@ -618,11 +622,14 @@ mod tests {
             .arg("-c")
             .arg(script)
             .env("APOLLO_OFFICE_FNM", "1")
+            .env("APOLLO_TEST_MULTISHELL", &multishell)
             .env("HOME", &root)
             .env("PATH", format!("{}:{}", bin.display(), std::env::var("PATH").unwrap_or_default()))
             .output()
             .unwrap();
+        let cleaned = std::fs::symlink_metadata(&multishell).is_err();
         let _ = std::fs::remove_dir_all(root);
+        assert!(cleaned, "fnm multishell symlink leaked after the Bash command");
         assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
         assert_eq!(String::from_utf8_lossy(&output.stdout), "entered\ndenied\n");
     }
