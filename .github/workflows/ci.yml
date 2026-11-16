@@ -25,3 +25,37 @@ jobs:
         run: |
           python3 -m unittest discover -s quality -p 'test_*.py'
           python3 -m unittest discover -s adapters/opencode -p 'test_*.py'
+
+  worker-image:
+    name: Worker image — Node 24 and fnm
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Extract embedded Dockerfile
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path("src/sh.rs").read_text(encoding="utf-8")
+          prefix = 'pub const DF: &str = r#"'
+          assert source.count(prefix) == 1, "expected one worker Dockerfile"
+          dockerfile = source.split(prefix, 1)[1].split('"#;', 1)[0]
+          Path("worker.Dockerfile").write_text(dockerfile, encoding="utf-8")
+          PY
+      - name: Build actual worker image
+        run: docker build --pull -t apollo-office-worker-smoke -f worker.Dockerfile .
+      - name: Verify image Node and cross-repository fnm defaults
+        run: |
+          docker run --rm apollo-office-worker-smoke bash -euc '
+            node --version | grep -Eq "^v24\\."
+            fnm --version
+            mkdir -p /work/uses-node-20 /work/no-node-version
+            printf "20\\n" > /work/uses-node-20/.nvmrc
+            eval "$(fnm env --shell bash --resolve-engines)"
+            cd /work/uses-node-20
+            fnm use --install-if-missing
+            node --version | grep -Eq "^v20\\."
+            cd /work/no-node-version
+            fnm use
+            node --version | grep -Eq "^v24\\."
+          '
