@@ -1,7 +1,8 @@
 (() => {
   const A = window.AO, { get, post, esc, $ } = A;
   const SRC = { tiles: "Workers", stage: "Office", queue: "Queue", prs: "Pull requests", log: "Log", approvals: "Waiting for you", costs: "Costs", machines: "Machines", pipelines: "Pipelines", team: "Team", merges: "Merges", repohealth: "Repositories" };
-  const CL = { tiles: { x: 0, y: 0, w: 100, h: 13 }, stage: { x: 0, y: 13, w: 71, h: 87 }, queue: { x: 71, y: 13, w: 29, h: 34 }, prs: { x: 71, y: 47, w: 29, h: 29 }, log: { x: 71, y: 76, w: 29, h: 24 }, approvals: { x: 51, y: 13, w: 20, h: 30 }, costs: { x: 51, y: 43, w: 20, h: 25 }, machines: { x: 51, y: 68, w: 20, h: 32 }, pipelines: { x: 30, y: 13, w: 21, h: 30 }, team: { x: 30, y: 43, w: 21, h: 30 }, merges: { x: 30, y: 73, w: 21, h: 27 }, repohealth: { x: 0, y: 60, w: 30, h: 40 } };
+  const CL = { tiles: { x: 0, y: 0, w: 100, h: 8 }, stage: { x: 0, y: 8, w: 57, h: 56 }, queue: { x: 57, y: 8, w: 43, h: 52 }, prs: { x: 57, y: 60, w: 43, h: 40 }, log: { x: 0, y: 64, w: 57, h: 36 }, approvals: { x: 51, y: 13, w: 20, h: 30 }, costs: { x: 51, y: 43, w: 20, h: 25 }, machines: { x: 51, y: 68, w: 20, h: 32 }, pipelines: { x: 30, y: 13, w: 21, h: 30 }, team: { x: 30, y: 43, w: 21, h: 30 }, merges: { x: 30, y: 73, w: 21, h: 27 }, repohealth: { x: 0, y: 60, w: 30, h: 40 } };
+  const OL = { tiles: [0, 0, 100, 13], stage: [0, 13, 71, 87], queue: [71, 13, 29, 34], prs: [71, 47, 29, 29], log: [71, 76, 29, 24] };
   const BASE = ["tiles", "stage", "queue", "prs", "log"];
   const IC = {
     eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
@@ -23,6 +24,7 @@
       if (!/^[a-z0-9-]{1,24}$/.test(s?.id || "")) continue;
       const it = {};
       for (const k of Object.keys(SRC)) { const v = s.items?.[k] || { ...CL[k], v: BASE.includes(k) }; it[k] = { x: +v.x || 0, y: +v.y || 0, w: +v.w || 20, h: +v.h || 20, v: v.v !== false, z: +v.z || 1, lk: !!v.lk }; }
+      if (BASE.every((k) => OL[k].every((n, i) => it[k][["x", "y", "w", "h"][i]] === n))) for (const k of BASE) Object.assign(it[k], CL[k]);
       o.scenes.push({ id: s.id, n: String(s.n || "Scene").slice(0, 40), items: it });
     }
     o.cur = o.scenes.some((s) => s.id === x?.cur) ? x.cur : "classic";

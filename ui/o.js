@@ -381,6 +381,7 @@
       const ev = !w.say && (S.ev || []).find((e) => e.w === n);
       t.querySelector(".sy").textContent = w.say || (ev ? `${ago(ev.t)} · ${ev.m}` : "…");
       t.className = "tile " + (wk ? "work" : "") + (w.hold ? " hold" : "");
+      t.style.order = w.hold ? 2 : wk ? 0 : 1;
       t.querySelector(".stt").textContent = w.hold ? "paused" : wk ? "work" + (cn > 1 ? " ×" + cn : "") : w.st === "sleep" ? "sleep" : "idle";
       t.querySelector(".ft").textContent = w.tk ? kt(w.tk) + " tok" : "";
       t.title = w.hold ? "click to resume" : "click to pause";
@@ -389,7 +390,9 @@
 
   const rn = (j) => (j.repo.split("/")[1] || j.repo) + (j.num ? "#" + j.num : "");
   const sel = new Set();
-  const jrow = (j, x) => `<div class="row${j.st === "approve" ? " apr" : ""}">${j.st === "approve" && x ? `<input type="checkbox" class="bk" data-k="${j.id}" ${sel.has(j.id) ? "checked" : ""} aria-label="select">` : ""}<span class="pill ${STC[j.st] || ""}">${esc(j.kind !== "fix" ? j.kind + "·" + j.st : j.st)}</span><div class="ti"><a class="a" href="#" data-j="${j.id}">${esc(j.title)}</a><div class="w">${esc(j.st === "ci" && S.cil[j.id] ? S.cil[j.id] : j.why || "")}</div></div><span class="rp">${esc(rn(j))}${j.st === "approve" ? ` <button class="go" data-j="${j.id}">review</button>` : ""}${x && j.st !== "approve" ? ` <button class="x" data-d="${j.id}" title="drop">✕</button>` : ""}${!x && j.st === "drop" && j.kind === "fix" ? ` <button class="x" data-rq="${j.id}" title="try again">↻</button>` : ""}</span></div>`;
+  const QN = { vet: "Checking", ready: "Ready", hunt: "Hunting", repro: "Reproducing", fix: "Fixing", ci: "Testing", review: "Reviewing", gate: "Final check", approve: "Waiting for you", submit: "Submitting", done: "Done", drop: "Dropped", park: "Parked" };
+  const KN = { hunt: "Hunt", rebase: "Rebase", review: "Review changes", feat: "Feature" };
+  const jrow = (j, x) => `<div class="row jr${j.st === "approve" ? " apr" : ""}">${j.st === "approve" && x ? `<input type="checkbox" class="bk" data-k="${j.id}" ${sel.has(j.id) ? "checked" : ""} aria-label="select">` : ""}<div class="ti"><a class="a" href="#" data-j="${j.id}">${esc(j.title)}</a><div class="w"><span class="stt st-${esc(j.st)}">${esc((j.kind !== "fix" ? (KN[j.kind] || j.kind) + " · " : "") + (QN[j.st] || j.st))}</span><span>${esc(rn(j))}</span>${(j.st === "ci" && S.cil[j.id]) || j.why ? `<span class="wy">${esc(j.st === "ci" && S.cil[j.id] ? S.cil[j.id] : j.why)}</span>` : ""}</div></div><span class="rp">${j.st === "approve" ? `<button class="go" data-j="${j.id}">Review</button>` : ""}${x && j.st !== "approve" ? `<button class="x" data-d="${j.id}" title="Drop">✕</button>` : ""}${!x && j.st === "drop" && j.kind === "fix" ? `<button class="x" data-rq="${j.id}" title="Try again">↻</button>` : ""}</span></div>`;
 
   let lW = "", lQ = "", lWrap = false, lastLog = "";
   try { lWrap = localStorage.getItem("ao.lw") === "1"; } catch {}
@@ -423,10 +426,10 @@
     const aps = q.filter((j) => j.st === "approve").map((j) => j.id);
     for (const k of [...sel]) if (!aps.includes(k)) sel.delete(k);
     const bk = aps.length > 1 ? `<div class="bkb"><label class="ck"><input type="checkbox" id="bkA" ${sel.size === aps.length ? "checked" : ""}> all ${aps.length}</label><span class="sp"></span>${sel.size ? `<button class="go" id="bkS">submit ${sel.size}</button><button class="dng" id="bkD">drop ${sel.size}</button>` : `<span class="k">select pull requests to submit together</span>`}</div>` : "";
-    $("queue").innerHTML = bk + (q.length ? q.slice(0, 16).map((j) => jrow(j, true)).join("") : `<div class="empty">nothing waiting</div>`) + (S.dn.length ? `<div class="sub">recent</div>` + S.dn.slice(0, 12).map((j) => jrow(j, false)).join("") : "");
+    $("queue").innerHTML = bk + (q.length ? q.slice(0, 16).map((j) => jrow(j, true)).join("") : `<div class="empty">Nothing waiting.</div>`) + (S.dn.length ? `<div class="sub">Recent</div>` + S.dn.slice(0, 12).map((j) => jrow(j, false)).join("") : "");
     const op = S.pr.filter((p) => p.st === "open").length, mg = S.pr.filter((p) => p.st === "merged").length;
     $("prn").textContent = `${op} open · ${mg} merged`;
-    $("prs").innerHTML = S.pr.length ? S.pr.slice(0, 16).map((p) => `<div class="row"><span class="pill ${p.st === "merged" ? "ok" : p.st === "closed" ? "bad" : "info"}">${esc(p.st)}</span><div class="ti"><a class="a" href="#" data-u="${esc(p.url)}">${esc(p.title)}</a></div><span class="rp">${esc(rn({ repo: p.repo, num: p.num }))}</span></div>`).join("") : `<div class="empty">no pull requests yet</div>`;
+    $("prs").innerHTML = S.pr.length ? S.pr.slice(0, 16).map((p) => `<div class="row jr"><div class="ti"><a class="a" href="#" data-u="${esc(p.url)}">${esc(p.title)}</a><div class="w"><span class="stt pr-${esc(p.st)}">${esc(p.st[0].toUpperCase() + p.st.slice(1))}</span><span>${esc(rn({ repo: p.repo, num: p.num }))}</span></div></div></div>`).join("") : `<div class="empty">No pull requests yet.</div>`;
     const m = Object.fromEntries(S.mg.map((x) => [x.day, x.n]));
     const days = [...Array(30)].map((_, i) => new Date(Date.now() - (29 - i) * 86400000).toISOString().slice(0, 10));
     const mx = Math.max(1, ...days.map((d) => m[d] || 0));

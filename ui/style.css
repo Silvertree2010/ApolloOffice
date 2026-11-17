@@ -796,3 +796,62 @@ html, body { font-size: var(--fs3); }
 .lst details.more summary { cursor: pointer; padding: 11px 14px; color: var(--t2); font-size: var(--fs4); list-style: none; }
 .lst details.more summary:hover { color: var(--t1); }
 .lst details.more[open] summary { border-bottom: 1px solid var(--h); }
+.tiles { display: flex; flex-wrap: wrap; gap: 6px; max-height: 74px; overflow: hidden; align-content: flex-start; }
+.tile, [data-dn=compact] .tile { height: 34px; flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 0 12px; border-radius: var(--ri); }
+.tile.work { flex: 1 1 240px; max-width: 460px; }
+.tile .hd { gap: 7px; font: 500 var(--fs3)/1 var(--s); color: var(--t2); }
+.tile.work .hd { color: var(--t1); font-weight: 600; }
+.tile .dot { width: 7px; height: 7px; border-radius: 50%; }
+.tile:not(.work) .dot { opacity: .45; }
+.tile .md, .tile .ft { display: none; }
+.tile .gear { width: 0; padding: 0; margin: 0; overflow: hidden; transition: width .12s ease-out; }
+.tile:hover .gear { width: 18px; padding: 2px; }
+.tile .sy { margin: 0; display: block; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--t2); font: var(--fs4)/1 var(--s); }
+.tile:not(.work) .sy { display: none; }
+.tile .stt { position: static; flex: none; font: 500 var(--fs4)/1 var(--s); color: var(--t2); }
+.tile.work .stt { color: var(--ac); }
+.tile:not(.work):not(.hold) .stt { display: none; }
+.tile.hold { opacity: .6; }
+.tile.hold .hd { text-decoration: line-through; text-decoration-color: var(--t2); }
+.row.jr, .row.jr:has(input.bk) { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 0; border-top-color: var(--h); }
+.row.jr:has(input.bk) { grid-template-columns: auto minmax(0, 1fr) auto; }
+.row.jr .ti .a { font: 500 var(--fs3)/1.35 var(--s); color: var(--t1); -webkit-line-clamp: 2; }
+.row.jr .w { display: flex; gap: 0; align-items: center; margin-top: 4px; font: var(--fs4)/1.2 var(--s); color: var(--t2); white-space: nowrap; overflow: hidden; }
+.row.jr .w > span { flex: none; }
+.row.jr .w > span + span::before { content: "·"; margin: 0 7px; color: var(--t2); }
+.row.jr .w > .wy { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.row.jr .w .stt { font-size: var(--fs4); color: var(--t1); }
+.row.jr .w .stt::before { width: 6px; height: 6px; margin-right: 6px; }
+.row.jr .rp { display: flex; gap: 4px; align-items: center; }
+.row.jr .x { font-size: var(--fs4); padding: 4px 6px; border-radius: 6px; }
+.st-ready::before, .st-vet::before { background: var(--t2); }
+.st-park::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--t2); }
+.card { padding: 14px 16px 10px; }
+.card h2 { margin: 0 0 8px; }
+.sub { margin: 14px 0 2px; color: var(--t2); font: 500 var(--fs4)/1 var(--s); }
+.bars { height: 34px; margin: 2px 0 6px; }
+.log { font: 12px/1.55 var(--m); }
+.log div { grid-template-columns: 44px 84px minmax(0, 1fr); gap: 8px; }
+.lh select, .lh input { font: var(--fs4) var(--s); padding: 5px 8px; }
+.lh button { font-size: var(--fs4); padding: 6px 9px; }
+@media (min-width: 861px) {
+  body:not(.lay) main { grid-template-columns: minmax(0, 1.3fr) minmax(380px, 1fr); grid-template-rows: minmax(0, 1.45fr) minmax(0, 1fr); grid-template-areas: "st q" "lg p"; }
+  body:not(.lay) .side { display: contents; }
+  body:not(.lay) .stage { grid-area: st; }
+  body:not(.lay) [data-lp=queue] { grid-area: q; }
+  body:not(.lay) [data-lp=prs] { grid-area: p; }
+  body:not(.lay) [data-lp=log] { grid-area: lg; }
+  body:not(.lay) .cz { grid-area: cz; }
+  body.ed:not(.lay) main, body.ed main { grid-template-columns: 272px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); grid-template-areas: "cz st"; }
+  body.ed .stage { grid-area: st; }
+  body.ed .cz { grid-area: cz; }
+}
+.tile .stt::before { display: none; }
+.tile:not(.work) { background: none; border-color: transparent; box-shadow: none; padding: 0 8px; }
+.tile:not(.work):hover { border-color: var(--l); }
+.tile.work { flex: 1 1 200px; }
+.tiles { flex-wrap: nowrap; max-height: none; }
+.tile.work { flex: 1 1 160px; min-width: 0; max-width: 360px; }
+.tile:not(.work) { padding: 0 7px; }
+.log .tm { display: inline; padding: 0; border: 0; border-radius: 0; color: var(--t2); }
+.log div { align-items: baseline; }
