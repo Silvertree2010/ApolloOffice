@@ -351,6 +351,7 @@
         <label>Working hours</label><div class="acts" style="margin:0;align-items:center">${tg("whon", s.wh?.on, "only work from")}<input type="time" name="whf" value="${esc(s.wh?.from || "08:00")}" style="width:auto"> to <input type="time" name="wht" value="${esc(s.wh?.to || "22:00")}" style="width:auto"></div>
       </div></div></div>
       <div data-tab="app" class="sec"><h4>Appearance</h4><div class="box"><div class="fm" style="margin:0">
+        <label>Style</label><div class="thc" id="tys">${[["calm", "Calm", "Quiet and roomy, soft corners"], ["dense", "Dense", "More rows per screen, numbers in mono"], ["pixel", "Pixel", "Square and bold, like the office"]].map(([v, l, d]) => `<button type="button" data-v="${v}" class="ty-${v}"><span class="pv"><i></i><i></i><i></i></span><b>${l}</b><span>${d}</span></button>`).join("")}</div>
         <label>Theme</label><div class="seg" id="thm">${[["dark", "Dark"], ["light", "Light"], ["system", "Like the system"]].map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join("")}</div>
         <label>Accent</label><div class="sw2" id="acc">${window.TH.AC.map((k) => `<button type="button" data-v="${k}" title="${k}" aria-label="${k}" class="a-${k}"></button>`).join("")}</div>
         <label>Density</label><div class="seg" id="dns">${[["cozy", "Comfortable"], ["compact", "Compact"]].map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join("")}</div>
@@ -403,7 +404,7 @@
     };
     for (const b of B.querySelectorAll("[data-tb]")) b.onclick = () => stab(b.dataset.tb);
     stab(tb);
-    const ign = new Set(["thm", "bnt", "imf", "atv", "htv", "dzw"]);
+    const ign = new Set(["thm", "tys", "bnt", "imf", "atv", "htv", "dzw"]);
     const dirty = (e) => { if (ign.has(e.target.id)) return; $("sbar").hidden = false; $("sbar").className = "sbar"; $("sm").className = ""; $("sm").textContent = "Unsaved changes"; };
     $("fs").addEventListener("input", dirty);
     $("fs").addEventListener("change", dirty);
@@ -411,6 +412,7 @@
     const seg = (id, cur, fn) => { const el = $(id); for (const b of el.querySelectorAll("[data-v]")) { b.classList.toggle("on", b.dataset.v === cur); b.onclick = () => { fn(b.dataset.v); for (const x of el.querySelectorAll("[data-v]")) x.classList.toggle("on", x === b); }; } };
     seg("thm", window.TH.get(), (v) => window.TH.set(v));
     seg("acc", window.TH.pref("ac", "raspberry"), (v) => window.TH.setPref("ac", v));
+    seg("tys", window.TH.pref("ty", "calm"), (v) => { window.TH.setPref("ty", v); const a = window.TH.TY[v]; window.TH.setPref("ac", a); for (const x of $("acc").querySelectorAll("[data-v]")) x.classList.toggle("on", x.dataset.v === a); });
     seg("dns", window.TH.pref("dn", "cozy"), (v) => window.TH.setPref("dn", v));
     seg("rmo", window.TH.pref("rm", "0"), (v) => window.TH.setPref("rm", v));
     try { $("bnt").checked = localStorage.getItem("ao.nt") === "1" && "Notification" in window && Notification.permission === "granted"; } catch {}

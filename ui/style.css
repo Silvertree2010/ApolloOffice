@@ -878,3 +878,75 @@ button.lnk { background: none; border: 0; padding: 4px 0; color: var(--t1); font
 button.lnk:hover { background: none; text-decoration-color: var(--t1); }
 .fruns .frn { width: 100%; padding: 9px 8px; border-radius: var(--ri); }
 .fruns .frn + .frn { border-top: 1px solid var(--h); border-radius: 0; }
+@font-face { font-family: "Pixelify"; src: url("fonts/pixelify-500.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Pixelify"; src: url("fonts/pixelify-600.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+.thc { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-width: 620px; }
+.thc button { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px; text-align: left; white-space: normal; background: var(--f); border-radius: var(--ri); }
+.thc button.on { border-color: var(--ac); background: color-mix(in oklch, var(--ac) 10%, var(--f)); }
+.thc b { font: 600 var(--fs3)/1.2 var(--s); margin-top: 4px; }
+.thc span:not(.pv) { color: var(--t2); font: 400 var(--fs4)/1.35 var(--s); }
+.thc .pv { width: 100%; height: 46px; display: grid; grid-template-columns: 1fr 2fr; grid-template-rows: 1fr 1fr; gap: 4px; padding: 6px; background: #0e0f11; border: 1px solid rgb(255 255 255 / .08); border-radius: 6px; }
+.thc .pv i { background: #1d1f24; border-radius: 4px; }
+.thc .pv i:first-child { grid-row: 1 / span 2; }
+.thc .pv i:last-child { background: oklch(.72 .16 355); width: 40%; height: 8px; align-self: end; }
+.thc .ty-dense .pv { background: #070807; border-radius: 2px; gap: 2px; }
+.thc .ty-dense .pv i { border-radius: 1px; background: #151815; }
+.thc .ty-dense .pv i:last-child { background: oklch(.74 .14 160); }
+.thc .ty-pixel .pv { background: #14161f; border: 2px solid #3a4057; border-radius: 0; }
+.thc .ty-pixel .pv i { border-radius: 0; background: #2a2f40; box-shadow: inset 0 2px 0 rgb(255 255 255 / .08); }
+.thc .ty-pixel .pv i:last-child { background: oklch(.72 .13 240); }
+.thc .ty-pixel b { font-family: "Pixelify", var(--s); font-size: 15px; }
+
+:root[data-ty=dense] { --g: #070807; --p: #0c0d0c; --f: #131513; --f2: #161816; --l: rgb(255 255 255 / .1); --h: rgb(255 255 255 / .055); --hl: none; --r: 3px; --rc: 4px; --ri: 3px; --fs1: 18px; --fs2: 13px; --fs3: 12.5px; --fs4: 11.5px; }
+:root[data-ty=dense][data-th=light] { --g: #f5f6f5; --p: #ffffff; --f: #eef0ee; --f2: #ffffff; --l: rgb(0 0 0 / .13); --h: rgb(0 0 0 / .07); }
+[data-ty=dense] :is(button, input, select, textarea, .card, .tile, .stage, .box, .lst, .tb2, .kpis > div, .kp > div, .rcard, .seg, .seg button, .nv a, .nvk, .fs, .fc, .nd2, .sc, .emp, .cch, .stl > div, .note, .kb, .tip, .fm2, .fab, .cz, .fz, .ban, pre.df, .kvr pre, .av, .mic, .thc button, .fsec.fi, .nv .lg) { border-radius: 3px; }
+[data-ty=dense] button { padding: 6px 9px; }
+[data-ty=dense] .app { padding: 10px 12px; gap: 8px; }
+[data-ty=dense] .nv { width: 196px; padding: 10px 8px; }
+[data-ty=dense] .nv a { padding: 5px 8px; font-size: var(--fs3); }
+[data-ty=dense] .nv svg { width: 15px; height: 15px; }
+[data-ty=dense] .tb2 td { padding: 6px 10px; }
+[data-ty=dense] .tb2 th { padding: 8px 10px; }
+[data-ty=dense] .tb2 td .mut { margin-top: 1px; }
+[data-ty=dense] :is(.tb2 td.n, .kpis b, .kp b, .chip b, .stl b, .tile .stt, .row.jr .w > span:nth-child(2), .tb2 .mono, .nv .cnt) { font-family: var(--m); letter-spacing: -.01em; }
+[data-ty=dense] .kpis b { font-size: 20px; font-weight: 500; }
+[data-ty=dense] .kpis > div, [data-ty=dense] .kp > div { padding: 10px 12px; }
+[data-ty=dense] .card { padding: 10px 12px 6px; }
+[data-ty=dense] .row.jr { padding: 6px 0; }
+[data-ty=dense] .row.jr .ti .a { -webkit-line-clamp: 1; }
+[data-ty=dense] .row.jr .w { margin-top: 2px; }
+[data-ty=dense] .sec, [data-ty=dense] .sec2 { margin-bottom: 22px; }
+[data-ty=dense] .ph2 { margin-bottom: 14px; }
+[data-ty=dense] .pgb .fm > *, [data-ty=dense] #dr .fm > * { padding: 7px 0; }
+[data-ty=dense] .pgb input[type=text], [data-ty=dense] .pgb input[type=password], [data-ty=dense] .pgb input[type=number], [data-ty=dense] .pgb select, [data-ty=dense] #dr input[type=text], [data-ty=dense] #dr input[type=number], [data-ty=dense] #dr select { padding: 5px 8px; }
+[data-ty=dense] .tile { height: 28px; }
+[data-ty=dense] .pgb { max-width: 1320px; }
+
+:root[data-ty=pixel] { --g: #13151d; --p: #1b1e29; --f: #242838; --f2: #2a2f41; --l: #363c52; --h: #2a2f42; --t2: #a4acc2; --t3: #8a93ab; --hl: inset 0 2px 0 rgb(255 255 255 / .05); --hf: "Pixelify", var(--s); --r: 0; --rc: 0; --ri: 0; --fs1: 26px; --fs2: 17px; }
+:root[data-ty=pixel][data-th=light] { --g: #dde3ed; --p: #f3f6fa; --f: #e4e9f1; --f2: #ffffff; --l: #9ba6ba; --h: #c9d1de; --t1: #161a24; --t2: #4b5366; --t3: #646d82; --hl: inset 0 -2px 0 rgb(0 0 0 / .06); }
+[data-ty=pixel] *, [data-ty=pixel] *::before, [data-ty=pixel] *::after { border-radius: 0 !important; }
+[data-ty=pixel] :is(.card, .tile.work, .stage, .box, .lst, .tb2, .kpis > div, .kp > div, .rcard, .fs, .fc, .nd2, .sc, .emp, .cch, .stl > div, .kb, .tip, .fm2, .fab, .cz, .fz, .ban, .thc button, .fsec.fi, #dr .pn, .nvk, .seg) { border-width: 2px; border-color: var(--l); }
+[data-ty=pixel] button, [data-ty=pixel] input, [data-ty=pixel] select, [data-ty=pixel] textarea { border-width: 2px; }
+[data-ty=pixel] button { box-shadow: inset -2px -2px 0 rgb(0 0 0 / .28), inset 2px 2px 0 rgb(255 255 255 / .07); transition-timing-function: steps(2, end); }
+[data-ty=pixel] button:active:not(:disabled) { transform: translate(1px, 1px); box-shadow: inset 2px 2px 0 rgb(0 0 0 / .28); }
+[data-ty=pixel] :is(.seg button, .nv .nvc, .tile .gear, .x, .lnk, .nd2 .nx, .ki, .lmenu button, .fm2 .mi, .frn, .dock .di button) { box-shadow: none; }
+[data-ty=pixel] .nv { border-right-width: 2px; border-right-color: var(--l); }
+[data-ty=pixel] .nv a.on { background: var(--ac); color: var(--act); }
+[data-ty=pixel] .nv a.on svg { color: var(--act); }
+[data-ty=pixel] .nv .brand, [data-ty=pixel] .ph2 h2, [data-ty=pixel] .kpis b, [data-ty=pixel] .kp b, [data-ty=pixel] .fstart h3, [data-ty=pixel] .thc b, [data-ty=pixel] #dr .ph h3 { font-family: var(--hf); }
+[data-ty=pixel] .nv .brand { font-size: 18px; font-weight: 600; }
+[data-ty=pixel] .nv .lg { box-shadow: inset -3px -3px 0 rgb(0 0 0 / .25), inset 3px 3px 0 rgb(255 255 255 / .2); }
+[data-ty=pixel] .app > header h1, [data-ty=pixel] .sec2 h3, [data-ty=pixel] .sec h4, [data-ty=pixel] .card h2 { font-weight: 600; letter-spacing: .01em; }
+[data-ty=pixel] .kpis b { font-size: 28px; font-weight: 600; letter-spacing: 0; }
+[data-ty=pixel] .tb2 th { background: var(--f2); border-bottom: 2px solid var(--l); }
+[data-ty=pixel] .tb2 tbody tr:hover { background: color-mix(in oklch, var(--ac) 12%, transparent); }
+[data-ty=pixel] .dot2, [data-ty=pixel] .stt::before, [data-ty=pixel] .tile .dot { width: 8px; height: 8px; }
+[data-ty=pixel] .tile.work { background: var(--f2); }
+[data-ty=pixel] .tile.work .stt { color: var(--t1); background: var(--ac); color: var(--act); padding: 3px 5px; }
+[data-ty=pixel] .bars i, [data-ty=pixel] .wb i, [data-ty=pixel] .cch i { border-radius: 0; }
+[data-ty=pixel] .fc { background-image: linear-gradient(var(--h) 2px, transparent 2px), linear-gradient(90deg, var(--h) 2px, transparent 2px); background-size: 24px 24px; }
+[data-ty=pixel] input:focus, [data-ty=pixel] textarea:focus, [data-ty=pixel] select:focus { outline: 2px solid var(--ac); outline-offset: 0; }
+[data-ty=pixel] *, [data-ty=pixel] *::before, [data-ty=pixel] *::after { transition-timing-function: steps(3, end) !important; animation-timing-function: steps(4, end) !important; }
+[data-ty=pixel] .sw i::after { transition: transform .12s steps(2, end); }
+[data-ty=pixel] .fc { background-image: linear-gradient(color-mix(in oklch, var(--h) 55%, transparent) 2px, transparent 2px), linear-gradient(90deg, color-mix(in oklch, var(--h) 55%, transparent) 2px, transparent 2px); background-size: 32px 32px; }
+.app > header button.hc { background: none; border-color: transparent; box-shadow: none; }

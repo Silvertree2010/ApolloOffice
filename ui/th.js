@@ -13,6 +13,7 @@
     D.style.setProperty("--ac", `oklch(${l} ${c} ${h})`);
     D.style.setProperty("--ac2", `oklch(${lt ? +l - .06 : +l + .06} ${c} ${h})`);
     D.dataset.dn = lsg("ao.dn", "cozy");
+    D.dataset.ty = lsg("ao.ty", "calm");
     D.dataset.rm = lsg("ao.rm", "0");
   };
   ui();
@@ -61,5 +62,5 @@
     else { D.dataset.th = n; ui(); }
   };
   mq.addEventListener("change", () => { if (rd() === "system") set("system"); });
-  window.TH = { get: rd, set, flash, AC: Object.keys(AC), pref: (k, d) => lsg("ao." + k, d), setPref: (k, v) => { lss("ao." + k, v); ui(); } };
+  window.TH = { get: rd, set, flash, AC: Object.keys(AC), TY: { calm: "raspberry", dense: "emerald", pixel: "ocean" }, pref: (k, d) => lsg("ao." + k, d), setPref: (k, v) => { lss("ao." + k, v); ui(); } };
 })();

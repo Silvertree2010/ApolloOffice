@@ -1,0 +1,3 @@
+Pixelify Sans (pixelify-500.woff2, pixelify-600.woff2)
+Copyright 2021 The Pixelify Sans Project Authors (https://github.com/eifetx/Pixelify-Sans)
+Licensed under the SIL Open Font License, Version 1.1: https://openfontlicense.org
