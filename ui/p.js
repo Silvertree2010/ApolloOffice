@@ -103,111 +103,106 @@
     if (v) v.outerHTML = dview(ldf);
   });
 
-  const repos = async () => {
-    cfg = await get("/api/cfg");
-    show("Repos", "repos");
-    const rs = cfg.repos;
-    let op = new Set();
-    try { op = new Set(JSON.parse(sessionStorage.getItem("ao.ro") || "[]")); } catch {}
-    const chip = (c, t, ti) => `<span class="chip ${c}" title="${esc(ti || "")}">${t}</span>`;
-    const st = (r) => {
-      const x = r.st || {}, c = [];
-      if (!yes(r.on_)) c.push(chip("", "paused", "Not active"));
-      if (!r.ci) c.push(chip("bad", "no tests", "No test command"));
-      if (x.red) c.push(chip("bad", "main red", "CI is red on the default branch, jobs wait"));
-      if (yes(r.iss)) c.push(chip(x.iv > 0 ? "" : "info", x.iv > 0 ? `issues · every ${x.iv >= 60 ? x.iv / 60 + " h" : x.iv + " min"}` : "issues", x.iv > 0 ? "Issues here rarely become PRs, so the Scout checks less often" : "Works on open issues"));
-      if (yes(r.hunt)) c.push(chip("info", "hunt", "Hunts for bugs itself"));
-      if (yes(r.feat)) c.push(chip("info", "features", "Builds requested features"));
-      c.push(chip(r.mode === "auto" ? "ok" : "", r.mode === "auto" ? "auto PR" : "approve", r.mode === "auto" ? "Submits pull requests automatically" : "Waits for your approval"));
-      return c.join("");
-    };
-    const nums = (r) => {
-      const x = r.st || {};
-      const it = (v, l, c, ti) => `<span title="${esc(ti)}"><b class="${c || ""}">${v ?? 0}</b> ${l}</span>`;
-      return [it(x.m14, "merged", "ok2", "Merged in the last 14 days"), it(x.op, "open", "", "Open pull requests"), x.old ? it(x.old, "open > 7 d", "bad2", "Open longer than 7 days without merge") : "", yes(r.iss) ? it(`${x.ik || 0}/${x.is || 0}`, "issues → PR", x.is >= 30 && !x.ik ? "bad2" : "", "Issues taken in the last 14 days that became a pull request") : "", it(x.q, "queued", "", "Jobs waiting in Vet or ready"), it(usd(x.usd || 0), "14 d", "", "API cost in the last 14 days")].filter(Boolean).join("");
-    };
-    const fun = (r) => {
-      const d = (r.st || {}).dr || {};
-      const it = (k, l, ti, c) => d[k] ? `<span title="${esc(ti)}"><b class="${c || ""}">${d[k]}</b> ${l}</span>` : "";
-      const v = [it("done", "submitted", "Fix jobs that ended in a pull request", "ok2"), it("vet", "rejected by Vet", "Vet judged the issue unsuitable: unclear, bundled, already claimed or paused"), it("guard", "blocked by Guard", "Guard found suspicious content such as hidden instructions"), it("repro", "not reproducible", "The bug could not be reproduced on the build machine"), it("fix", "no valid fix", "Fixer, CI or Reviewer could not produce a fix that passes"), it("late", "too late", "Someone else opened a PR or claimed the issue first"), it("host", "machine errors", "Dropped because a build machine failed", "bad2"), it("own", "dropped by you", "Dropped from the queue by hand")].filter(Boolean);
-      return v.length ? `<label>Last 14 days</label><div class="rs">${v.join("")}</div>` : "";
-    };
-    B.innerHTML = `<div class="sec"><div class="box"><form id="fa" class="acts" style="margin:0"><input type="text" name="full" placeholder="Add a repository: owner/name or GitHub link" style="flex:1;min-width:200px"><button class="pri">Add</button></form><div class="msg" id="am"></div></div></div>
-    <div class="sec"><div class="rh"><h4>${rs.length} ${rs.length === 1 ? "repository" : "repositories"}</h4>${rs.length > 4 ? `<input type="text" id="rq" placeholder="Filter" autocomplete="off">` : ""}</div>${rs.map((r) => `<form class="box rr" data-r="${esc(r.full)}"><details ${op.has(r.full) ? "open" : ""}><summary><span class="rn">${esc(r.full)}</span><span class="rc">${st(r)}</span><span class="rs">${nums(r)}</span></summary>
+  const ph = (d, act) => `<div class="ph2"><div>${d ? `<p>${d}</p>` : ""}</div><div class="pa2">${act || ""}</div></div>`;
+  const kpi = (xs) => `<div class="kpis">${xs.map(([v, l, c]) => `<div><b class="${c || ""}">${v}</b><span>${l}</span></div>`).join("")}</div>`;
+  let rq = "";
+  const fun = (r) => {
+    const d = (r.st || {}).dr || {};
+    const it = (k, l, ti, c) => d[k] ? `<div title="${esc(ti)}"><b class="${c || ""}">${d[k]}</b><span>${l}</span></div>` : "";
+    const v = [it("done", "submitted", "Fix jobs that ended in a pull request", "ok2"), it("vet", "rejected by Vet", "Vet judged the issue unsuitable: unclear, bundled, already claimed or paused"), it("guard", "blocked by Guard", "Guard found suspicious content such as hidden instructions"), it("repro", "not reproducible", "The bug could not be reproduced on the build machine"), it("fix", "no valid fix", "Fixer, CI or Reviewer could not produce a fix that passes"), it("late", "too late", "Someone else opened a PR or claimed the issue first"), it("host", "machine errors", "Dropped because a build machine failed", "bad2"), it("own", "dropped by you", "Dropped from the queue by hand")].filter(Boolean);
+    return v.length ? `<div class="sec"><h4>Fix jobs, last 14 days</h4><div class="stl">${v.join("")}</div></div>` : "";
+  };
+  const rdet = (full) => {
+    const r = cfg.repos.find((x) => x.full === full);
+    if (!r) return;
+    show(full, "rdr");
+    const D = B, x = r.st || {};
+    D.innerHTML = `<form class="rfm" data-r="${esc(r.full)}">
       ${r.ci ? "" : `<div class="warn">No test command found. Enter the command that runs this repository's tests, otherwise nothing happens here.</div>`}
-      <div class="fm">
-        ${fun(r)}
+      <div class="kp">${[[x.m14 ?? 0, "merged, 14 d", "ok2"], [x.op ?? 0, "open"], [x.old ?? 0, "open > 7 d", x.old ? "bad2" : ""], [x.q ?? 0, "queued"], [usd(x.usd || 0), "cost, 14 d"]].map(([v, l, c]) => `<div><b class="${c || ""}">${v}</b><span>${l}</span></div>`).join("")}</div>
+      ${fun(r)}
+      <div class="sec"><h4>Work</h4><div class="box"><div class="fm">
         <label>Status</label>${tg("on_", r.on_, "active")}
         <label>Work on</label><div class="acts" style="margin:0">${tg("iss", r.iss, "open issues")}${tg("hunt", r.hunt, "hunt for bugs itself")}${tg("feat", r.feat, "build requested features")}</div>
         <label>Skip labels</label><input type="text" name="skl" value="${esc(r.skl || "")}" placeholder="e.g. area:kernel, needs-design">
+        <label>Pull requests</label><select name="mode"><option value="ask" ${r.mode !== "auto" ? "selected" : ""}>wait for my approval</option><option value="auto" ${r.mode === "auto" ? "selected" : ""}>submit automatically</option></select>
+        <label>PR footer</label>${tg("nm", r.nm ?? 1, "mention ApolloOffice with a link")}
+      </div></div></div>
+      <div class="sec"><h4>Build</h4><div class="box"><div class="fm">
         <label>Test command</label><input type="text" name="ci" value="${esc(r.ci)}" placeholder="e.g. cargo test, npm test, pytest">
         <label>Setup command</label><input type="text" name="setup" value="${esc(r.setup)}" placeholder="optional, e.g. npm ci">
-        <label>Pull requests</label><select name="mode"><option value="ask" ${r.mode !== "auto" ? "selected" : ""}>wait for my approval</option><option value="auto" ${r.mode === "auto" ? "selected" : ""}>submit automatically</option></select>
-        <label>Limits</label><div class="lm"><span>open</span><input type="number" name="maxo" min="0" max="10000" value="${r.maxo}"><span>new per day</span><input type="number" name="maxd" min="0" max="10000" value="${r.maxd}"><span>USD per day</span><input type="number" name="bud" min="0" step="0.01" value="${r.bud || 0}"></div>
-        <label>PR footer</label>${tg("nm", r.nm ?? 1, "mention ApolloOffice with a link")}
-        <label>Your rules</label><textarea name="rules" placeholder="optional, e.g. never touch the plugin API">${esc(r.rules)}</textarea>
-      </div>
-      <div class="acts"><button class="pri" data-op="set" disabled>Saved</button><button type="button" data-op="detect">Detect test command</button><span class="sp"></span><button type="button" class="dng" data-op="del">Remove</button></div><div class="msg"></div></details></form>`).join("") || `<div class="empty">No repository yet.</div>`}</div>`;
-    if ($("rq")) $("rq").oninput = (e) => { const q = e.target.value.trim().toLowerCase(); for (const f of B.querySelectorAll("form.rr")) f.hidden = q && !f.dataset.r.toLowerCase().includes(q); };
-    for (const d of B.querySelectorAll("form.rr details")) d.ontoggle = () => {
-      const k = d.closest("form").dataset.r;
-      d.open ? op.add(k) : op.delete(k);
-      try { sessionStorage.setItem("ao.ro", JSON.stringify([...op])); } catch {}
+      </div></div></div>
+      <div class="sec"><h4>Limits</h4><div class="box"><div class="fm">
+        <label>Open pull requests</label><input type="number" name="maxo" min="0" max="10000" value="${r.maxo}">
+        <label>New per day</label><input type="number" name="maxd" min="0" max="10000" value="${r.maxd}">
+        <label>USD per day</label><input type="number" name="bud" min="0" step="0.01" value="${r.bud || 0}">
+      </div></div></div>
+      <div class="sec"><h4>Your rules</h4><textarea name="rules" placeholder="optional, e.g. never touch the plugin API">${esc(r.rules)}</textarea></div>
+      <div class="sbar"><button class="pri" data-op="set" disabled>Saved</button><button type="button" data-op="detect">Detect test command</button><span class="msg"></span><span class="sp"></span><button type="button" class="dng" data-op="del">Remove</button></div></form>`;
+    const f = D.querySelector("form"), sb = f.querySelector('[data-op="set"]'), m = f.querySelector(".msg");
+    const dirty = () => { sb.disabled = false; sb.textContent = "Save changes"; m.textContent = ""; };
+    f.addEventListener("input", dirty);
+    f.addEventListener("change", dirty);
+    f.onsubmit = (e) => e.preventDefault();
+    f.onclick = async (e) => {
+      const b = e.target.closest("button[data-op]");
+      if (!b) return;
+      e.preventDefault();
+      const op = b.dataset.op;
+      if (op === "del") {
+        if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Click again to remove"; return; }
+        await post({ op: "del", full }, "/api/repo");
+        hide();
+        return repos();
+      }
+      if (op === "detect") {
+        busy(b, true, "Detecting…");
+        const r2 = await post({ op: "detect", full }, "/api/repo");
+        busy(b, false, "Detect test command");
+        if (r2.ci) { f.ci.value = r2.ci; if (r2.setup && !f.setup.value) f.setup.value = r2.setup; f.dispatchEvent(new Event("change")); m.className = "msg"; m.textContent = "Detected. Save to keep it."; }
+        else { m.className = "msg"; m.textContent = "Nothing detected."; }
+        return;
+      }
+      busy(b, true, "Saving…");
+      const r2 = await post({ op: "set", full, ...fv(f) }, "/api/repo");
+      if (r2.error) { busy(b, false, "Save changes"); m.className = "msg bad2"; m.textContent = r2.error; return; }
+      busy(b, true, "Saved");
+      m.className = "msg"; m.textContent = "";
+      repos();
     };
-    for (const f of B.querySelectorAll("form.rr")) {
-      const sb = f.querySelector('[data-op="set"]');
-      const dirty = () => { sb.disabled = false; sb.textContent = "Save changes"; f.querySelector(".msg").textContent = ""; };
-      f.addEventListener("input", dirty);
-      f.addEventListener("change", dirty);
-    }
+  };
+  const repos = async () => {
+    cfg = await get("/api/cfg");
+    show("Repos", "repos");
+    const P0 = B, rs = cfg.repos;
+    const sum = (k) => rs.reduce((s, r) => s + ((r.st || {})[k] || 0), 0);
+    const flags = (r) => { const x = r.st || {}, c = []; if (!yes(r.on_)) c.push(`<i>Paused</i>`); if (!r.ci) c.push(`<i class="bad2">No test command</i>`); if (x.red) c.push(`<i class="bad2">Main is red</i>`); return c.join(""); };
+    const work = (r) => { const x = r.st || {}; return [yes(r.iss) && (x.iv > 0 ? `Issues, every ${x.iv >= 60 ? x.iv / 60 + " h" : x.iv + " min"}` : "Issues"), yes(r.hunt) && "Hunt", yes(r.feat) && "Features"].filter(Boolean).join(", ") || `<span class="t2">Nothing</span>`; };
+    const row = (r) => { const x = r.st || {}, [o, n] = r.full.includes("/") ? r.full.split("/") : ["", r.full]; return `<tr data-r="${esc(r.full)}" class="${yes(r.on_) ? "" : "dim"}"><td><b>${esc(n)}</b><span class="mut">${esc(o)}${flags(r) ? " · " : ""}${flags(r)}</span></td><td>${work(r)}</td><td>${r.mode === "auto" ? "Automatic" : "Ask me"}</td><td class="n">${x.m14 || 0}</td><td class="n">${x.op || 0}</td><td class="n">${x.old ? `<span class="bad2">${x.old}</span>` : `<span class="t2">0</span>`}</td><td class="n">${x.q || 0}</td><td class="n">${usd(x.usd || 0)}</td></tr>`; };
+    P0.innerHTML = ph(`${rs.filter((r) => yes(r.on_)).length} of ${rs.length} active. Click a repository to change what the office does there.`, `<form id="fa" class="inl"><input type="text" name="full" placeholder="owner/name or GitHub link" aria-label="Repository to add"><button class="go">Add repository</button></form>`)
+      + `<div class="msg" id="am"></div>`
+      + kpi([[sum("m14"), "merged, 14 days"], [sum("op"), "open pull requests"], [sum("q"), "queued jobs"], [usd(sum("usd")), "cost, 14 days"]])
+      + (rs.length ? `<div class="flt"><input type="text" id="rq" placeholder="Filter repositories" value="${esc(rq)}" autocomplete="off"></div><div class="tw"><table class="tb2"><thead><tr><th>Repository</th><th>Works on</th><th>Pull requests</th><th class="n">Merged</th><th class="n">Open</th><th class="n" title="Open longer than 7 days without merge">Stale</th><th class="n">Queued</th><th class="n">Cost</th></tr></thead><tbody>${rs.map(row).join("")}</tbody></table></div>` : `<div class="emp"><b>No repository yet</b><span>Add one above, for example owner/name.</span></div>`);
+    const flt = () => { const q = rq.trim().toLowerCase(); for (const t of P0.querySelectorAll("tr[data-r]")) t.hidden = !!q && !t.dataset.r.toLowerCase().includes(q); };
+    if ($("rq")) { $("rq").oninput = (e) => { rq = e.target.value; flt(); }; flt(); }
+    for (const t of P0.querySelectorAll("tr[data-r]")) t.onclick = () => rdet(t.dataset.r);
     $("fa").onsubmit = async (e) => {
       e.preventDefault();
       const b = e.target.querySelector("button"), m = $("am");
       busy(b, true, "Adding…");
       const r = await post({ op: "add", full: e.target.full.value }, "/api/repo");
-      busy(b, false, "Add");
+      busy(b, false, "Add repository");
       if (r.error) { m.className = "msg bad2"; m.textContent = r.error; return; }
       await repos();
       const n = $("am");
       n.className = "msg";
-      n.textContent = r.ci ? `Added ${r.full}. Test command detected: ${r.ci}${r.setup ? " (setup: " + r.setup + ")" : ""}. Check it below.` : `Added ${r.full}. No test command detected, please enter one below.`;
+      n.textContent = r.ci ? `Added ${r.full}. Test command detected: ${r.ci}${r.setup ? " (setup: " + r.setup + ")" : ""}.` : `Added ${r.full}. No test command detected, open it and enter one.`;
+      rdet(r.full);
     };
-    for (const f of B.querySelectorAll("form[data-r]")) {
-      f.onsubmit = (e) => e.preventDefault();
-      f.onclick = async (e) => {
-        const b = e.target.closest("button[data-op]");
-        if (!b) return;
-        e.preventDefault();
-        const m = f.querySelector(".msg"), op = b.dataset.op, full = f.dataset.r;
-        if (op === "del") {
-          if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Click again to remove"; return; }
-          await post({ op: "del", full }, "/api/repo");
-          return repos();
-        }
-        if (op === "detect") {
-          busy(b, true, "Detecting…");
-          const r = await post({ op: "detect", full }, "/api/repo");
-          busy(b, false, "Detect test command");
-          if (r.ci) { f.ci.value = r.ci; if (r.setup && !f.setup.value) f.setup.value = r.setup; f.dispatchEvent(new Event("change")); m.textContent = "Detected. Save to keep it."; }
-          else m.textContent = "Nothing detected.";
-          return;
-        }
-        busy(b, true, "Saving…");
-        const r = await post({ op: "set", full, ...fv(f) }, "/api/repo");
-        if (r.error) { busy(b, false, "Save changes"); m.className = "msg bad2"; m.textContent = r.error; return; }
-        busy(b, true, "Saved");
-        m.className = "msg"; m.textContent = "";
-      };
-    }
   };
 
-  const hosts = async () => {
-    cfg = await get("/api/cfg");
-    show("Machines", "hosts");
-    const hs = cfg.hosts;
-    const hl = hs.some((h) => h.id === "local");
-    const form = (h, nw) => `<form class="box" data-h="${esc(h.id || "")}" data-new="${nw ? 1 : ""}"><div class="hd2"><b>${nw ? (h.id === "local" ? "This computer" : "SSH machine") : esc(h.id) + (h.ssh ? " · ssh " + esc(h.ssh) : " · this computer")}</b>${nw ? "" : tg("on", h.on_, "active")}</div>
-      <div class="fm">
+  const hform = (h, nw) => `<form class="hfm" data-h="${esc(h.id || "")}" data-new="${nw ? 1 : ""}">${nw ? `<div class="sec"><h4>${h.id === "local" ? "This computer" : "SSH machine"}</h4>` : `<div class="sec">`}<div class="box"><div class="fm">
+        ${nw ? "" : `<label>Status</label>${tg("on", h.on_, "active")}`}
         ${nw && h.id !== "local" ? `<label>SSH host</label><input type="text" name="ssh" placeholder="alias from ~/.ssh/config or user@host"><div class="hint">Key login must work without a password prompt.</div>` : ""}
         <label>Isolation</label><select name="dk"><option value="1" ${h.dk !== 0 ? "selected" : ""}>Docker container (recommended)</option><option value="0" ${h.dk === 0 ? "selected" : ""}>directly on the machine</option></select>
         <div class="hint raw" ${h.dk === 0 ? "" : "hidden"}><span style="color:var(--bad)">Workers build and run code from the repositories you add, directly with your user account, which can reach your GitHub, Claude and SSH logins on this machine. Only do this for repositories you trust.</span><br>${tg("raw", h.dk === 0 && !nw, "I understand")}</div>
@@ -216,29 +211,10 @@
         <label>CPU limit</label><input type="number" name="cpu" min="0" value="${h.cpu || 0}"><div class="hint">0 = all but one.</div>
         <label>Skip repos</label><input type="text" name="no" value="${esc(h.no || "")}" placeholder="optional, e.g. owner/big-repo, other-repo">
         <label>Disk limit (GB)</label><input type="number" name="gb" min="5" value="${h.gb || 50}">
-      </div>
-      <div class="acts"><button class="pri" data-op="set">${nw ? "Add" : "Save"}</button>${nw ? "" : `<span class="sp"></span><button type="button" class="dng" data-op="del">Remove</button>`}</div><div class="msg"></div></form>`;
-    const S0 = A.S || {}, busyN = {};
-    for (const v of Object.values(S0.ln || {})) { const k = String(v).split("#")[0]; busyN[k] = (busyN[k] || 0) + 1; }
-    const sum = (h) => {
-      const up = S0.o?.net?.[h.id] !== false, st = (S0.hst || {})[h.id] || {}, on = h.on_ !== 0;
-      const dk = Array.isArray(st.disk) ? st.disk : null, mem = Array.isArray(st.mem) ? st.mem : null;
-      const kv = (l, v) => v == null ? "" : `<div><span>${l}</span><b>${v}</b></div>`;
-      return `<div class="msum"><i class="dot2 ${!on ? "" : up ? "up" : "dn"}"></i><div class="mn"><b>${esc(h.id === "local" ? "This computer" : h.id)}</b><span>${!on ? "Off" : up ? "Online" : "Offline"}${h.ssh ? " · " + esc(h.ssh) : ""} · ${h.dk === 0 ? "directly" : "Docker"}</span></div>
-        <div class="mst">${kv("Lanes", `${busyN[h.id] || 0}/${h.ln || 1}`)}${kv("Load", st.load != null ? Number(st.load).toFixed(1) : null)}${kv("CPU", st.cpu != null ? st.cpu + " cores" : null)}${kv("Memory", mem ? Math.round((mem[0] - mem[1]) / 1024 * 10) / 10 + " / " + Math.round(mem[0] / 1024) + " GB" : null)}${kv("Disk free", dk ? Math.round(dk[1]) + " GB" : null)}${kv("Temp", st.temp ? Math.round(st.temp) + " °C" : null)}${kv("Up", st.up ? esc(String(st.up).split(",")[0]) : null)}</div>
-        <button type="button" class="mtg">Settings</button></div>`;
-    };
-    B.innerHTML = `<div class="ph2"><div></div><div class="pa2"><button type="button" class="go" id="hAdd">Add a machine</button></div></div>
-    <div class="mlist">${hs.map((h) => form(h, false)).join("") || `<div class="emp"><b>No machine yet</b><span>Add this computer or an SSH machine.</span></div>`}</div>
-    <div class="sec madd" id="hNew" hidden><h4>Add a machine</h4>${hl ? "" : form({ id: "local", dk: 1 }, true)}${form({ id: "", dk: 1 }, true)}</div>`;
-    for (const f of B.querySelectorAll("form[data-h]:not([data-new='1'])")) {
-      const h = hs.find((x) => x.id === f.dataset.h); if (!h) continue;
-      f.classList.add("mc2");
-      f.insertAdjacentHTML("afterbegin", sum(h));
-      f.querySelector(".mtg").onclick = () => f.classList.toggle("open");
-    }
-    $("hAdd").onclick = () => { const n = $("hNew"); n.hidden = !n.hidden; if (!n.hidden) n.scrollIntoView({ behavior: "smooth", block: "start" }); };
-    for (const f of B.querySelectorAll("form[data-h]")) {
+      </div></div>
+      <div class="acts"><button class="pri" data-op="set">${nw ? "Add" : "Save"}</button><span class="msg"></span>${nw ? "" : `<span class="sp"></span><button type="button" class="dng" data-op="del">Remove</button>`}</div></div></form>`;
+  const hbind = (root, hs) => {
+    for (const f of root.querySelectorAll("form[data-h]")) {
       f.dk.onchange = () => { f.querySelector(".raw").hidden = f.dk.value === "1"; };
       f.onsubmit = (e) => e.preventDefault();
       f.onclick = async (e) => {
@@ -251,6 +227,7 @@
         if (b.dataset.op === "del") {
           if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Click again to remove"; return; }
           await post({ op: "del", id }, "/api/host");
+          hide();
           return hosts();
         }
         const ex = hs.find((x) => x.id === id);
@@ -261,11 +238,34 @@
         busy(b, false, f.dataset.new ? "Add" : "Save");
         if (r.error) { m.className = "msg bad2"; m.textContent = r.error; return; }
         if (!r.ok) { m.className = "msg bad2"; m.textContent = "Saved, but the machine is not ready: " + (r.m || ""); return; }
+        hide();
         hosts();
       };
     }
   };
-
+  const hosts = async () => {
+    cfg = await get("/api/cfg");
+    show("Machines", "hosts");
+    const P0 = B, hs = cfg.hosts, hl = hs.some((h) => h.id === "local");
+    const S0 = A.S || {}, busyN = {};
+    for (const v of Object.values(S0.ln || {})) { const k = String(v).split("#")[0]; busyN[k] = (busyN[k] || 0) + 1; }
+    const row = (h) => {
+      const up = S0.o?.net?.[h.id] !== false, st = (S0.hst || {})[h.id] || {}, on = h.on_ !== 0;
+      const dk = Array.isArray(st.disk) ? st.disk : null, mem = Array.isArray(st.mem) ? st.mem : null;
+      const c = (v) => `<td class="n">${v == null ? `<span class="mut">–</span>` : v}</td>`;
+      return `<tr data-h="${esc(h.id)}" class="${on ? "" : "dim"}"><td><b><i class="dot2 ${!on ? "" : up ? "up" : "dn"}"></i>${esc(h.id === "local" ? "This computer" : h.id)}</b><span class="mut">${!on ? "Off" : up ? "Online" : "Offline"}${h.ssh ? " · " + esc(h.ssh) : ""} · ${h.dk === 0 ? "directly" : "Docker"}</span></td>${c(`${busyN[h.id] || 0}/${h.ln || 1}`)}${c(st.load != null ? Number(st.load).toFixed(1) : null)}${c(st.cpu != null ? st.cpu : null)}${c(mem ? Math.round((mem[0] - mem[1]) / 1024 * 10) / 10 + ` <span class="mut">/ ${Math.round(mem[0] / 1024)} GB</span>` : null)}${c(dk ? Math.round(dk[1]) + ` <span class="mut">GB</span>` : null)}${c(st.temp ? Math.round(st.temp) + ` <span class="mut">°C</span>` : null)}${c(st.up ? esc(String(st.up).split(",")[0]) : null)}</tr>`;
+    };
+    const on = hs.filter((h) => h.on_ !== 0), upn = on.filter((h) => S0.o?.net?.[h.id] !== false).length;
+    P0.innerHTML = ph(`${upn} of ${on.length} active machines online. Jobs run in parallel lanes on each machine.`, `<button type="button" class="go" id="hAdd">Add a machine</button>`)
+      + (hs.length ? `<div class="tw"><table class="tb2 mtb"><thead><tr><th>Machine</th><th class="n">Lanes busy</th><th class="n">Load</th><th class="n">Cores</th><th class="n">Memory</th><th class="n">Disk free</th><th class="n">Temp</th><th class="n">Up</th></tr></thead><tbody>${hs.map(row).join("")}</tbody></table></div>` : `<div class="emp"><b>No machine yet</b><span>Add this computer or an SSH machine.</span></div>`);
+    for (const t of P0.querySelectorAll("tr[data-h]")) t.onclick = () => {
+      const h = hs.find((x) => x.id === t.dataset.h); if (!h) return;
+      show(h.id === "local" ? "This computer" : h.id, "hdr");
+      B.innerHTML = hform(h, false);
+      hbind(B, hs);
+    };
+    $("hAdd").onclick = () => { show("Add a machine", "hdr"); B.innerHTML = (hl ? "" : hform({ id: "local", dk: 1 }, true)) + hform({ id: "", dk: 1 }, true); hbind(B, hs); };
+  };
   const RK = { scout: [["scout", "Model"]], guard: [["guard", "Model"]], vet: [["vet", "Model"]], watcher: [["watcher", "Model"]], hunter: [["hunter", "Model"]], reviewer: [["reviewer", "Model"]], repro: [["repro", "First try"], ["repro2", "Second try"]], fixer: [["fixer", "Model"], ["big", "Complex bugs"]] };
   const TOOLS = ["hunter", "repro", "fixer"];
   const split = (v) => { const i = (v || "").indexOf(":"), p = i > 0 ? v.slice(0, i) : ""; return cfg.prov.some((x) => x.id === p) ? [p, v.slice(i + 1)] : ["cc", v || ""]; };
@@ -482,7 +482,7 @@
     };
     const tk = async (r) => {
       const d = r || await get("/api/toks");
-      $("tkl").innerHTML = (d.toks || []).length ? `<div class="tw"><table class="tb"><tr><th>Name</th><th>Access</th><th>Created</th><th>Last used</th><th></th></tr>${d.toks.map((t) => `<tr><td>${esc(t.n)}</td><td>${t.sc === "read" ? "read only" : "can change"}</td><td>${new Date(t.t0).toLocaleDateString()}</td><td>${t.last ? new Date(t.last).toLocaleString() : "never"}</td><td class="n"><button type="button" class="dng" data-tkd="${esc(t.id)}">Revoke</button></td></tr>`).join("")}</table></div>` : `<div class="hint" style="margin:0">No tokens yet.</div>`;
+      $("tkl").innerHTML = (d.toks || []).length ? `<div class="tw"><table class="tb2 ro"><thead><tr><th>Name</th><th>Access</th><th>Created</th><th>Last used</th><th></th></tr></thead><tbody>${d.toks.map((t) => `<tr><td>${esc(t.n)}</td><td>${t.sc === "read" ? "read only" : "can change"}</td><td>${new Date(t.t0).toLocaleDateString()}</td><td>${t.last ? new Date(t.last).toLocaleString() : "never"}</td><td class="n"><button type="button" class="dng sm2" data-tkd="${esc(t.id)}">Revoke</button></td></tr>`).join("")}</tbody></table></div>` : `<div class="hint" style="margin:0">No tokens yet.</div>`;
       if (d.mcp) $("tkm").textContent = `claude mcp add apollo-office -e APOLLO_OFFICE_TOKEN=$TOKEN -- ${d.mcp.replace(" --token <token>", "")}\n\nor over HTTP: http://127.0.0.1:${cfg.api.port}/mcp with header Authorization: Bearer $TOKEN`;
       for (const b of $("tkl").querySelectorAll("[data-tkd]")) b.onclick = async (e) => { if (e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again"; return; } tk(await post({ op: "del", id: b.dataset.tkd }, "/api/toks")); };
     };
@@ -506,38 +506,41 @@
     if (c.error) return;
     show("Costs", "cost");
     const t = c.today || {}, px = c.px || {};
-    const tb = (h, rs) => `<div class="tw"><table class="tb"><tr>${h.map((x) => `<th class="${x[1] || ""}">${x[0]}</th>`).join("")}</tr>${rs.join("")}</table></div>`;
+    const tb = (h, rs) => `<div class="tw"><table class="tb2 ro"><thead><tr>${h.map((x) => `<th class="${x[1] || ""}">${x[0]}</th>`).join("")}</tr></thead><tbody>${rs.join("")}</tbody></table></div>`;
     const rate = (a, b) => b ? Math.round(100 * a / b) + "%" : "–";
-    B.innerHTML = `<div class="sec"><h4>Today</h4><div class="box"><div class="ck"><b>${usd(t.usd || 0)}</b>&nbsp;API keys${t.val ? ` · ${usd(t.val)} value on Claude Code and Codex logins` : ""}${t.unk ? ` · ${t.unk} calls without a known price` : ""}</div>
-        <form id="fb" class="fm"><label>Daily budget</label><input type="number" name="budday" min="0" step="0.01" value="${c.budday || 0}"><div class="hint">USD for API keys, 0 = no limit.</div></form>
-        <div class="acts"><button class="pri" id="bb">Save</button></div><div class="msg" id="bm"></div></div></div>
-      ${c.hints.length ? `<div class="sec"><h4>Hints</h4>${c.hints.map((h) => `<div class="box"><div class="ck">${esc(h)}</div></div>`).join("")}</div>` : ""}
-      <div class="sec"><h4>Last 14 days</h4>${c.days.length ? tb([["Day"], ["API", "n"], ["Login value", "n"]], c.days.map((d) => `<tr><td>${esc(d.day)}</td><td class="n">${usd(d.usd)}</td><td class="n">${usd(d.val)}</td></tr>`)) : `<div class="empty">Nothing yet.</div>`}</div>
-      <div class="sec"><h4>Repositories, 30 days</h4>${c.repos.length ? tb([["Repository"], ["Jobs", "n"], ["API", "n"], ["Login value", "n"]], c.repos.map((r) => `<tr><td>${esc(r.repo)}</td><td class="n">${r.jobs}</td><td class="n">${usd(r.usd)}</td><td class="n">${usd(r.val)}</td></tr>`)) : `<div class="empty">Nothing yet.</div>`}</div>
-      <div class="sec"><h4>Models per worker, 90 days</h4>${c.stats.length ? tb([["Repository"], ["Worker"], ["Model"], ["Jobs", "n"], ["PRs", "n"], ["Merged", "n"], ["Rejected", "n"], ["Per job", "n"], ["Per merge", "n"]], c.stats.map((r) => `<tr><td>${esc(r.repo)}</td><td>${esc(A.NM?.[r.w] || r.w)}</td><td>${esc(r.nm)}${r.sub ? " (login)" : ""}</td><td class="n">${r.jobs}</td><td class="n">${r.prs}</td><td class="n">${r.mg} · ${rate(r.mg, r.prs)}</td><td class="n">${r.cl}</td><td class="n">${usd(r.usd == null ? null : r.usd / r.jobs)}</td><td class="n">${r.mg && r.usd != null ? usd(r.usd / r.mg) : "–"}</td></tr>`)) : `<div class="empty">Nothing yet.</div>`}</div>
-      <div class="sec"><h4>Prices</h4><div class="box"><textarea id="px" placeholder="model input output, e.g. gpt-5.5 5 30" style="min-height:70px">${esc(Object.entries(px).map(([k, v]) => k + " " + v.join(" ")).join("\n"))}</textarea><div class="hint" style="margin-top:6px">USD per million tokens, one model per line: <code>model input output</code> or <code>model input cache-write cache-read output</code>. Overrides the built-in prices. Claude Code reports its own cost.</div><div class="acts"><button id="pb">Save prices</button></div><div class="msg" id="pm"></div></div></div>`;
+    const d14 = c.days.reduce((s, d) => s + (d.usd || 0), 0), v14 = c.days.reduce((s, d) => s + (d.val || 0), 0);
+    const dd = c.days.slice(0, 14).reverse(), mx = Math.max(0.01, ...dd.map((d) => (d.usd || 0) + (d.val || 0)));
+    const nil = `<div class="emp"><b>Nothing yet</b><span>Costs show up after the first jobs ran.</span></div>`;
+    B.innerHTML = ph(`API keys are billed per token. Claude Code and Codex logins cost nothing extra, their value is shown for comparison.${t.unk ? ` ${t.unk} calls today had no known price.` : ""}`)
+      + kpi([[usd(t.usd || 0), "API today"], [usd(t.val || 0), "login value today"], [usd(d14), "API, 14 days"], [c.budday ? usd(c.budday) : "none", "daily budget"]])
+      + (c.hints.length ? `<section class="sec2"><h3>Cheaper models <span class="mut">${c.hints.length} ${c.hints.length === 1 ? "hint" : "hints"}</span></h3><div class="lst">${c.hints.slice(0, 3).map((h) => `<div class="hr2"><div><span class="t1">${esc(h)}</span></div></div>`).join("")}${c.hints.length > 3 ? `<details class="more"><summary>Show ${c.hints.length - 3} more</summary>${c.hints.slice(3).map((h) => `<div class="hr2"><div><span class="t1">${esc(h)}</span></div></div>`).join("")}</details>` : ""}</div></section>` : "")
+      + `<section class="sec2"><h3>Last 14 days <span class="mut">${usd(d14)} API · ${usd(v14)} login value</span></h3>${dd.length ? `<div class="cch">${dd.map((d) => `<div title="${esc(d.day)}: ${usd(d.usd)} API, ${usd(d.val)} login value"><i class="v" style="height:${((d.val || 0) / mx) * 100}%"></i><i class="u" style="height:${((d.usd || 0) / mx) * 100}%"></i><span>${esc(d.day.slice(8))}</span></div>`).join("")}</div><div class="lgd"><span><i class="u"></i>API</span><span><i class="v"></i>Login value</span></div>` : nil}</section>`
+      + `<section class="sec2"><h3>Repositories <span class="mut">30 days</span></h3>${c.repos.length ? tb([["Repository"], ["Jobs", "n"], ["API", "n"], ["Login value", "n"]], c.repos.map((r) => `<tr><td>${esc(r.repo)}</td><td class="n">${r.jobs}</td><td class="n">${usd(r.usd)}</td><td class="n">${usd(r.val)}</td></tr>`)) : nil}</section>`
+      + `<section class="sec2"><h3>Models per worker <span class="mut">90 days</span></h3>${c.stats.length ? tb([["Repository"], ["Worker"], ["Model"], ["Jobs", "n"], ["PRs", "n"], ["Merged", "n"], ["Rejected", "n"], ["Per job", "n"], ["Per merge", "n"]], c.stats.map((r) => `<tr><td>${esc(r.repo)}</td><td>${esc(A.NM?.[r.w] || r.w)}</td><td>${esc(r.nm)}${r.sub ? ` <span class="mut">login</span>` : ""}</td><td class="n">${r.jobs}</td><td class="n">${r.prs}</td><td class="n">${r.mg} <span class="mut">${rate(r.mg, r.prs)}</span></td><td class="n">${r.cl}</td><td class="n">${usd(r.usd == null ? null : r.usd / r.jobs)}</td><td class="n">${r.mg && r.usd != null ? usd(r.usd / r.mg) : "–"}</td></tr>`)) : nil}</section>`
+      + `<section class="sec2"><h3>Budget and prices</h3><div class="box"><form id="fb" class="fm"><label>Daily budget</label><input type="number" name="budday" min="0" step="0.01" value="${c.budday || 0}"><div class="hint">USD for API keys, 0 = no limit.</div>
+        <label>Prices</label><textarea id="px" placeholder="model input output, e.g. gpt-5.5 5 30">${esc(Object.entries(px).map(([k, v]) => k + " " + v.join(" ")).join("\n"))}</textarea><div class="hint">USD per million tokens, one model per line: <code>model input output</code> or <code>model input cache-write cache-read output</code>. Overrides the built-in prices. Claude Code reports its own cost.</div></form>
+        <div class="acts"><button class="pri" id="bb">Save</button><span class="msg" id="bm"></span></div></div></section>`;
     $("fb").onsubmit = (e) => e.preventDefault();
-    $("bb").onclick = async () => { const r = await post({ budday: Number($("fb").budday.value) }, "/api/set"); $("bm").className = r.error ? "msg bad2" : "msg"; $("bm").textContent = r.error || "Saved."; };
-    $("pb").onclick = async () => {
+    $("bb").onclick = async () => {
       const o = {}, bad = [];
       for (const l of $("px").value.split("\n").map((x) => x.trim()).filter(Boolean)) {
         const [k, ...v] = l.split(/\s+/), n = v.map(Number);
         if ((n.length === 2 || n.length === 4) && n.every((x) => isFinite(x) && x >= 0)) o[k] = n; else bad.push(k);
       }
-      if (bad.length) { $("pm").className = "msg bad2"; $("pm").textContent = "Check the line for " + bad.join(", "); return; }
-      const r = await post({ px: o }, "/api/set");
-      $("pm").className = r.error ? "msg bad2" : "msg"; $("pm").textContent = r.error || "Saved.";
+      if (bad.length) { $("bm").className = "msg bad2"; $("bm").textContent = "Check the price line for " + bad.join(", "); return; }
+      const r = await post({ budday: Number($("fb").budday.value), px: o }, "/api/set");
+      $("bm").className = r.error ? "msg bad2" : "msg"; $("bm").textContent = r.error || "Saved.";
     };
   };
 
   const health = async (f) => {
     show("Health", "health");
-    if (!A.H || f) { B.innerHTML = `<div class="empty">checking…</div>`; await A.hlt(f); }
+    if (!A.H || f) { B.innerHTML = `<div class="empty">Checking…</div>`; await A.hlt(f); }
     const H = A.H || {};
-    const row = (ok, k, m) => `<div class="ck" style="margin:4px 0;align-items:flex-start"><b class="${ok ? "ok2" : "bad2"}" style="min-width:56px">${ok ? "ok" : "problem"}</b><span><b>${esc(k)}</b> ${esc(m)}</span></div>`;
-    const sec = (t, x) => `<div class="sec"><h4>${t}</h4><div class="box">${x}</div></div>`;
+    const row = (ok, k, m) => `<div class="hr2"><i class="dot2 ${ok ? "up" : "dn"}"></i><div><b>${esc(k || (ok ? "OK" : "Problem"))}</b><span>${esc(m)}</span></div></div>`;
+    const sec = (t, x) => `<section class="sec2"><h3>${t}</h3><div class="lst">${x}</div></section>`;
     const ls = (v) => (Array.isArray(v.m) ? v.m.map((y) => row(y.ok, y.k, y.m)).join("") : row(v.ok, "", v.m));
-    B.innerHTML = H.gh ? sec("GitHub", row(H.gh.ok, "", H.gh.m)) + sec("AI providers in use", ls(H.ai)) + sec("Docker", row(H.docker.ok, "", H.docker.m)) + sec("Machines", ls(H.hosts)) + `<div class="msg">Checked ${new Date(H.t).toLocaleTimeString()}. The office checks again every 5 minutes.</div><div class="acts"><button id="hr">Check now</button></div>` : `<div class="empty">Could not check.</div><div class="acts"><button id="hr">Check now</button></div>`;
+    B.innerHTML = ph(H.t ? `Checked ${new Date(H.t).toLocaleTimeString()}. The office checks again every 5 minutes.` : "", `<button id="hr">Check now</button>`) + (H.gh ? sec("GitHub", row(H.gh.ok, "", H.gh.m)) + sec("AI providers in use", ls(H.ai)) + sec("Docker", row(H.docker.ok, "", H.docker.m)) + sec("Machines", ls(H.hosts)) : `<div class="emp"><b>Could not check</b></div>`);
     $("hr").onclick = () => health(true);
   };
   A.health = health;
