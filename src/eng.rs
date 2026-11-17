@@ -123,7 +123,11 @@ async fn step(a: &Ax, id: i64, d: &mut Value, n: &Value) -> Result<(Value, bool)
         if prev.is_empty() { String::new() } else { format!("Previous steps:\n{}\n\n", wrap("steps", &prev.join("\n\n"))) },
         if fb.is_empty() || chk { String::new() } else { format!("A check sent this back. Fix these problems:\n{}", wrap("feedback", &fb)) }
     );
-    let sec = if tl.contains(&"shell") { secrets_for(a, wid) } else { vec![] };
+    let ext = d["input"]["kind"].is_string();
+    let sec = if tl.contains(&"shell") && !ext { secrets_for(a, wid) } else { vec![] };
+    if ext && tl.contains(&"shell") && !secrets_for(a, wid).is_empty() {
+        sys.push_str("\n\nThis run was started from outside (GitHub or a webhook), so your secrets are not available in it.");
+    }
     if !sec.is_empty() {
         let names: Vec<String> = sec.iter().map(|(n, _)| n.clone()).collect();
         sys.push_str(&format!("\n\nSecrets are available as environment variables in the sh tool: {}. Use them only for the service they belong to. Never print, write or send their values anywhere else.", names.join(", ")));
