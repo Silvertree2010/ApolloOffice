@@ -113,6 +113,22 @@ jobs:
           token: ${{ secrets.APOLLO_OFFICE_TOKEN }}
 ```
 
+## API and MCP
+
+Create a token in **Settings → Integrations → API and MCP**. Tokens are either read-only or allowed to change things.
+
+```sh
+curl http://127.0.0.1:47300/v2/status -H "Authorization: Bearer $TOKEN"
+```
+
+`GET /v2/openapi.json` lists every endpoint: jobs, repositories, pull requests, workers, pipelines, team, costs, events, settings and the office layout.
+
+The same functions are available as MCP tools for Claude Code, Cursor and other agents, over HTTP at `http://127.0.0.1:47300/mcp` or over stdio:
+
+```sh
+claude mcp add apollo-office -e APOLLO_OFFICE_TOKEN=$TOKEN -- apollo-office mcp-server
+```
+
 ## AI disclosure
 
 Every commit carries `Co-Authored-By` trailers for the models that worked on

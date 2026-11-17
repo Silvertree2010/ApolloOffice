@@ -1,7 +1,8 @@
 (() => {
   const A = window.AO, { get, post, esc, $ } = A;
-  const SRC = { tiles: "Workers", stage: "Office", queue: "Queue", prs: "Pull requests", log: "Log" };
-  const CL = { tiles: { x: 0, y: 0, w: 100, h: 13 }, stage: { x: 0, y: 13, w: 71, h: 87 }, queue: { x: 71, y: 13, w: 29, h: 34 }, prs: { x: 71, y: 47, w: 29, h: 29 }, log: { x: 71, y: 76, w: 29, h: 24 } };
+  const SRC = { tiles: "Workers", stage: "Office", queue: "Queue", prs: "Pull requests", log: "Log", approvals: "Waiting for you", costs: "Costs", machines: "Machines", pipelines: "Pipelines", team: "Team", merges: "Merges", repohealth: "Repositories" };
+  const CL = { tiles: { x: 0, y: 0, w: 100, h: 13 }, stage: { x: 0, y: 13, w: 71, h: 87 }, queue: { x: 71, y: 13, w: 29, h: 34 }, prs: { x: 71, y: 47, w: 29, h: 29 }, log: { x: 71, y: 76, w: 29, h: 24 }, approvals: { x: 51, y: 13, w: 20, h: 30 }, costs: { x: 51, y: 43, w: 20, h: 25 }, machines: { x: 51, y: 68, w: 20, h: 32 }, pipelines: { x: 30, y: 13, w: 21, h: 30 }, team: { x: 30, y: 43, w: 21, h: 30 }, merges: { x: 30, y: 73, w: 21, h: 27 }, repohealth: { x: 0, y: 60, w: 30, h: 40 } };
+  const BASE = ["tiles", "stage", "queue", "prs", "log"];
   const IC = {
     eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     off: '<path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.2M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/>',
@@ -15,13 +16,13 @@
   const lay = $("lay");
   const el = (k) => document.querySelector(`[data-lp="${k}"]`);
   const sc = () => L.scenes.find((s) => s.id === L.cur);
-  const fresh = (id, n) => ({ id, n, items: Object.fromEntries(Object.entries(CL).map(([k, v], i) => [k, { ...v, v: true, z: i + 1, lk: false }])) });
+  const fresh = (id, n) => ({ id, n, items: Object.fromEntries(Object.entries(CL).map(([k, v], i) => [k, { ...v, v: BASE.includes(k), z: i + 1, lk: false }])) });
   const norm = (x) => {
     const o = { cur: "classic", scenes: [] };
     for (const s of Array.isArray(x?.scenes) ? x.scenes : []) {
       if (!/^[a-z0-9-]{1,24}$/.test(s?.id || "")) continue;
       const it = {};
-      for (const k of Object.keys(SRC)) { const v = s.items?.[k] || CL[k]; it[k] = { x: +v.x || 0, y: +v.y || 0, w: +v.w || 20, h: +v.h || 20, v: v.v !== false, z: +v.z || 1, lk: !!v.lk }; }
+      for (const k of Object.keys(SRC)) { const v = s.items?.[k] || { ...CL[k], v: BASE.includes(k) }; it[k] = { x: +v.x || 0, y: +v.y || 0, w: +v.w || 20, h: +v.h || 20, v: v.v !== false, z: +v.z || 1, lk: !!v.lk }; }
       o.scenes.push({ id: s.id, n: String(s.n || "Scene").slice(0, 40), items: it });
     }
     o.cur = o.scenes.some((s) => s.id === x?.cur) ? x.cur : "classic";
@@ -102,7 +103,7 @@
         <div class="di ${!s ? "on" : ""}" data-sc="classic"><span>Classic</span></div>
         ${L.scenes.map((x) => `<div class="di ${x.id === L.cur ? "on" : ""}" data-sc="${x.id}">${x.id === L.cur ? `<input type="text" id="lN" value="${esc(x.n)}" maxlength="40" aria-label="Scene name">` : `<span>${esc(x.n)}</span>`}</div>`).join("")}</div>
         <div class="db"><button type="button" id="lAdd" title="New scene">${ic("plus")}</button><button type="button" id="lDup" title="Duplicate scene" ${s ? "" : "disabled"}>${ic("copy")}</button><button type="button" id="lDel" title="Delete scene" ${s ? "" : "disabled"}>${ic("minus")}</button></div></div>
-      <div><h5>Sources</h5><div class="dl">${s ? ord.map(([k, v]) => `<div class="di ${k === sel ? "on" : ""}" data-src="${k}"><span>${SRC[k]}</span><button type="button" data-a="v" class="${v.v ? "" : "off"}" title="${v.v ? "Hide" : "Show"}">${ic(v.v ? "eye" : "off")}</button><button type="button" data-a="lk" class="${v.lk ? "" : "off"}" title="${v.lk ? "Unlock" : "Lock"}">${ic(v.lk ? "lock" : "open")}</button><button type="button" data-a="up" title="Bring forward">${ic("up")}</button><button type="button" data-a="dn" title="Send backward">${ic("dn")}</button></div>`).join("") : `<div class="di"><span style="color:var(--t3)">Classic is fixed. Add a scene with + to arrange it freely.</span></div>`}</div></div>
+      <div><h5 class="dh">Sources${s ? `<span class="ad"><button type="button" id="lSrc" title="Add a window">${ic("plus")} Add window</button></span>` : ""}</h5><div class="dl">${s ? ord.map(([k, v]) => `<div class="di ${k === sel ? "on" : ""}" data-src="${k}"><span>${SRC[k]}</span><button type="button" data-a="v" class="${v.v ? "" : "off"}" title="${v.v ? "Hide" : "Show"}">${ic(v.v ? "eye" : "off")}</button><button type="button" data-a="lk" class="${v.lk ? "" : "off"}" title="${v.lk ? "Unlock" : "Lock"}">${ic(v.lk ? "lock" : "open")}</button><button type="button" data-a="up" title="Bring forward">${ic("up")}</button><button type="button" data-a="dn" title="Send backward">${ic("dn")}</button></div>`).join("") : `<div class="di"><span style="color:var(--t3)">Classic is fixed. Add a scene with + to arrange it freely.</span></div>`}</div></div>
       <div><h5>Controls</h5><div class="dc"><button type="button" id="lUndo" ${hist.length ? "" : "disabled"}>Undo</button><button type="button" id="lRst" ${s ? "" : "disabled"}>Reset scene</button><button type="button" class="go" id="lDone">Done</button></div></div>`;
     for (const r of D.querySelectorAll("[data-sc]")) r.onclick = (e) => { if (e.target.id === "lN") return; if (r.dataset.sc === L.cur) return; L.cur = r.dataset.sc; sel = null; save(); apply(); dock(); };
     const n = $("lN"); if (n) n.onchange = () => { snap(); s.n = n.value.trim() || "Scene"; save(); dock(); };
@@ -121,6 +122,17 @@
         save(); apply(); dock();
       };
     }
+    const sb = $("lSrc");
+    if (sb) sb.onclick = (e) => {
+      e.stopPropagation();
+      let m = $("lMenu"); if (m) { m.remove(); return; }
+      const hid = Object.keys(SRC).filter((k) => !s.items[k].v);
+      m = document.createElement("div"); m.id = "lMenu"; m.className = "lmenu";
+      m.innerHTML = hid.length ? hid.map((k) => `<button type="button" data-add="${k}">${esc(SRC[k])}</button>`).join("") : `<span>Every window is already shown.</span>`;
+      sb.parentElement.appendChild(m);
+      for (const b of m.querySelectorAll("[data-add]")) b.onclick = () => { snap(); const v = s.items[b.dataset.add]; v.v = true; v.z = Math.max(...Object.values(s.items).map((x) => x.z)) + 1; sel = b.dataset.add; save(); apply(); dock(); };
+      setTimeout(() => document.addEventListener("click", () => $("lMenu")?.remove(), { once: true }));
+    };
     $("lUndo").onclick = undo;
     $("lRst").onclick = () => { snap(); s.items = fresh(s.id, s.n).items; save(); apply(); dock(); };
     $("lDone").onclick = close;
@@ -143,7 +155,7 @@
   };
   const open = async () => {
     if (edit) return close();
-    if (document.body.classList.contains("fed")) await A.flows();
+    if (A.route && A.route() !== "office") { A.go("office"); await new Promise((r) => setTimeout(r, 60)); }
     if (document.body.classList.contains("ed")) $("bCz").click();
     edit = true; hist = [];
     if (!L.scenes.length) { L.scenes.push(fresh("s1", "My layout")); L.cur = "s1"; save(); }

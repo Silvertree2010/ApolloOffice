@@ -240,9 +240,10 @@ fn sets(a: &Ax, b: &Value) {
         s = json!({});
     }
     if let Some(m) = b["md"].as_object() {
+        let mre = regex::Regex::new(r"^[A-Za-z0-9._:/\[\]-]{0,120}$").unwrap();
         for (k, v) in m {
             if let Some(x) = v.as_str() {
-                if regex::Regex::new(r"^[A-Za-z0-9._:/\[\]-]{0,120}$").unwrap().is_match(x.trim()) {
+                if mre.is_match(x.trim()) {
                     s["md"][k] = json!(x.trim());
                 }
             }
@@ -251,9 +252,9 @@ fn sets(a: &Ax, b: &Value) {
     if let Some(x) = b["big"].as_bool() {
         s["big"] = json!(x);
     }
+    let hx = regex::Regex::new(r"^(#[0-9a-fA-F]{6})?$").unwrap();
     for (k, ps) in [("floor", ["check", "plain", "planks", "tiles", "parquet", "carpet"]), ("wall", ["plain", "stripes", "panels", "brick", "dots", "boards"])] {
         if let Some(f) = b["office"].get(k) {
-            let hx = regex::Regex::new(r"^(#[0-9a-fA-F]{6})?$").unwrap();
             let p = f["p"].as_str().unwrap_or(ps[0]);
             let (ca, cb) = (f["a"].as_str().unwrap_or(""), f["b"].as_str().unwrap_or(""));
             if ps.contains(&p) && hx.is_match(ca) && hx.is_match(cb) {
@@ -291,7 +292,7 @@ fn sets(a: &Ax, b: &Value) {
     }
     if b["layout"].is_object() {
         let idr = regex::Regex::new(r"^[a-z0-9-]{1,24}$").unwrap();
-        let ks = ["tiles", "stage", "queue", "prs", "log"];
+        let ks = ["tiles", "stage", "queue", "prs", "log", "approvals", "costs", "machines", "pipelines", "team", "merges", "repohealth"];
         let sc: Vec<Value> = b["layout"]["scenes"].as_array().cloned().unwrap_or_default().iter().filter(|x| idr.is_match(x["id"].as_str().unwrap_or(""))).take(12).map(|x| {
             let mut it = json!({});
             for k in ks {
@@ -332,10 +333,11 @@ fn sets(a: &Ax, b: &Value) {
     }
     if let Some(o) = b["px"].as_object() {
         let mut px = json!({});
+        let kre = regex::Regex::new(r"^[a-z0-9._:/-]{1,100}$").unwrap();
         for (k, v) in o.iter().take(100) {
             let k = k.trim().to_lowercase();
             let x: Vec<f64> = v.as_array().map(|v| v.iter().filter_map(|x| x.as_f64()).filter(|x| x.is_finite() && *x >= 0.0 && *x < 10_000.0).collect()).unwrap_or_default();
-            if regex::Regex::new(r"^[a-z0-9._:/-]{1,100}$").unwrap().is_match(&k) && (x.len() == 2 || x.len() == 4) {
+            if kre.is_match(&k) && (x.len() == 2 || x.len() == 4) {
                 px[k] = json!(x);
             }
         }
@@ -947,6 +949,13 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
                 Err(e) => js(json!({"ok": false, "m": crate::wk::errm(&e)})),
             }
         }
+        (_, x) if x.starts_with("/api/v2/") => {
+            let qm: serde_json::Map<String, Value> = q.split('&').filter_map(|kv| { let (k, v) = kv.split_once('=')?; Some((k.to_string(), json!(urlencoding_decode(v)))) }).collect();
+            match Box::pin(crate::api2::run(a, m.as_str(), &x[7..], &qm, b, true)).await {
+                Ok(v) => js(v),
+                Err((c, e)) => er(StatusCode::from_u16(c).unwrap_or(StatusCode::BAD_REQUEST), &e),
+            }
+        }
         ("GET", "/api/flows") => js(crate::flows::get(a)),
         ("POST", "/api/flows") => js(crate::flows::put(a, &b)),
         ("GET", "/api/cost") => js(costs(a)),
@@ -1200,6 +1209,25 @@ pub async fn h(State(a): State<Ax>, req: Request<Body>) -> Response<Body> {
     }
 }
 
+fn urlencoding_decode(s: &str) -> String {
+    let b = s.replace('+', " ");
+    let by = b.as_bytes();
+    let mut o = Vec::with_capacity(by.len());
+    let mut i = 0;
+    while i < by.len() {
+        if by[i] == b'%' && i + 2 < by.len() {
+            if let Ok(v) = u8::from_str_radix(&b[i + 1..i + 3], 16) {
+                o.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        o.push(by[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&o).into_owned()
+}
+
 #[cfg(test)]
 mod t {
     use super::*;
@@ -1269,23 +1297,4 @@ mod t {
         let a = std::sync::Arc::new(crate::app::App::new(db, std::env::temp_dir(), 1, "x".into()));
         assert_eq!(state(&a)["ev"].as_array().unwrap().len(), 75);
     }
-}
-
-fn urlencoding_decode(s: &str) -> String {
-    let b = s.replace('+', " ");
-    let by = b.as_bytes();
-    let mut o = Vec::with_capacity(by.len());
-    let mut i = 0;
-    while i < by.len() {
-        if by[i] == b'%' && i + 2 < by.len() {
-            if let Ok(v) = u8::from_str_radix(&b[i + 1..i + 3], 16) {
-                o.push(v);
-                i += 3;
-                continue;
-            }
-        }
-        o.push(by[i]);
-        i += 1;
-    }
-    String::from_utf8_lossy(&o).into_owned()
 }

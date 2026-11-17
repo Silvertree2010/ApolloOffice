@@ -1,9 +1,18 @@
 (() => {
   const A = window.AO, { get, post, esc, $ } = A;
-  const dr = $("dr"), T = $("drT"), B = $("drB");
-  let cur = "", cfg = null, ck = null, jid = 0;
+  const dr = $("dr"), T = $("drT");
+  let B = $("drB"), cur = "", cfg = null, ck = null, jid = 0;
+  const PG = { repos: "Repositories", hosts: "Machines", set: "Settings", cost: "Costs", health: "Health" };
 
-  const show = (t, k) => { cur = k; T.textContent = t; clearTimeout(dto); dr.classList.remove("out"); dr.hidden = false; };
+  const show = (t, k) => {
+    cur = k;
+    if (PG[k]) {
+      const r = { repos: "repos", hosts: "machines", set: "settings", cost: "costs", health: "health" }[k];
+      if (A.route && A.route() !== r) location.hash = "#/" + r;
+      B = $("pgB"); B.dataset.k = k; $("vt").textContent = PG[k]; return;
+    }
+    B = $("drB"); T.textContent = t; clearTimeout(dto); dr.classList.remove("out"); dr.hidden = false;
+  };
   let dto = 0;
   const hide = () => {
     cur = ""; jid = 0;
@@ -308,7 +317,7 @@
     const vg = (x, y) => { const a = String(x || "").replace(/^v/, "").split(".").map(Number), b = String(y || "").replace(/^v/, "").split(".").map(Number); for (let i = 0; i < 3; i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0); return false; };
     const nu = u.ready && vg(u.ready, A.S?.v);
     const ust = nu ? `Update ${esc(u.ready)} is downloaded.` : u.err ? `Last check: ${esc(u.err)}` : u.latest ? `Latest release: ${esc(u.latest)}` : "Not checked yet.";
-    const TB = [["gen", "General"], ["md", "Models"], ["prov", "Providers"], ["ntf", "Notifications"], ["int", "Integrations"], ["sys", "System"]];
+    const TB = [["gen", "General"], ["app", "Appearance"], ["md", "Models"], ["prov", "Providers"], ["ntf", "Notifications"], ["int", "Integrations"], ["sys", "System"]];
     let tb = "gen";
     try { tb = localStorage.getItem("ao.st") || "gen"; } catch {}
     if (!TB.some(([k]) => k === tb)) tb = "gen";
@@ -332,9 +341,12 @@
         <label>Daily token limit</label><input type="number" name="tokday" min="0" value="${s.tokday}"><div class="hint">0 = no limit. The office always pauses when a provider reports a usage limit.</div>
         <label>Working hours</label><div class="acts" style="margin:0;align-items:center">${tg("whon", s.wh?.on, "only work from")}<input type="time" name="whf" value="${esc(s.wh?.from || "08:00")}" style="width:auto"> to <input type="time" name="wht" value="${esc(s.wh?.to || "22:00")}" style="width:auto"></div><div class="hint">Outside these hours the office pauses; running steps finish first. Times of this computer.</div>
       </div></div></div>
-      <div data-tab="gen" class="sec"><h4>Appearance</h4><div class="box"><div class="fm" style="margin:0">
-        <label>Theme</label><select id="thm"><option value="dark">Dark</option><option value="light">Light</option><option value="system">Like the system</option></select>
-        <div class="hint">Saved in this browser.</div>
+      <div data-tab="app" class="sec"><h4>Appearance</h4><div class="box"><div class="fm" style="margin:0">
+        <label>Theme</label><div class="seg" id="thm">${[["dark", "Dark"], ["light", "Light"], ["system", "Like the system"]].map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join("")}</div>
+        <label>Accent</label><div class="sw2" id="acc">${window.TH.AC.map((k) => `<button type="button" data-v="${k}" title="${k}" aria-label="${k}" class="a-${k}"></button>`).join("")}</div>
+        <label>Density</label><div class="seg" id="dns">${[["cozy", "Comfortable"], ["compact", "Compact"]].map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join("")}</div>
+        <label>Motion</label><div class="seg" id="rmo">${[["0", "Full"], ["1", "Reduced"]].map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join("")}</div>
+        <div class="hint">Saved in this browser and applied right away.</div>
       </div></div></div>
       <div data-tab="ntf" class="sec"><h4>Notifications</h4><div class="box"><div class="fm" style="margin:0">
         <label>In this browser</label><label class="ck"><input type="checkbox" id="bnt"> show a desktop notification when a pull request waits for review</label>
@@ -392,8 +404,11 @@
     $("fs").addEventListener("input", dirty);
     $("fs").addEventListener("change", dirty);
     $("sx").onclick = () => settings();
-    $("thm").value = window.TH.get();
-    $("thm").onchange = (e) => window.TH.set(e.target.value);
+    const seg = (id, cur, fn) => { const el = $(id); for (const b of el.querySelectorAll("[data-v]")) { b.classList.toggle("on", b.dataset.v === cur); b.onclick = () => { fn(b.dataset.v); for (const x of el.querySelectorAll("[data-v]")) x.classList.toggle("on", x === b); }; } };
+    seg("thm", window.TH.get(), (v) => window.TH.set(v));
+    seg("acc", window.TH.pref("ac", "raspberry"), (v) => window.TH.setPref("ac", v));
+    seg("dns", window.TH.pref("dn", "cozy"), (v) => window.TH.setPref("dn", v));
+    seg("rmo", window.TH.pref("rm", "0"), (v) => window.TH.setPref("rm", v));
     try { $("bnt").checked = localStorage.getItem("ao.nt") === "1" && "Notification" in window && Notification.permission === "granted"; } catch {}
     if (!("Notification" in window)) { $("bnt").disabled = true; $("bnh").textContent = "This browser does not support notifications."; }
     $("bnt").onchange = async (e) => {
@@ -572,8 +587,6 @@
     $("bp").onclick = repos;
   };
 
-  $("bRepos").onclick = repos;
-  $("bCost").onclick = costs;
   const cz = () => {
     const P = $("cz"), F = window.AO.surf, U = window.AO.furn;
     const close = () => { P.hidden = true; document.body.classList.remove("ed"); U.edit(false); U.on(() => {}); document.removeEventListener("keydown", esc0); };
@@ -639,14 +652,12 @@
     P.hidden = false;
   };
   $("bCz").onclick = cz;
-  $("bHire").onclick = () => A.flows();
-  $("bHosts").onclick = hosts;
   A.hosts = hosts;
-  A.hosts = hosts;
-  $("bSet").innerHTML = A.GEAR;
-  $("bSet").onclick = settings;
+  A.repos = repos;
+  A.costs = costs;
+  A.settings = settings;
   document.addEventListener("keydown", (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === "s" && !dr.hidden && cur === "set" && $("sbar") && !$("sbar").hidden) { e.preventDefault(); $("fs").requestSubmit(); }
+    if ((e.metaKey || e.ctrlKey) && e.key === "s" && cur === "set" && document.body.classList.contains("pgm") && $("sbar") && !$("sbar").hidden) { e.preventDefault(); $("fs").requestSubmit(); }
   });
   let asked = false;
   A.onState = (s) => {

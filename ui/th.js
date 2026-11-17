@@ -4,6 +4,18 @@
   const mq = matchMedia("(prefers-color-scheme: light)");
   const rs = (c) => (c === "system" ? (mq.matches ? "light" : "dark") : c === "light" ? "light" : "dark");
   D.dataset.th = rs(rd());
+  const AC = { raspberry: [".72 .16 355", ".58 .19 355"], ocean: [".72 .13 240", ".55 .15 245"], emerald: [".74 .14 160", ".55 .13 160"], violet: [".7 .15 295", ".55 .18 295"], slate: [".78 .03 250", ".45 .03 250"] };
+  const lsg = (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } };
+  const lss = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+  const ui = () => {
+    const a = AC[lsg("ao.ac", "raspberry")] || AC.raspberry, lt = D.dataset.th === "light";
+    const [l, c, h] = (lt ? a[1] : a[0]).split(" ");
+    D.style.setProperty("--ac", `oklch(${l} ${c} ${h})`);
+    D.style.setProperty("--ac2", `oklch(${lt ? +l - .06 : +l + .06} ${c} ${h})`);
+    D.dataset.dn = lsg("ao.dn", "cozy");
+    D.dataset.rm = lsg("ao.rm", "0");
+  };
+  ui();
   const G = `<svg viewBox="0 0 14 26" width="56" height="104" shape-rendering="crispEdges" aria-hidden="true">
 <rect x="5" y="0" width="4" height="1" fill="#d6d8dc"/><rect x="4" y="1" width="1" height="3" fill="#d6d8dc"/><rect x="9" y="1" width="1" height="3" fill="#d6d8dc"/><rect x="5" y="4" width="4" height="1" fill="#d6d8dc"/>
 <rect x="4" y="5" width="6" height="3" fill="#3a3d42"/><rect x="5" y="5" width="4" height="1" fill="#55595f"/>
@@ -45,9 +57,9 @@
     try { localStorage.setItem("ao.th", c); } catch {}
     const n = rs(c);
     if (n === D.dataset.th) return;
-    if (n === "light") flash(() => { D.dataset.th = "light"; });
-    else D.dataset.th = n;
+    if (n === "light" && D.dataset.rm !== "1") flash(() => { D.dataset.th = "light"; ui(); });
+    else { D.dataset.th = n; ui(); }
   };
   mq.addEventListener("change", () => { if (rd() === "system") set("system"); });
-  window.TH = { get: rd, set, flash };
+  window.TH = { get: rd, set, flash, AC: Object.keys(AC), pref: (k, d) => lsg("ao." + k, d), setPref: (k, v) => { lss("ao." + k, v); ui(); } };
 })();

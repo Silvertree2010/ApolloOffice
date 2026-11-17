@@ -743,7 +743,7 @@
     return H;
   };
   window.AO.hlt = hlt;
-  $("cH").onclick = () => window.AO.health && window.AO.health();
+  $("cH").onclick = () => window.AO.go && window.AO.go("health");
   hlt();
   setInterval(() => hlt(), 300000);
   $("bPause").onclick = () => post({ a: "pause", on: !S.o.man }).then(apply);
@@ -801,7 +801,7 @@
   cv.addEventListener("click", (e) => {
     const h = at(e);
     if (!h) return;
-    if (h.h) return window.AO.hosts && window.AO.hosts();
+    if (h.h) return window.AO.go && window.AO.go("machines");
     const id = h.q?.id || S?.w?.[h.n]?.job;
     if (id && S.q.some((q) => q.id === id)) window.AO.job && window.AO.job(id);
   });

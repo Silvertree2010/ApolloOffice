@@ -140,7 +140,7 @@ pub async fn run(a: &Ax, m: &str, path: &str, q: &Map<String, Value>, b: Value, 
             Ok(json!(a.db.all(&sql, ps)))
         }
         ("GET", ["jobs", _]) => int(a, "GET", "/api/job", &format!("id={}", id(1)?), json!({})).await,
-        ("POST", ["jobs"]) => crate::web::rep_v(a, &json!({"repo": b["repo"], "title": b["title"], "body": b["body"], "src": b["src"].as_str().unwrap_or("api")})).map_err(|(c, e)| (c, e)),
+        ("POST", ["jobs"]) => crate::web::rep_v(a, &json!({"repo": b["repo"], "title": b["title"], "body": b["body"], "src": b["src"].as_str().unwrap_or("api")})),
         ("POST", ["jobs", _, op]) if ["drop", "approve", "requeue"].contains(op) => int(a, "POST", "/api/act", "", json!({"a": op, "id": id(1)?})).await.map(|_| json!({"ok": true})),
         ("GET", ["repos"]) => Ok(crate::web::cfg_v(a)["repos"].clone()),
         ("POST", ["repos"]) => int(a, "POST", "/api/repo", "", json!({"op": "add", "full": b["full"]})).await,

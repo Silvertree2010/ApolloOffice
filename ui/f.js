@@ -311,7 +311,7 @@
     for (const i of $("fS").querySelectorAll("[data-k]")) i.oninput = () => { n.c[i.dataset.k] = i.value; save(); const el = $("fN").querySelector(`.nd2[data-n="${n.id}"]`), m = miss(n); if (el) { el.querySelector(".nb").innerHTML = m ? `<em>${m}</em>` : esc(sub(n)); el.classList.toggle("warn", !!m); measure(); lines(); } };
     for (const b of $("fS").querySelectorAll("[data-pick]")) b.onclick = () => { snap(); n.c.w = b.dataset.pick; save(); paint(); side(); };
     for (const b of $("fS").querySelectorAll("[data-host]")) b.onclick = () => { snap(); if (b.dataset.host) n.c.h = b.dataset.host; else delete n.c.h; save(); paint(); side(); };
-    on("fMgr", "onclick", () => A.hosts && A.hosts());
+    on("fMgr", "onclick", () => A.go && A.go("machines"));
     for (const b of $("fS").querySelectorAll("[data-cron]")) b.onclick = () => { snap(); n.c.cron = b.dataset.cron; save(); paint(); side(); };
     for (const b of $("fS").querySelectorAll("[data-newfor]")) b.onclick = () => { hireFor = b.dataset.newfor; side(); $("fHf")?.n.focus(); };
     for (const b of $("fS").querySelectorAll("[data-fire]")) b.onclick = () => { const w = who(b.dataset.fire); if (!confirm(`Let ${w.n} go?`)) return; snap(); D.crew = D.crew.filter((x) => x !== w); save(); side(); paint(); };
@@ -329,7 +329,7 @@
     else if ((e.key === "Delete" || e.key === "Backspace") && esel != null) { e.preventDefault(); const f = fl(); snap(); f.edges.splice(esel, 1); esel = null; save(); paint(); side(); }
     else if (e.key === "Escape") { e.stopPropagation(); if (menu || sel || esel != null || hireFor !== null) { hideMenu(); sel = null; esel = null; hireFor = null; side(); paint(); } else close(); }
   };
-  const close = () => { open = false; clearTimeout(tmo); post({ flows: D.flows, crew: D.crew }, "/api/flows").catch(() => {}); document.body.classList.remove("fed"); R.hidden = true; document.removeEventListener("keydown", key, true); window.removeEventListener("resize", lines); };
+  const close = () => { if (A.route && A.route() === "pipelines") { location.hash = "#/office"; return; } open = false; clearTimeout(tmo); post({ flows: D.flows, crew: D.crew }, "/api/flows").catch(() => {}); document.body.classList.remove("fed"); R.hidden = true; document.removeEventListener("keydown", key, true); window.removeEventListener("resize", lines); };
   A.flows = async () => {
     if (open) return close();
     [D, cfg] = await Promise.all([get("/api/flows"), get("/api/cfg")]);
