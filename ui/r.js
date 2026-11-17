@@ -20,7 +20,7 @@
       B.classList.toggle("pgm", pg);
       $("pg").hidden = !pg;
       for (const a of document.querySelectorAll(".nv a")) a.classList.toggle("on", a.dataset.r === (r === "health" ? "settings" : r));
-      $("vt").textContent = T[r];
+      $("vt").textContent = r === "office" ? "ApolloOffice" : T[r];
       document.title = r === "office" ? "ApolloOffice" : `${T[r]} · ApolloOffice`;
       if (pg) { $("pgB").innerHTML = ""; $("pg").scrollTop = 0; }
       if (r === "pipelines" && !B.classList.contains("fed")) await A.flows();
