@@ -182,13 +182,13 @@
     const sm = fedit ? { m: new Map(), wait: [] } : seats();
     for (const [u, k] of ord) {
       if (fdrag && fdrag.k === k) continue;
-      if (sm.m.has(k)) person(sm.m.get(k), u.x * 8 + 25, GO + u.y * 8 + 3, t, true);
+      if (sm.m.has(k)) person(sm.m.get(k), u.x * 8 + 28, GO + u.y * 8 + 9, t, true);
       FU[k] && FC[u.i].d(u.x * 8, GO + u.y * 8, t);
 
       if (fedit && k === fsel) box(u, "#4fb3e0", 0.95);
       else if (k === hk) box(u, lt() ? "#000" : "#fff", 0.35);
     }
-    for (const [k, id] of sm.m) { const u = FU[k]; if (!u || (fdrag && fdrag.k === k)) continue; const nm = pname(id), on = pst(id) === "work"; tx(nm, u.x * 8 + 16 - (K.textWidth(nm) >> 1), GO + u.y * 8 - 15, on ? hl("c:" + id) : "#6b6f76"); }
+    for (const [k, id] of sm.m) { const u = FU[k]; if (!u || (fdrag && fdrag.k === k)) continue; const nm = pname(id), on = pst(id) === "work"; tx(nm, u.x * 8 + 28 - (K.textWidth(nm) >> 1), GO + u.y * 8 - 12, on ? hl("c:" + id) : "#6b6f76"); }
     sm.wait.forEach((id, i) => { const x = 20 + i * 24, y = VH - 8; person(id, x, y, t, false); const nm = pname(id); tx(nm, x - (K.textWidth(nm) >> 1), y - 26, "#e0675a"); });
     const g = ghost();
     fbad = false;
