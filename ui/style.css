@@ -702,3 +702,23 @@ body.nvs .nvk span, body.nvs .nvk kbd { display: none; }
 .srow .av { font-size: 18px; }
 .mono { font-family: var(--m); }
 .le .ck, .sedit .ck, .sform .ck { flex-direction: row; align-items: center; gap: 8px; color: var(--t1); }
+:root { --fs1: 22px; --fs2: 15px; --fs3: 13px; --fs4: 12px; --t2: #a3a29c; --t3: #87867f; --hf: var(--s); --rc: 12px; --ri: 8px; }
+:root[data-th=light] { --t2: #50555f; --t3: #6c717b; }
+html, body { font-size: var(--fs3); }
+.app > header { min-height: 36px; }
+.app > header h1 { font: 600 var(--fs1)/1.1 var(--hf); letter-spacing: -.02em; margin: 0 8px 0 0; }
+.chip { font-size: var(--fs4); color: var(--t2); }
+.chip b { color: var(--t1); font-weight: 500; }
+.ph2 { margin: 0 0 20px; min-height: 34px; }
+.ph2 p { color: var(--t2); font-size: var(--fs3); line-height: 1.45; }
+.sec2 h3, .sec h4, .pgb[data-k=set] .sec h4, .card h2, .cz h5, #dr .ph h3 { font: 600 var(--fs2)/1.2 var(--hf); letter-spacing: -.01em; color: var(--t1); }
+.card h2 span, .sec2 h3 .mut, .cz h5 .k { font: 400 var(--fs4)/1.2 var(--s); color: var(--t2); letter-spacing: 0; }
+.sec2 h3 { margin: 0 0 10px; }
+.sec, .sec2 { margin: 0 0 30px; }
+.sec h4 { margin: 0 0 10px; }
+#dr .ph h3 { font-size: var(--fs2); }
+.mut, .hint, .fm .hint, .tb2 th, .tb2 td .mut, .lt span, .wt span, .rcard span, .kpis span, .kp span, .tlh span, .frn small, .ki span, .tile .md, .tile .ft, .tile .stt, .ti .w, .rp, .log .tm, .empty, .wmut { color: var(--t2); }
+.fm label, .ff label, .le label, .tlg, .sform label, .sedit label { color: var(--t1); }
+.tb2 th { font: 500 var(--fs4)/1 var(--s); }
+.kpis b, .kp b { color: var(--t1); }
+.kpis b { font: 600 var(--fs1)/1 var(--hf); letter-spacing: -.02em; }
