@@ -350,7 +350,7 @@
       <div data-tab="gen" class="sec"><h4>Work</h4><div class="box"><div class="fm">
         <label>Hunters</label><input type="number" name="hunters" min="0" max="12" value="${s.hunters}">
         <label>Daily token limit</label><input type="number" name="tokday" min="0" value="${s.tokday}"><div class="hint">0 = no limit.</div>
-        <label>Working hours</label><div class="acts" style="margin:0;align-items:center">${tg("whon", s.wh?.on, "only work from")}<input type="time" name="whf" value="${esc(s.wh?.from || "08:00")}" style="width:auto"> to <input type="time" name="wht" value="${esc(s.wh?.to || "22:00")}" style="width:auto"></div>
+        <label>Working hours</label><div class="acts" style="margin:0;align-items:center">${tg("whon", s.wh?.on, "only work from")}<input type="time" name="whf" aria-label="Start time" value="${esc(s.wh?.from || "08:00")}"> to <input type="time" name="wht" aria-label="End time" value="${esc(s.wh?.to || "22:00")}"></div>
       </div></div></div>
       <div data-tab="app" class="sec"><h4>Appearance</h4><div class="box"><div class="fm">
         <label>Style</label><div class="thc" id="tys">${[["calm", "Calm", "Quiet and roomy, soft corners"], ["dense", "Dense", "More rows per screen, numbers in mono"], ["pixel", "Pixel", "Square and bold, like the office"]].map(([v, l, d]) => `<button type="button" data-v="${v}" class="ty-${v}"><span class="pv"><i></i><i></i><i></i></span><b>${l}</b><span>${d}</span></button>`).join("")}</div>

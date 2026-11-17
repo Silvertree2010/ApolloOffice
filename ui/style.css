@@ -1140,3 +1140,53 @@ tr.kb1:focus-visible { outline-offset: -2px; }
 /* active worker tiles keep room for their summary; the bar scrolls instead of squeezing */
 .tile.work, .tile.nodesk { flex: 1 0 220px; min-width: 220px; }
 #cv.soft { image-rendering: auto; }
+
+/* Checkboxes: native input, own look (semantics, forms and keyboard stay native) */
+input[type=checkbox] { -webkit-appearance: none; appearance: none; flex: none; width: 16px; height: 16px; margin: 0; padding: 0; display: inline-grid; place-content: center; vertical-align: -3px; background: var(--f); border: 1.5px solid color-mix(in oklch, var(--t2) 70%, transparent); border-radius: 5px; cursor: pointer; transition: background-color .12s, border-color .12s, box-shadow .12s; }
+input[type=checkbox]::before { content: ""; width: 10px; height: 10px; background: var(--act, #fff); -webkit-mask: var(--ckm) center / contain no-repeat; mask: var(--ckm) center / contain no-repeat; transform: scale(0); transition: transform .14s cubic-bezier(.3, 1.6, .6, 1); }
+input[type=checkbox] { --ckm: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.2 6.4l2.4 2.4 5.2-5.6' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+input[type=checkbox]:indeterminate { --ckm: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 6h6' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"); }
+input[type=checkbox]:hover:not(:disabled) { border-color: var(--t1); }
+input[type=checkbox]:checked, input[type=checkbox]:indeterminate { background: var(--ac); border-color: var(--ac); }
+input[type=checkbox]:checked:hover:not(:disabled), input[type=checkbox]:indeterminate:hover:not(:disabled) { background: var(--ac2, var(--ac)); border-color: var(--ac2, var(--ac)); }
+input[type=checkbox]:checked::before, input[type=checkbox]:indeterminate::before { transform: scale(1); }
+input[type=checkbox]:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
+input[type=checkbox]:disabled { opacity: .45; cursor: not-allowed; }
+label:has(> input[type=checkbox]:not(:disabled)) { cursor: pointer; }
+[data-ty=dense] input[type=checkbox] { width: 14px; height: 14px; border-radius: 3px; }
+[data-ty=dense] input[type=checkbox]::before { width: 9px; height: 9px; }
+[data-ty=pixel] input[type=checkbox] { border-radius: 0; border-width: 2px; }
+[data-ty=pixel] input[type=checkbox]::before { transition: none; }
+
+/* Time fields (tp.js) */
+input.tpn { position: absolute !important; width: 1px !important; height: 1px !important; opacity: 0; pointer-events: none; overflow: hidden; clip-path: inset(50%); }
+.tp { display: inline-flex; align-items: center; gap: 1px; height: var(--ch, 34px); padding: 0 4px 0 9px; background: var(--f); border: 1px solid var(--l); border-radius: var(--ri, 8px); color: var(--t1); font: 500 var(--fs3, 13px)/1 var(--s); font-variant-numeric: tabular-nums; cursor: text; transition: border-color .12s; vertical-align: middle; }
+.tp:hover:not(.dis) { border-color: var(--t3); }
+.tp:focus-within, .tp.on { border-color: var(--ac); outline: 2px solid color-mix(in oklch, var(--ac) 35%, transparent); outline-offset: 0; }
+.tp.dis { opacity: .5; cursor: not-allowed; }
+.tps { min-width: 2.1ch; padding: 3px 2px; border-radius: 4px; text-align: center; outline: none; caret-color: transparent; user-select: none; cursor: default; }
+.tps:focus { background: var(--ac); color: var(--act, #fff); }
+.tpx { color: var(--t2); padding-bottom: 1px; }
+.tpb { display: inline-grid; place-items: center; width: 24px; height: 24px; margin-left: 4px; padding: 0; background: none; border: 0; border-radius: 6px; color: var(--t2); cursor: pointer; }
+.tpb:hover:not([aria-disabled]) { color: var(--t1); background: var(--l); }
+.tpb svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.tpm { position: fixed; z-index: 120; display: grid; grid-template-columns: 56px 56px; gap: 4px; padding: 4px; background: var(--f2); border: 1px solid var(--l); border-radius: 10px; box-shadow: var(--hl), 0 12px 32px rgb(0 0 0 / .4); animation: tpin .12s ease-out; }
+[data-th=light] .tpm { box-shadow: 0 12px 32px rgb(20 24 32 / .16); }
+@keyframes tpin { from { opacity: 0; transform: scale(.97); } }
+.tpc { height: 216px; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; scroll-padding: 4px; }
+.tpc + .tpc { border-left: 1px solid var(--l); padding-left: 4px; }
+.tpc button { flex: none; height: 28px; padding: 0; justify-content: center; background: none; border: 0; border-radius: 6px; color: var(--t1); font: 400 var(--fs3, 13px)/1 var(--s); font-variant-numeric: tabular-nums; }
+.tpc button:hover, .tpc button:focus-visible { background: var(--f); outline: none; }
+.tpc button.on { background: var(--ac); color: var(--act, #fff); font-weight: 600; }
+[data-ty=dense] :is(.tp, .tpm, .tpc button, .tps, .tpb) { border-radius: 3px; }
+[data-ty=dense] .tp { font-family: var(--m); }
+[data-ty=pixel] :is(.tp, .tpm) { border-width: 2px; border-radius: 0; }
+[data-ty=pixel] :is(.tpc button, .tps, .tpb) { border-radius: 0; }
+@media (prefers-reduced-motion: reduce) { .tpm { animation: none; } }
+.tp .tpb, .tp .tpb:hover { border: 0; box-shadow: none; min-width: 0; height: 24px; }
+.tp .tpb { background: none; }
+.tp .tpb:hover:not([aria-disabled]) { background: var(--l); }
+.tpm .tpc button { border: 0; box-shadow: none; min-width: 0; }
+input[type=checkbox], input[type=checkbox]:checked { box-shadow: none; }
+input[type=checkbox]:focus:not(:focus-visible) { outline: none; }
+input[type=checkbox]:focus { border-width: 1.5px; }
