@@ -950,3 +950,5 @@ button.lnk:hover { background: none; text-decoration-color: var(--t1); }
 [data-ty=pixel] .sw i::after { transition: transform .12s steps(2, end); }
 [data-ty=pixel] .fc { background-image: linear-gradient(color-mix(in oklch, var(--h) 55%, transparent) 2px, transparent 2px), linear-gradient(90deg, color-mix(in oklch, var(--h) 55%, transparent) 2px, transparent 2px); background-size: 32px 32px; }
 .app > header button.hc { background: none; border-color: transparent; box-shadow: none; }
+body.ed .stage.lp { position: relative; left: auto !important; top: auto !important; width: auto !important; height: auto !important; }
+.cz > * { flex-shrink: 0; }
