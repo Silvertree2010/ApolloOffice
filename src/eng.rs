@@ -274,8 +274,27 @@ fn hh(t: &str) -> String {
     hex::encode(Sha256::digest(t.as_bytes()))
 }
 
-fn hook_node(a: &Ax, fid: &str, nid: &str) -> bool {
-    flow(a, fid).and_then(|f| f["nodes"].as_array().map(|ns| ns.iter().any(|n| n["id"] == nid && n["t"] == "t.hook"))).unwrap_or(false)
+fn hlock() -> std::sync::MutexGuard<'static, ()> {
+    static L: OnceLock<Mutex<()>> = OnceLock::new();
+    L.get_or_init(|| Mutex::new(())).lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn hook_node(a: &Ax, fid: &str, nid: &str) -> Option<Value> {
+    flow(a, fid).and_then(|f| f["nodes"].as_array().and_then(|ns| ns.iter().find(|n| n["id"] == nid && n["t"] == "t.hook").cloned()))
+}
+
+pub fn hook_prune(a: &Ax) {
+    let _g = hlock();
+    let mut k = a.db.kg("hooks");
+    let Some(m) = k.as_object_mut() else { return };
+    let n0 = m.len();
+    m.retain(|id, v| {
+        let Some((fid, nid)) = id.split_once('/') else { return false };
+        hook_node(a, fid, nid).is_some_and(|n| n["c"]["hk"].is_string() && n["c"]["hk"] == v["tg"])
+    });
+    if m.len() != n0 {
+        a.db.ks("hooks", &k);
+    }
 }
 
 pub fn hooks(a: &Ax) -> Value {
@@ -291,9 +310,10 @@ pub fn hooks(a: &Ax) -> Value {
 
 pub fn hook_op(a: &Ax, b: &Value) -> Result<Value, String> {
     let (fid, nid) = (b["flow"].as_str().unwrap_or(""), b["node"].as_str().unwrap_or(""));
-    if !hook_node(a, fid, nid) {
+    if hook_node(a, fid, nid).is_none() {
         return Err("save the pipeline with this webhook block first".into());
     }
+    let _g = hlock();
     let mut k = a.db.kg("hooks");
     if !k.is_object() {
         k = json!({});
@@ -302,9 +322,15 @@ pub fn hook_op(a: &Ax, b: &Value) -> Result<Value, String> {
     match b["op"].as_str().unwrap_or("") {
         "new" => {
             let t = format!("wh_{}", hex::encode(rand::random::<[u8; 24]>()));
-            k[&id] = json!({"h": hh(&t), "t0": now(), "last": null});
+            let tg = hex::encode(rand::random::<[u8; 8]>());
+            let mut fl = a.db.kg("flows");
+            if let Some(n) = fl.as_array_mut().and_then(|fs| fs.iter_mut().find(|f| f["id"] == fid)).and_then(|f| f["nodes"].as_array_mut()).and_then(|ns| ns.iter_mut().find(|n| n["id"] == nid)) {
+                n["c"]["hk"] = json!(tg);
+            }
+            a.db.ks("flows", &fl);
+            k[&id] = json!({"h": hh(&t), "t0": now(), "last": null, "tg": tg});
             a.db.ks("hooks", &k);
-            Ok(json!({"key": t, "hooks": hooks(a)}))
+            Ok(json!({"key": t, "tag": tg, "hooks": hooks(a)}))
         }
         "del" => {
             if let Some(o) = k.as_object_mut() {
@@ -320,17 +346,17 @@ pub fn hook_op(a: &Ax, b: &Value) -> Result<Value, String> {
 pub fn hook_run(a: &Ax, fid: &str, nid: &str, key: &str, body: &[u8], ct: &str) -> Result<i64, (u16, String)> {
     static RL: OnceLock<Mutex<HashMap<String, Vec<i64>>>> = OnceLock::new();
     let id = format!("{fid}/{nid}");
+    let g = hlock();
     let mut k = a.db.kg("hooks");
     let ok = key.len() >= 20 && k[&id]["h"].as_str().is_some_and(|h| h == hh(key));
     if !ok {
         return Err((401, "unknown webhook or wrong key".into()));
     }
+    let nd = hook_node(a, fid, nid).filter(|n| n["c"]["hk"].is_string() && n["c"]["hk"] == k[&id]["tg"]).ok_or((404, "this webhook block no longer exists".to_string()))?;
+    let _ = nd;
     let f = flow(a, fid).ok_or((404, "no such pipeline".to_string()))?;
     if f["on"] != true {
         return Err((409, "this pipeline is switched off".into()));
-    }
-    if !hook_node(a, fid, nid) {
-        return Err((404, "this webhook block no longer exists".into()));
     }
     {
         let mut m = RL.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap();
@@ -346,6 +372,7 @@ pub fn hook_run(a: &Ax, fid: &str, nid: &str, key: &str, body: &[u8], ct: &str) 
     let data = if ct.contains("json") { serde_json::from_str::<Value>(&txt).unwrap_or(json!(crate::sh::head(&txt, 20000))) } else { json!(crate::sh::head(&txt, 20000)) };
     k[&id]["last"] = json!(now());
     a.db.ks("hooks", &k);
+    drop(g);
     start(a, fid, Some(nid), json!({"kind": "webhook", "data": data})).map_err(|e| (400, e))
 }
 

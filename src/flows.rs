@@ -135,6 +135,7 @@ pub fn put(a: &Ax, b: &Value) -> Value {
         let mut seen = std::collections::HashSet::new();
         let v: Vec<Value> = fs.iter().filter_map(flow).filter(|f| seen.insert(f["id"].as_str().unwrap_or("").to_string())).take(32).collect();
         a.db.ks("flows", &json!(v));
+        crate::eng::hook_prune(a);
     }
     get(a)
 }

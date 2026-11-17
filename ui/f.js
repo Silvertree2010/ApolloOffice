@@ -319,7 +319,10 @@
       clearTimeout(tmo); await post({ flows: D.flows, crew: D.crew }, "/api/flows");
       const r = await post({ op, flow: cur, node: sel }, "/api/flows/hook");
       if (r.error) return alert(r.error);
-      D.hooks = r.hooks; side();
+      D.hooks = r.hooks;
+      const hn = fl()?.nodes.find((m) => m.id === sel);
+      if (hn) { if (r.tag) hn.c.hk = r.tag; else if (op === "del") delete hn.c.hk; }
+      side();
       if (r.key) { const u = `${location.origin}/v1/run/${encodeURIComponent(cur)}/${encodeURIComponent(sel)}`; $("hkV").hidden = false; $("hkU").value = u; $("hkK").value = r.key; $("hkK").select(); $("hkC").textContent = `curl -X POST '${u}' \\\n  -H "X-Hook-Key: $KEY" \\\n  -H 'Content-Type: application/json' \\\n  -d '{"text": "hello"}'`; }
     };
     on("hkN", "onclick", (e) => { if (e.target.textContent.startsWith("Replace") && e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again, the old link stops working"; return; } hop("new"); });
