@@ -1087,3 +1087,56 @@ button.dd:active:not(:disabled) { transform: none; }
   body:not(.lay) main { grid-template-columns: minmax(0, 1fr) clamp(300px, 28vw, 440px); grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "st q" "st p" "st lg"; }
   body:not(.lay) [data-lp=queue] { grid-row: auto; }
 }
+
+/* Overlay scrollbars (sb.js). Native bars stay hidden; html.sbn (forced colors) keeps them. */
+html:not(.sbn), html:not(.sbn) * { scrollbar-width: none; }
+html:not(.sbn) ::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.sbl { position: fixed; inset: 0; pointer-events: none; z-index: 2147483000; contain: layout; }
+.sbt { position: fixed; pointer-events: none; opacity: 0; transition: opacity .3s ease-out; }
+.sbt.on { opacity: 1; transition-duration: .12s; }
+.sby { width: 12px; }
+.sbx { height: 12px; }
+.sbt i { position: absolute; display: block; border-radius: 99px; background: color-mix(in oklch, var(--t1) 26%, transparent); transition: width .12s ease-out, height .12s ease-out, background-color .12s; }
+.sbt.on i { pointer-events: auto; }
+.sby i { right: 2px; top: 0; width: 6px; }
+.sbx i { bottom: 2px; left: 0; height: 6px; }
+.sbt i:hover, .sbt.dg i { background: color-mix(in oklch, var(--t1) 46%, transparent); }
+.sby i:hover, .sby.dg i { width: 9px; }
+.sbx i:hover, .sbx.dg i { height: 9px; }
+html.sbd, html.sbd * { user-select: none !important; cursor: default !important; }
+[data-ty=pixel] .sbt i { border-radius: 0; }
+[data-ty=dense] .sby i { width: 5px; } [data-ty=dense] .sbx i { height: 5px; }
+@media (prefers-reduced-motion: reduce) { .sbt, .sbt i { transition: none; } }
+[data-rm="1"] .sbt, [data-rm="1"] .sbt i { transition: none; }
+
+/* Accessibility (a11y.js) */
+.skip { position: fixed; left: 12px; top: -60px; z-index: 2147483001; padding: 8px 14px; border-radius: var(--ri, 8px); background: var(--ac); color: var(--act, #fff); font: 600 13px/1 var(--s); text-decoration: none; }
+.skip:focus { top: 12px; }
+:where(a, button, summary, [tabindex], .kb1):focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
+:where(#main, #pg, #fe, #log):focus-visible { outline-offset: -2px; }
+tr.kb1:focus-visible { outline-offset: -2px; }
+#main:focus:not(:focus-visible), #pg:focus:not(:focus-visible), #fe:focus:not(:focus-visible) { outline: none; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+
+/* UI fixes */
+.ti .w > span:not(.stt) { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tiles { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
+.tile.work, .tile.nodesk { min-width: 150px; }
+.tile:not(.work):not(.nodesk) { flex: none; }
+.nv .cnt { color: var(--t2); }
+.nv a.on .cnt:not(.hot) { color: inherit; }
+.nd2 .nb { color: var(--t2); }
+.tb2 tr.dim td { opacity: 1; color: var(--t2); }
+.tb2 tr.dim td b { color: var(--t2); }
+#fZ { color: var(--t2); }
+[data-th=light] :is(.chip.ok, .ok2, .ck b.ok2, .tip .ok2, .rr .rs b.ok2) { color: color-mix(in oklch, var(--ok) 78%, black); }
+.tile .tn { all: unset; font: inherit; color: inherit; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; border-radius: 3px; }
+.tile .tn:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; }
+.tile:focus-within { border-color: var(--t3); }
+.tile .gear:focus-visible { width: 18px; padding: 2px; }
+/* long reasons under a row title must not widen the table past the page */
+.tb2 td:first-child .mut { width: 0; min-width: 100%; max-width: none; }
+.tb2 td:first-child { min-width: 180px; }
+/* active worker tiles keep room for their summary; the bar scrolls instead of squeezing */
+.tile.work, .tile.nodesk { flex: 1 0 220px; min-width: 220px; }
+#cv.soft { image-rendering: auto; }

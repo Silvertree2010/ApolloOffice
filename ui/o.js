@@ -50,7 +50,8 @@
   const LT = { "#3d4045": "#8a94a2", "#4a4d54": "#5a6472", "#75746f": "#8a94a2", "#1d1f24": "#c9d1db" };
   const lt = () => document.documentElement.dataset.th === "light";
   const C = (k) => (lt() && LT[k]) || k;
-  const hl = (n) => (lt() ? SK[n].dark : SK[n].light);
+  const hl = (n) => (lt() ? SK[n].tx || txc(SK[n].dark, 0.8) : SK[n].light);
+  const txc = (c, f = 0.55) => !/^#[0-9a-f]{6}$/i.test(c) ? c : "#" + [1, 3, 5].map((i) => Math.round(parseInt(c.slice(i, i + 2), 16) * f).toString(16).padStart(2, "0")).join("");
   window.AO.hl = hl;
   const px = (x, y, w, h, col) => { c.fillStyle = C(col); c.fillRect(Math.round(x), Math.round(y), w, h); };
   const tx = (s, x, y, col) => K.text(c, s, x, y, C(col));
@@ -385,7 +386,8 @@
     }
     if (S?.o?.off) { c.globalAlpha = 0.25; px(0, 35, VW, VH - 35, "#000"); c.globalAlpha = 1; }
     const dp = window.devicePixelRatio || 1;
-    const kf = Math.min((sgw - 2) * dp / VW, (sgh - 2) * dp / VH), sc = Math.max(1, Math.floor(kf)), ks = kf >= 3 ? kf : sc;
+    const kf = Math.min((sgw - 2) * dp / VW, (sgh - 2) * dp / VH), ks = kf >= 1.25 ? kf : Math.max(1, Math.floor(kf)), sc = Math.max(1, Math.ceil(ks));
+    cv.classList.toggle("soft", ks % 1 > 0.01 && ks < 1.75);
     if (cv.width !== VW * sc || cv.height !== VH * sc) { cv.width = VW * sc; cv.height = VH * sc; }
     const cw = Math.floor(VW * ks / dp) + "px", ch = Math.floor(VH * ks / dp) + "px";
     if (cv.style.width !== cw || cv.style.height !== ch) { cv.style.width = cw; cv.style.height = ch; }
@@ -424,13 +426,13 @@
   const tiles = () => {
     const el = $("tiles");
     const po = window.AO.pord || [], xk = Object.keys(S.w).filter((k) => k.startsWith("x:")).sort((a, b) => (po.indexOf(a.slice(2)) + 99) % 99 - (po.indexOf(b.slice(2)) + 99) % 99);
-    xk.forEach((k, i) => { const c = XP[i % XP.length]; SK[k] = { body: c, dark: c, light: c }; NM[k] = S.w[k].nm || k.slice(2); });
+    xk.forEach((k, i) => { const c = XP[i % XP.length]; SK[k] = { body: c, dark: c, light: c, tx: txc(c) }; NM[k] = S.w[k].nm || k.slice(2); });
     const CP = ["#e39b6b", "#7fc8a9", "#b5a3e0", "#6fa8dc", "#e0848f", "#8fb3c9", "#c77dba", "#c9b37f"];
-    const ck = (S.crew || []).filter((w) => (S.staff || []).includes(w.id)).map((w, i) => { const k = "c:" + w.id; SK[k] = { body: CP[i % CP.length], dark: CP[i % CP.length], light: CP[i % CP.length] }; NM[k] = w.n || w.id; return k; });
+    const ck = (S.crew || []).filter((w) => (S.staff || []).includes(w.id)).map((w, i) => { const k = "c:" + w.id; SK[k] = { body: CP[i % CP.length], dark: CP[i % CP.length], light: CP[i % CP.length], tx: txc(CP[i % CP.length]) }; NM[k] = w.n || w.id; return k; });
     const all = [...ck, ...ORD, ...xk];
     if (all.join() !== tkeys) { tkeys = all.join(); el.innerHTML = ""; el.style.gridTemplateColumns = all.length > 10 ? "repeat(auto-fill, minmax(124px, 1fr))" : `repeat(${all.length}, minmax(0, 1fr))`; }
     if (!el.children.length) {
-      el.innerHTML = all.map((n) => `<div class="tile" data-w="${n}"><div class="hd"><span class="dot" style="background:${SK[n].body}"></span>${esc(NM[n])}<span class="md"></span>${n === "ci" || n === "submit" || n.startsWith("x:") || n.startsWith("c:") ? "" : `<button class="gear" title="Model and provider" aria-label="${esc(NM[n])} settings">${GEAR}</button>`}</div><div class="sy"></div><div class="stt"></div><div class="ft"></div></div>`).join("");
+      el.innerHTML = all.map((n) => `<div class="tile" data-w="${n}"><div class="hd"><span class="dot" style="background:${SK[n].body}"></span><button type="button" class="tn" ${n.startsWith("c:") ? `aria-label="Open ${esc(NM[n])} in Team"` : `aria-label="Pause ${esc(NM[n])}" aria-pressed="false"`}>${esc(NM[n])}</button><span class="md"></span>${n === "ci" || n === "submit" || n.startsWith("x:") || n.startsWith("c:") ? "" : `<button class="gear" title="Model and provider" aria-label="${esc(NM[n])} settings">${GEAR}</button>`}</div><div class="sy"></div><div class="stt"></div><div class="ft"></div></div>`).join("");
       el.onclick = (e) => {
         const g = e.target.closest(".gear");
         if (g) { e.stopPropagation(); window.AO.role && window.AO.role(g.closest(".tile").dataset.w); return; }

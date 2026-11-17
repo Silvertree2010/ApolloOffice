@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<a class="skip" href="#main" id="skip">Skip to content</a>
 <nav class="nv" id="nav" aria-label="Main">
   <div class="brand"><span class="lg"></span><span class="bt">ApolloOffice</span></div>
   <button type="button" class="nvk" id="nvK"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg><span>Search</span><kbd>⌘K</kbd></button>
@@ -36,13 +37,13 @@
 </header>
 <div class="ban" id="ban" hidden><span>Enjoying ApolloOffice? A star on GitHub helps other people find it.</span><span class="sp"></span><button class="go" id="bStar">Star on GitHub</button><button id="bLater">Later</button></div>
 <div id="lay">
-<div class="tiles lp" id="tiles" data-lp="tiles"></div>
-<main>
-  <div class="cz" id="cz" hidden></div><div class="stage lp" id="stage" data-lp="stage"><canvas id="cv"></canvas><div class="mg" id="mg" hidden></div></div><div class="tip" id="tip" hidden></div>
+<div class="tiles lp" id="tiles" data-lp="tiles" role="region" aria-label="Workers"></div>
+<main id="main" tabindex="-1">
+  <div class="cz" id="cz" hidden></div><div class="stage lp" id="stage" data-lp="stage"><canvas id="cv" role="img" aria-label="The office floor. Each worker sits at a desk; the bar above lists what they are doing."></canvas><div class="mg" id="mg" hidden></div></div><div class="tip" id="tip" hidden></div>
   <div class="side">
     <div class="card lp" data-lp="queue"><h2>Queue <span id="qn"></span></h2><div class="bd" id="queue"></div></div>
     <div class="card lp" data-lp="prs"><h2>Pull requests <span id="prn"></span></h2><div class="bars" id="bars" title="merges per day, last 30 days"></div><div class="bd" id="prs"></div></div>
-    <div class="card lp" data-lp="log"><h2>Log</h2><div class="lh"><select id="logW" aria-label="Filter log by worker"><option value="">All workers</option></select><input type="text" id="logQ" placeholder="Search log" aria-label="Search log" autocomplete="off"><button type="button" id="logWrap">Wrap</button></div><div class="bd log" id="log"></div></div>
+    <div class="card lp" data-lp="log"><h2>Log</h2><div class="lh"><select id="logW" aria-label="Filter log by worker"><option value="">All workers</option></select><input type="text" id="logQ" placeholder="Search log" aria-label="Search log" autocomplete="off"><button type="button" id="logWrap">Wrap</button></div><div class="bd log" id="log" role="log" aria-label="Log" tabindex="0"></div></div>
   </div>
   <div class="card lp wdg" data-lp="approvals"><h2>Waiting for you <span id="wApN"></span></h2><div class="bd" id="wAp"></div></div>
   <div class="card lp wdg" data-lp="costs"><h2>Costs</h2><div class="bd" id="wCo"></div></div>
@@ -53,10 +54,11 @@
   <div class="card lp wdg" data-lp="repohealth"><h2>Repositories</h2><div class="bd" id="wRe"></div></div>
 </main>
 </div>
-<div class="fe" id="fe" hidden></div>
-<div class="pg" id="pg" hidden><div class="pgb" id="pgB"></div></div>
+<div class="fe" id="fe" role="main" tabindex="-1" hidden></div>
+<div class="pg" id="pg" role="main" tabindex="-1" hidden><div class="pgb" id="pgB"></div></div>
 </div>
 <div id="dr" hidden><div class="pn"><div class="ph"><h3 id="drT"></h3><button id="drX">Close</button></div><div class="pb" id="drB"></div></div></div>
+<script src="sb.js"></script>
 <script src="dd.js"></script>
 <script src="body.js"></script>
 <script src="o.js"></script>
@@ -65,5 +67,6 @@
 <script src="l.js"></script>
 <script src="v.js"></script>
 <script src="r.js"></script>
+<script src="a11y.js"></script>
 </body>
 </html>

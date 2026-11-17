@@ -8,6 +8,8 @@
   const sync = (s) => {
     const b = s._ddb; if (!b) return;
     b.querySelector("span").textContent = lab(s);
+    const al = s.getAttribute("aria-label") || s.labels?.[0]?.textContent.trim();
+    if (al && al.trim() !== lab(s).trim()) b.setAttribute("aria-label", `${al}: ${lab(s)}`); else b.removeAttribute("aria-label");
     b.disabled = s.disabled;
     b.hidden = s.hidden;
   };
@@ -15,7 +17,7 @@
     if (!M) return;
     const b = cur?._ddb;
     M.remove(); M = null;
-    if (b) { b.setAttribute("aria-expanded", "false"); b.classList.remove("on"); if (f) b.focus(); }
+    if (b) { b.removeAttribute("aria-activedescendant"); b.removeAttribute("aria-controls"); b.setAttribute("aria-expanded", "false"); b.classList.remove("on"); if (f) b.focus(); }
     cur = null;
     document.removeEventListener("pointerdown", out, true);
     window.removeEventListener("resize", rz);
@@ -35,6 +37,8 @@
     const it = M.querySelectorAll(".ddi");
     it.forEach((x, i) => x.classList.toggle("hi", i === hi));
     it[hi]?.scrollIntoView({ block: "nearest" });
+    const x = M.querySelector(`[data-i="${hi}"]`);
+    if (x) cur._ddb.setAttribute("aria-activedescendant", x.id); else cur._ddb.removeAttribute("aria-activedescendant");
   };
   const place = () => {
     const r = cur._ddb.getBoundingClientRect(), h = M.offsetHeight, W = innerWidth, H = innerHeight;
@@ -52,17 +56,20 @@
     M = document.createElement("div");
     M.className = "ddm";
     M.setAttribute("role", "listbox");
+    M.id = "ddm";
+    const al = s.getAttribute("aria-label") || s.labels?.[0]?.textContent.trim();
+    if (al) M.setAttribute("aria-label", al);
     let g = null, h = "";
     os.forEach((o, i) => {
       const pg = o.parentElement.tagName === "OPTGROUP" ? o.parentElement : null;
       if (pg !== g) { g = pg; if (g) h += `<div class="ddg">${esc(g.label)}</div>`; }
-      h += `<button type="button" class="ddi${o.selected ? " on" : ""}" role="option" aria-selected="${o.selected}" data-i="${i}" ${o.disabled ? "disabled" : ""}><span>${esc(o.textContent)}</span>${o.selected ? OK : ""}</button>`;
+      h += `<button type="button" class="ddi${o.selected ? " on" : ""}" id="ddo${i}" tabindex="-1" role="option" aria-selected="${o.selected}" data-i="${i}" ${o.disabled ? "disabled" : ""}><span>${esc(o.textContent)}</span>${o.selected ? OK : ""}</button>`;
     });
     M.innerHTML = h || `<div class="ddg">Nothing to choose</div>`;
     document.body.appendChild(M);
     hi = Math.max(0, os.findIndex((o) => o.selected));
     place(); mark();
-    b.setAttribute("aria-expanded", "true"); b.classList.add("on");
+    b.setAttribute("aria-expanded", "true"); b.setAttribute("aria-controls", "ddm"); b.classList.add("on");
     M.onclick = (e) => { const x = e.target.closest(".ddi"); if (x) pick(+x.dataset.i); };
     M.onpointermove = (e) => { const x = e.target.closest(".ddi"); if (x && +x.dataset.i !== hi) { hi = +x.dataset.i; mark(); } };
     document.addEventListener("pointerdown", out, true);
@@ -96,7 +103,6 @@
     b.className = "dd";
     b.setAttribute("aria-haspopup", "listbox");
     b.setAttribute("aria-expanded", "false");
-    const al = s.getAttribute("aria-label"); if (al) b.setAttribute("aria-label", al);
     if (s.title) b.title = s.title;
     b.innerHTML = `<span></span>${CH}`;
     const w = s.getBoundingClientRect().width;
