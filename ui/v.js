@@ -3,7 +3,7 @@
   const P = () => $("pgB");
   const ago = (t) => { if (!t) return "–"; const d = (Date.now() - (typeof t === "number" ? t : Date.parse(t))) / 1000; return d < 60 ? "now" : d < 3600 ? Math.floor(d / 60) + " min ago" : d < 86400 ? Math.floor(d / 3600) + " h ago" : Math.floor(d / 86400) + " d ago"; };
   const usd = (v) => (A.usd ? A.usd(v) : "$" + (v || 0).toFixed(2));
-  const TLN = { shell: "Run commands", files: "Files", github: "GitHub", web: "Web" };
+  const TLN = { shell: "Run commands", files: "Read and change files", github: "GitHub (read, comment, label)", web: "Web" };
   const STN = { vet: "Checking", ready: "Ready", hunt: "Hunting", repro: "Reproducing", fix: "Fixing", ci: "Testing", review: "Reviewing", gate: "Final check", approve: "Waiting for you", submit: "Submitting", done: "Done", drop: "Dropped", park: "Parked" };
   const v2 = (m, p, b) => (m === "GET" ? get("/api/v2" + p) : fetch("/api/v2" + p, { method: m, headers: { "content-type": "application/json", "x-ao": "1" }, body: JSON.stringify(b || {}) }).then((r) => r.json()));
   const head = (t, d, act = "") => `<div class="ph2"><div>${d ? `<p>${d}</p>` : ""}</div><div class="pa2">${act}</div></div>`;

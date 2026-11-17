@@ -40,18 +40,132 @@ pub fn defs() -> Vec<(&'static str, &'static str, Value)> {
 
 pub fn allowed(r: &Rn, n: &str) -> bool {
     match &r.tl {
-        None => true,
-        Some(t) => (n == "sh" && t.iter().any(|x| x == "shell")) || (["read", "write", "edit", "grep", "ls"].contains(&n) && t.iter().any(|x| x == "files")),
+        None => !n.starts_with("gh_"),
+        Some(t) => (n == "sh" && t.iter().any(|x| x == "shell")) || (["read", "write", "edit", "grep", "ls"].contains(&n) && t.iter().any(|x| x == "files")) || (n.starts_with("gh_") && t.iter().any(|x| x == "github")),
     }
 }
 
+fn ghd() -> Vec<(&'static str, &'static str, Value)> {
+    let rn = |extra: Value, req: &[&str]| {
+        let mut p = json!({"repo": {"type": "string", "description": "owner/name"}, "number": {"type": "number"}});
+        if let Some(o) = extra.as_object() {
+            for (k, v) in o {
+                p[k] = v.clone();
+            }
+        }
+        json!({"type": "object", "properties": p, "required": req})
+    };
+    vec![
+        ("gh_issue_view", "Read a GitHub issue with its labels and comments.", rn(json!({}), &["repo", "number"])),
+        ("gh_issue_list", "List issues of a repository.", json!({"type": "object", "properties": {"repo": {"type": "string"}, "state": {"type": "string", "enum": ["open", "closed", "all"]}, "label": {"type": "string"}, "limit": {"type": "number"}}, "required": ["repo"]})),
+        ("gh_pr_view", "Read a pull request with files, reviews and comments.", rn(json!({}), &["repo", "number"])),
+        ("gh_pr_list", "List pull requests of a repository.", json!({"type": "object", "properties": {"repo": {"type": "string"}, "state": {"type": "string", "enum": ["open", "closed", "merged", "all"]}, "limit": {"type": "number"}}, "required": ["repo"]})),
+        ("gh_pr_diff", "Read the diff of a pull request.", rn(json!({}), &["repo", "number"])),
+        ("gh_search_issues", "Search issues and pull requests on GitHub.", json!({"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "number"}}, "required": ["query"]})),
+        ("gh_comment", "Comment on an issue or pull request. Only in repositories added to the office. Posted under the owner's account with an AI note.", rn(json!({"body": {"type": "string"}}), &["repo", "number", "body"])),
+        ("gh_label", "Add or remove labels on an issue or pull request. Only in repositories added to the office.", rn(json!({"add": {"type": "array", "items": {"type": "string"}}, "remove": {"type": "array", "items": {"type": "string"}}}), &["repo", "number"])),
+        ("gh_issue_create", "Open a new issue. Only in repositories added to the office. Posted under the owner's account with an AI note.", json!({"type": "object", "properties": {"repo": {"type": "string"}, "title": {"type": "string"}, "body": {"type": "string"}, "labels": {"type": "array", "items": {"type": "string"}}}, "required": ["repo", "title", "body"]})),
+    ]
+}
+
 pub fn defs_for(r: &Rn) -> Vec<(&'static str, &'static str, Value)> {
-    defs().into_iter().filter(|(n, ..)| allowed(r, n)).collect()
+    defs().into_iter().chain(ghd()).filter(|(n, ..)| allowed(r, n)).collect()
+}
+
+const AINOTE: &str = "\n\n<sub>Written by an AI worker in ApolloOffice.</sub>";
+
+fn repo_ok(r: &str) -> bool {
+    regex::Regex::new(r"^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$").unwrap().is_match(r) && !r.contains("..")
+}
+
+async fn ghcall(a: &Ax, n: &str, g: &Value) -> Result<String, String> {
+    let s = |k: &str| g[k].as_str().unwrap_or("").trim().to_string();
+    let repo = s("repo");
+    let num = g["number"].as_u64().map(|x| x.to_string()).unwrap_or_default();
+    let lim = g["limit"].as_u64().unwrap_or(20).clamp(1, 100).to_string();
+    if n != "gh_search_issues" && !repo_ok(&repo) {
+        return Err("repo must be owner/name".into());
+    }
+    let w = matches!(n, "gh_comment" | "gh_label" | "gh_issue_create");
+    if w && a.db.n("select count(*) from rp where lower(full)=lower(?)", crate::pa![repo.clone()]) == 0 {
+        return Err(format!("{repo} is not added to the office, so workers may not write there"));
+    }
+    if matches!(n, "gh_issue_view" | "gh_pr_view" | "gh_pr_diff" | "gh_comment" | "gh_label") && num.is_empty() {
+        return Err("number is required".into());
+    }
+    let st = s("state");
+    let st = if st.is_empty() { "open".to_string() } else { st };
+    let o = match n {
+        "gh_issue_view" => crate::sh::gh(&["issue", "view", &num, "-R", &repo, "--json", "number,title,body,state,author,labels,comments,url"], 60).await,
+        "gh_issue_list" => {
+            let lb = s("label");
+            let mut v = vec!["issue", "list", "-R", &repo, "--state", &st, "--limit", &lim, "--json", "number,title,state,labels,author,createdAt,url"];
+            if !lb.is_empty() {
+                v.extend(["--label", &lb]);
+            }
+            crate::sh::gh(&v, 60).await
+        }
+        "gh_pr_view" => crate::sh::gh(&["pr", "view", &num, "-R", &repo, "--json", "number,title,body,state,author,files,reviews,comments,mergeable,url"], 60).await,
+        "gh_pr_list" => crate::sh::gh(&["pr", "list", "-R", &repo, "--state", &st, "--limit", &lim, "--json", "number,title,state,author,createdAt,url"], 60).await,
+        "gh_pr_diff" => crate::sh::gh(&["pr", "diff", &num, "-R", &repo], 90).await,
+        "gh_search_issues" => {
+            let qy = s("query");
+            if qy.is_empty() {
+                return Err("query is required".into());
+            }
+            crate::sh::gh(&["search", "issues", &qy, "--limit", &lim, "--json", "number,title,state,repository,url"], 60).await
+        }
+        "gh_comment" => {
+            let b = s("body");
+            if b.is_empty() {
+                return Err("body is required".into());
+            }
+            crate::sh::gh(&["issue", "comment", &num, "-R", &repo, "--body", &format!("{b}{AINOTE}")], 60).await
+        }
+        "gh_label" => {
+            let add: Vec<String> = g["add"].as_array().map(|x| x.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default();
+            let rm: Vec<String> = g["remove"].as_array().map(|x| x.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default();
+            if add.is_empty() && rm.is_empty() {
+                return Err("add or remove at least one label".into());
+            }
+            let (ja, jr) = (add.join(","), rm.join(","));
+            let mut v = vec!["issue", "edit", &num, "-R", &repo];
+            if !ja.is_empty() {
+                v.extend(["--add-label", &ja]);
+            }
+            if !jr.is_empty() {
+                v.extend(["--remove-label", &jr]);
+            }
+            crate::sh::gh(&v, 60).await
+        }
+        "gh_issue_create" => {
+            let (t, b) = (s("title"), s("body"));
+            if t.is_empty() || b.is_empty() {
+                return Err("title and body are required".into());
+            }
+            let lb: Vec<String> = g["labels"].as_array().map(|x| x.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default();
+            let jl = lb.join(",");
+            let body = format!("{b}{AINOTE}");
+            let mut v = vec!["issue", "create", "-R", &repo, "--title", &t, "--body", &body];
+            if !jl.is_empty() {
+                v.extend(["--label", &jl]);
+            }
+            crate::sh::gh(&v, 60).await
+        }
+        _ => return Err("unknown tool".into()),
+    }?;
+    Ok(crate::sh::head(&o, 60_000))
 }
 
 pub async fn call(a: &Ax, r: &Rn, n: &str, g: &Value) -> Result<String, String> {
     if !allowed(r, n) {
         return Err(format!("the tool {n} is not allowed for this worker"));
+    }
+    if n.starts_with("gh_") {
+        if !r.w.is_empty() {
+            a.cmd(&r.w, &format!("github: {n} {}", g["repo"].as_str().unwrap_or("")));
+        }
+        return ghcall(a, n, g).await;
     }
     let d = &r.dir;
     let s = |k: &str| g[k].as_str().unwrap_or("").to_string();
@@ -185,6 +299,11 @@ mod t {
         assert!(super::allowed(&r(Some(vec!["files"])), "edit"));
         assert!(!super::allowed(&r(Some(vec!["files"])), "sh"));
         assert_eq!(super::defs_for(&r(Some(vec!["files"]))).len(), 5);
+        assert!(!super::allowed(&r(None), "gh_comment"));
+        assert!(super::allowed(&r(Some(vec!["github"])), "gh_pr_diff"));
+        assert!(!super::allowed(&r(Some(vec!["github"])), "sh"));
+        assert_eq!(super::defs_for(&r(Some(vec!["github"]))).len(), 9);
+        assert!(super::repo_ok("storytold/texturecraft") && !super::repo_ok("a/../b") && !super::repo_ok("x"));
     }
 
     use super::*;

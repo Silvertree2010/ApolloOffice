@@ -35,7 +35,7 @@
   };
   const PN = { ok: "good", back: "fix it", yes: "yes", no: "no" };
   const GR = { t: "#3fb6a8", w: "#6fa8dc", c: "#d0649f", l: "#9c7ae0", x: "#8d9199" };
-  const TLN = { shell: "Run commands on my machines", files: "Read and change files", github: "Use GitHub", web: "Look things up on the web" };
+  const TLN = { shell: "Run commands on my machines", files: "Read and change files", github: "Use GitHub: read issues and pull requests, comment and label in your repositories", web: "Look things up on the web" };
   let D = null, cfg = null, cur = null, sel = null, esel = null, open = false, view = { x: 40, y: 40, k: 1 }, tmo = 0, hist = [], menu = null, hireFor = null;
   const R = $("fe");
   const outs = (n) => { const b = BK[n.t]; return typeof b.o === "function" ? b.o(n.c || {}) : b.o; };

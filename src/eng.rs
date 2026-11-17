@@ -125,7 +125,11 @@ async fn step(a: &Ax, id: i64, d: &mut Value, n: &Value) -> Result<(Value, bool)
     );
     let mut o = Ask::new(key(wid), md, sys, user);
     o.ef = Some("medium");
-    if tl.iter().any(|t| *t == "shell" || *t == "files") {
+    if !tl.iter().any(|t| *t == "shell" || *t == "files") && tl.contains(&"github") {
+        o.rn = Some(Rn { h: "local".into(), dir: String::new(), w: String::new(), md: String::new(), tl: Some(vec!["github".into()]) });
+        o.turns = 40;
+        o.t = 20 * 60;
+    } else if tl.iter().any(|t| *t == "shell" || *t == "files") {
         let h = host(a, n["c"]["h"].as_str().unwrap_or("")).ok_or("no machine is online for this step")?;
         let dir = format!("{}/runs/r{id}", crate::sh::hbid(a, &h));
         let r = crate::sh::hx(a, &h, &format!("mkdir -p {}", crate::sh::q(&dir)), 60).await;
@@ -147,7 +151,7 @@ fn gate(d: &Value, n: &Value) -> bool {
         return false;
     }
     let wid = n["c"]["w"].as_str().unwrap_or("");
-    d["crew"].as_array().and_then(|c| c.iter().find(|x| x["id"] == wid)).and_then(|w| w["tl"].as_array()).is_some_and(|t| t.iter().any(|x| x == "shell" || x == "files"))
+    d["crew"].as_array().and_then(|c| c.iter().find(|x| x["id"] == wid)).and_then(|w| w["tl"].as_array()).is_some_and(|t| t.iter().any(|x| x == "shell" || x == "files" || x == "github"))
 }
 
 fn rec(d: &mut Value, n: &Value, w: &str, out: Value, ok: bool, t0: i64, err: Option<String>) {
@@ -196,7 +200,7 @@ async fn exec(a: Ax, id: i64) {
                 q.push_front(nid.clone());
                 d["q"] = json!(q.iter().collect::<Vec<_>>());
                 let src = format!("{} #{}{}", d["input"]["repo"].as_str().unwrap_or(""), d["input"]["number"], d["input"]["author"].as_str().map(|x| format!(" by {x}")).unwrap_or_default());
-                rec(&mut d, &n, "", json!({"ask": format!("This run was started by {src} on GitHub. Let a worker with shell or file access act on it?")}), true, t0, None);
+                rec(&mut d, &n, "", json!({"ask": format!("This run was started by {src} on GitHub. Let a worker with shell, file or GitHub access act on it?")}), true, t0, None);
                 store(&a, id, "wait", &d);
                 return;
             }
@@ -276,7 +280,7 @@ pub fn answer(a: &Ax, id: i64, yes: bool) -> Result<(), String> {
         d["gate"] = Value::Null;
         if !yes {
             d["wait"] = Value::Null;
-            d["err"] = json!("you declined to let workers with shell or file access act on this GitHub item");
+            d["err"] = json!("you declined to let workers with shell, file or GitHub access act on this GitHub item");
             d["q"] = json!(Vec::<String>::new());
             store(a, id, "stop", &d);
             return Ok(());
