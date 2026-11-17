@@ -992,3 +992,51 @@ svg.i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-widt
 .pgb .box > .fm + .acts, #dr .box > .fm + .acts { margin-top: 0; }
 .hfm .acts, .rfm > .acts { margin-top: 12px; }
 #dr .hfm + .hfm { margin-top: 8px; }
+:root { --ch: 34px; --chs: 28px; }
+button { height: var(--ch); padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: 500 var(--fs3)/1 var(--s); border-radius: var(--ri); text-box: none; }
+button svg, button svg.i { width: 16px; height: 16px; margin: 0 !important; }
+.app > header button { height: var(--ch); padding: 0 14px; }
+#bTh { width: var(--ch); height: var(--ch); padding: 0; }
+.app > header button.hc { padding: 0 4px; }
+:is(.sm2, .row button, .row.jr .rp button, .wr button, .bkb button, .lh button, .fz button, .tb2 button, .rcard.st button, .cw button, .dock .di button, .dock .db button, .stl button, .lmenu button) { height: var(--chs); padding: 0 10px; font-size: var(--fs4); border-radius: 6px; }
+.row.jr .x, .tile .gear, .nd2 .nx { height: var(--chs); width: var(--chs); padding: 0; }
+.tile .gear { height: 22px; }
+.tile:not(:hover) .gear { width: 0; }
+.x svg.i, .tile .gear svg, .nd2 .nx svg, :is(.sm2, .row button, .lh button, .fz button) svg { width: 14px; height: 14px; }
+.seg { padding: 3px; height: var(--ch); align-items: center; }
+.seg button { height: calc(var(--ch) - 8px); padding: 0 12px; font-size: var(--fs4); }
+.sw { height: var(--ch); padding: 0 12px 0 8px; }
+button.lnk { height: auto; padding: 0; }
+.thc button, .sc, .rcard, .rc2, .tm, .pkb, .frn, .ki, .mi, .fm2 .mi, .fm2 details summary, .cz .pg button, .sw2 button, .lst details.more summary, .nd2 .pa, .fruns .frn { height: auto; }
+.thc button, .sc, .rcard, .rc2, .tm, .ki, .fm2 .mi, .frn { justify-content: flex-start; align-items: flex-start; }
+.ki, .frn { align-items: center; }
+.sw2 button { width: 26px; height: 26px; padding: 0; }
+.nd2 .pa { width: 28px; height: 28px; padding: 0; }
+.cz .pg button { padding: 4px 4px 7px; justify-content: flex-start; }
+.nv .nvc { height: 28px; width: 28px; padding: 0; }
+.nv a, .nvk, .pgb[data-k=set] .stb button { height: var(--ch); padding: 0 10px; }
+.pgb[data-k=set] .stb button { justify-content: flex-start; }
+.nv svg, .nvk svg, .nv .nvc svg { width: 18px; height: 18px; }
+.pgb :is(input[type=text], input[type=password], input[type=number], input[type=time], select), #dr :is(input[type=text], input[type=password], input[type=number], input[type=time], select), .fbar :is(input, select), .flt :is(input, select), .inl input { height: var(--ch); padding: 0 11px; font: var(--fs3)/1 var(--s); border-radius: var(--ri); }
+.lh select, .lh input { height: var(--chs); padding: 0 8px; font-size: var(--fs4); border-radius: 6px; }
+.card { padding: 16px; }
+.card h2 { margin: 0 0 12px; }
+.kpis > div, .kp > div { padding: 16px; gap: 6px; }
+.rcard { padding: 16px; gap: 6px; }
+.rcard.st button { margin-top: 6px; }
+.fs { padding: 12px; }
+.fs .fsec { padding: 0; }
+.fr3 { padding: 12px 0; }
+.ftb { height: var(--ch); }
+[data-ty=dense] { --ch: 28px; --chs: 24px; }
+[data-ty=dense] .card, [data-ty=dense] .kpis > div, [data-ty=dense] .kp > div, [data-ty=dense] .rcard { padding: 12px; }
+[data-ty=dense] .fr3 { padding: 8px 0; }
+[data-ty=dense] .fr3 > label { padding-top: 4px; }
+[data-ty=dense] .fc3 > :first-child { min-height: var(--ch); }
+[data-ty=dense] .nv a, [data-ty=dense] .nvk { height: 30px; }
+.fc3 > :first-child { min-height: var(--ch); }
+.fr3 > label { padding-top: 7px; }
+.fbar button svg, .fs button:not(.ic) svg, .fs button svg.i { width: 16px; height: 16px; }
+.fc3 > .acts, .fc3 > .ck { margin: 0 !important; gap: 8px 16px; }
+.fc3 > .ck { gap: 8px; }
+input[type=checkbox], input[type=radio], input[type=range] { accent-color: var(--ac); }
