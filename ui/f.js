@@ -274,7 +274,7 @@
       const b = BK[n.t];
       const hk = n.t === "t.hook" ? (D.hooks || {})[`${cur}/${n.id}`] : null;
       const hook = n.t !== "t.hook" ? "" : `<div class="ff"><label>Link for other apps</label><div class="hint">${hk ? `Active since ${new Date(hk.t0).toLocaleDateString()}${hk.last ? ", last call " + new Date(hk.last).toLocaleString() : ", not called yet"}.` : "No link yet. Create one and give it to the app that should start this pipeline."}</div>
-        <div id="hkV" hidden><input type="text" readonly id="hkU"><div class="hint">Copy it now, the key is shown only once.</div><pre class="df" id="hkC" style="white-space:pre-wrap"></pre></div>
+        <div id="hkV" hidden><label>Address</label><input type="text" readonly id="hkU"><label>Key</label><input type="text" readonly id="hkK"><div class="hint">Copy the key now, it is shown only once. Send it in the X-Hook-Key header.</div><pre class="df" id="hkC" style="white-space:pre-wrap"></pre><div class="hint">Only if the sending app cannot set headers: add ?key=… to the address. Keys in addresses can end up in logs.</div></div>
         <div class="ac"><button type="button" class="go" id="hkN">${hk ? "Replace link" : "Create link"}</button>${hk ? `<button type="button" class="dng" id="hkD">Revoke</button>` : ""}</div>
         ${f.on ? "" : `<div class="hint">Switch the pipeline On, otherwise calls are refused.</div>`}<div class="hint">The request body becomes the input of the run. Steps with shell, file or GitHub access ask you first.</div></div>`;
       mid = `<div class="fsec fi"><h5><span class="mic" style="--g:${GR[b.g]}">${ic(b.ic)}</span><span>${esc(title(n))}</span></h5><div class="ff">${(b.f || []).map((x) => field(n, x)).join("") || (hook ? "" : `<div class="hint">Nothing to set up here.</div>`)}</div>${hook}
@@ -320,7 +320,7 @@
       const r = await post({ op, flow: cur, node: sel }, "/api/flows/hook");
       if (r.error) return alert(r.error);
       D.hooks = r.hooks; side();
-      if (r.key) { const u = `${location.origin}/v1/run/${encodeURIComponent(cur)}/${encodeURIComponent(sel)}?key=${r.key}`; $("hkV").hidden = false; $("hkU").value = u; $("hkU").select(); $("hkC").textContent = `curl -X POST '${u}' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"text": "hello"}'`; }
+      if (r.key) { const u = `${location.origin}/v1/run/${encodeURIComponent(cur)}/${encodeURIComponent(sel)}`; $("hkV").hidden = false; $("hkU").value = u; $("hkK").value = r.key; $("hkK").select(); $("hkC").textContent = `curl -X POST '${u}' \\\n  -H "X-Hook-Key: $KEY" \\\n  -H 'Content-Type: application/json' \\\n  -d '{"text": "hello"}'`; }
     };
     on("hkN", "onclick", (e) => { if (e.target.textContent.startsWith("Replace") && e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again, the old link stops working"; return; } hop("new"); });
     on("hkD", "onclick", (e) => { if (e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again to revoke"; return; } hop("del"); });

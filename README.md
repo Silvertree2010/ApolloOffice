@@ -123,7 +123,7 @@ curl http://127.0.0.1:47300/v2/status -H "Authorization: Bearer $TOKEN"
 
 `GET /v2/openapi.json` lists every endpoint: jobs, repositories, pull requests, workers, pipelines, team, costs, events, settings and the office layout.
 
-A pipeline with a webhook block gets its own link (create it in the editor); `POST /v1/run/<pipeline>/<block>?key=…` starts it with the request body as input, without an API token. Pipelines can be started with `POST /v2/flows/{id}/run`; `GET /v2/runs/{id}` shows the output of every step, and `POST /v2/runs/{id}/answer` answers an approval step.
+A pipeline with a webhook block gets its own link (create it in the editor); `POST /v1/run/<pipeline>/<block>` with the key in an `X-Hook-Key` header starts it with the request body as input, without an API token (senders that cannot set headers may use `?key=…`). Pipelines can be started with `POST /v2/flows/{id}/run`; `GET /v2/runs/{id}` shows the output of every step, and `POST /v2/runs/{id}/answer` answers an approval step.
 
 The same functions are available as MCP tools for Claude Code, Cursor and other agents, over HTTP at `http://127.0.0.1:47300/mcp` or over stdio:
 
