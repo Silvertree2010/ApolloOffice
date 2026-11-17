@@ -27,8 +27,9 @@
     reviewer: { body: "#d0649f", dark: "#a3437a", light: "#e597c2" },
     submit: { body: "#5cbf6a", dark: "#3d9149", light: "#94dd9e" },
     watcher: { body: "#4fb3e0", dark: "#2f86b0", light: "#8fd2f0" },
+    pipe: { body: "#9c7ae0", dark: "#7a58c0", light: "#c4b0f0" },
   };
-  const NM = { hunter: "Hunter", scout: "Scout", guard: "Guard", vet: "Vet", repro: "Repro", fixer: "Fixer", ci: "CI", reviewer: "Reviewer", submit: "Submit", watcher: "Watcher" };
+  const NM = { pipe: "Pipelines", hunter: "Hunter", scout: "Scout", guard: "Guard", vet: "Vet", repro: "Repro", fixer: "Fixer", ci: "CI", reviewer: "Reviewer", submit: "Submit", watcher: "Watcher" };
   window.AO.NM = NM;
   const ORD = ["scout", "guard", "vet", "watcher", "hunter", "repro", "fixer", "ci", "reviewer", "submit"];
 
@@ -361,19 +362,34 @@
     const el = $("tiles");
     const po = window.AO.pord || [], xk = Object.keys(S.w).filter((k) => k.startsWith("x:")).sort((a, b) => (po.indexOf(a.slice(2)) + 99) % 99 - (po.indexOf(b.slice(2)) + 99) % 99);
     xk.forEach((k, i) => { const c = XP[i % XP.length]; SK[k] = { body: c, dark: c, light: c }; NM[k] = S.w[k].nm || k.slice(2); });
-    const all = [...ORD, ...xk];
+    const CP = ["#e39b6b", "#7fc8a9", "#b5a3e0", "#6fa8dc", "#e0848f", "#8fb3c9", "#c77dba", "#c9b37f"];
+    const ck = (S.crew || []).map((w, i) => { const k = "c:" + w.id; SK[k] = { body: CP[i % CP.length], dark: CP[i % CP.length], light: CP[i % CP.length] }; NM[k] = w.n || w.id; return k; });
+    const all = [...ck, ...ORD, ...xk];
     if (all.join() !== tkeys) { tkeys = all.join(); el.innerHTML = ""; el.style.gridTemplateColumns = all.length > 10 ? "repeat(auto-fill, minmax(124px, 1fr))" : `repeat(${all.length}, minmax(0, 1fr))`; }
     if (!el.children.length) {
-      el.innerHTML = all.map((n) => `<div class="tile" data-w="${n}"><div class="hd"><span class="dot" style="background:${SK[n].body}"></span>${esc(NM[n])}<span class="md"></span>${n === "ci" || n === "submit" || n.startsWith("x:") ? "" : `<button class="gear" title="Model and provider" aria-label="${esc(NM[n])} settings">${GEAR}</button>`}</div><div class="sy"></div><div class="stt"></div><div class="ft"></div></div>`).join("");
+      el.innerHTML = all.map((n) => `<div class="tile" data-w="${n}"><div class="hd"><span class="dot" style="background:${SK[n].body}"></span>${esc(NM[n])}<span class="md"></span>${n === "ci" || n === "submit" || n.startsWith("x:") || n.startsWith("c:") ? "" : `<button class="gear" title="Model and provider" aria-label="${esc(NM[n])} settings">${GEAR}</button>`}</div><div class="sy"></div><div class="stt"></div><div class="ft"></div></div>`).join("");
       el.onclick = (e) => {
         const g = e.target.closest(".gear");
         if (g) { e.stopPropagation(); window.AO.role && window.AO.role(g.closest(".tile").dataset.w); return; }
-        const t = e.target.closest(".tile"); if (t) post({ a: "hold", w: t.dataset.w, on: !S.w[t.dataset.w].hold }).then(apply);
+        const t = e.target.closest(".tile"); if (t && t.dataset.w.startsWith("c:")) { window.AO.go && window.AO.go("team"); return; } if (t) post({ a: "hold", w: t.dataset.w, on: !S.w[t.dataset.w].hold }).then(apply);
       };
     }
     const STG = { hunter: ["hunt"], repro: ["repro"], fixer: ["fix"], ci: ["ci"], reviewer: ["review"], submit: ["gate", "submit"] };
     for (const t of el.children) {
-      const n = t.dataset.w, w = S.w[n] || { st: "idle", say: "", md: "", tk: 0 };
+      const n = t.dataset.w;
+      if (n.startsWith("c:")) {
+        const id = n.slice(2), cw = (S.crew || []).find((x) => x.id === id) || {}, rs = (S.rn || []).filter((r) => r.st === "run" && r.w === id);
+        const ev = (S.ev || []).find((e) => e.w === n);
+        t.className = "tile " + (rs.length ? "work" : "");
+        t.style.order = rs.length ? 0 : 1;
+        t.querySelector(".md").textContent = mdn(cw.md || "");
+        t.querySelector(".sy").textContent = rs.length ? rs[0].n : ev ? `${ago(ev.t)} · ${ev.m}` : "…";
+        t.querySelector(".stt").textContent = rs.length ? "Work" + (rs.length > 1 ? " ×" + rs.length : "") : "idle";
+        t.querySelector(".ft").textContent = "";
+        t.title = (cw.r ? cw.r + " · " : "") + "open Team";
+        continue;
+      }
+      const w = S.w[n] || { st: "idle", say: "", md: "", tk: 0 };
       const cn = STG[n] ? S.q.filter((q) => STG[n].includes(q.st)).length : n === "vet" ? S.o.vn || 0 : 0;
       const wk = cn > 0 || w.st === "work";
       t.querySelector(".md").textContent = n === "ci" || n === "submit" ? "no model" : mdn(w.md);
@@ -400,7 +416,7 @@
     const sw = $("logW"), sq = $("logQ"), wb = $("logWrap"), lg = $("log");
     if (!sw || !sq || !wb || !lg || sw.dataset.inited) return;
     sw.dataset.inited = "1";
-    sw.innerHTML = `<option value="">All workers</option>` + [...ORD, ...Object.keys(S?.w || {}).filter((k) => k.startsWith("x:"))].map((w) => `<option value="${w}">${esc(NM[w])}</option>`).join("");
+    sw.innerHTML = `<option value="">All workers</option>` + [...(S?.crew || []).map((w) => "c:" + w.id), "pipe", ...ORD, ...Object.keys(S?.w || {}).filter((k) => k.startsWith("x:"))].map((w) => `<option value="${w}">${esc(NM[w] || w)}</option>`).join("");
     wb.classList.toggle("on", lWrap);
     lg.classList.toggle("wrap", lWrap);
     sw.onchange = () => { lW = sw.value; rlog(); };
@@ -420,13 +436,16 @@
     if (html !== lastLog) { lastLog = html; $("log").innerHTML = html; }
   };
 
+  const RQN = { queued: "Queued", run: "Running", wait: "Waiting for you" };
+  const rrow = (r) => { const w = (S.crew || []).find((x) => x.id === r.w); return `<div class="row jr${r.st === "wait" ? " apr" : ""}"><div class="ti"><a class="a" href="#" data-run="${r.id}">${esc(r.st === "wait" && r.ask ? r.ask : r.n || r.flow)}</a><div class="w"><span class="stt rs-${esc(r.st)}">${esc(RQN[r.st] || r.st)}</span><span>${esc(r.st === "wait" && r.ask ? r.n || r.flow : w ? (r.nt === "check" ? w.n + " checks" : w.n + " works") : "Pipeline")}</span><span>run ${r.id}</span></div></div><span class="rp">${r.st === "wait" ? `<button class="go" data-ry="${r.id}">Yes</button><button data-rn="${r.id}">No</button>` : ""}</span></div>`; };
   const lists = () => {
-    const q = S.q;
-    $("qn").textContent = q.length ? q.length + " jobs" : "";
+    const q = S.q, rx = S.rn || [];
+    $("qn").textContent = [q.length ? q.length + (q.length === 1 ? " job" : " jobs") : "", rx.length ? rx.length + (rx.length === 1 ? " run" : " runs") : ""].filter(Boolean).join(" · ");
     const aps = q.filter((j) => j.st === "approve").map((j) => j.id);
     for (const k of [...sel]) if (!aps.includes(k)) sel.delete(k);
     const bk = aps.length > 1 ? `<div class="bkb"><label class="ck"><input type="checkbox" id="bkA" ${sel.size === aps.length ? "checked" : ""}> all ${aps.length}</label><span class="sp"></span>${sel.size ? `<button class="go" id="bkS">submit ${sel.size}</button><button class="dng" id="bkD">drop ${sel.size}</button>` : `<span class="k">select pull requests to submit together</span>`}</div>` : "";
-    $("queue").innerHTML = bk + (q.length ? q.slice(0, 16).map((j) => jrow(j, true)).join("") : `<div class="empty">Nothing waiting.</div>`) + (S.dn.length ? `<div class="sub">Recent</div>` + S.dn.slice(0, 12).map((j) => jrow(j, false)).join("") : "");
+    const rs = [...rx].sort((a, b) => (a.st === "wait" ? 0 : a.st === "run" ? 1 : 2) - (b.st === "wait" ? 0 : b.st === "run" ? 1 : 2));
+    $("queue").innerHTML = bk + rs.map(rrow).join("") + (q.length ? q.slice(0, 16).map((j) => jrow(j, true)).join("") : rs.length ? "" : `<div class="empty">Nothing waiting.</div>`) + (S.dn.length ? `<div class="sub">Recent</div>` + S.dn.slice(0, 12).map((j) => jrow(j, false)).join("") : "");
     const op = S.pr.filter((p) => p.st === "open").length, mg = S.pr.filter((p) => p.st === "merged").length;
     $("prn").textContent = `${op} open · ${mg} merged`;
     $("prs").innerHTML = S.pr.length ? S.pr.slice(0, 16).map((p) => `<div class="row jr"><div class="ti"><a class="a" href="#" data-u="${esc(p.url)}">${esc(p.title)}</a><div class="w"><span class="stt pr-${esc(p.st)}">${esc(p.st[0].toUpperCase() + p.st.slice(1))}</span><span>${esc(rn({ repo: p.repo, num: p.num }))}</span></div></div></div>`).join("") : `<div class="empty">No pull requests yet.</div>`;
@@ -446,8 +465,9 @@
     else if (o.warn) { n.className = "chip bad"; n.textContent = "Claude usage near its limit"; }
     else { n.className = "chip ok"; n.textContent = "online"; }
     $("cHo").innerHTML = (S.hs || []).filter((h) => h.on_).map((h) => `<b style="color:${o.net[h.id] === false ? "var(--bad)" : "var(--t1)"}">${esc(h.id)}</b>`).join(" ") || "no machine";
-    const a = S.n;
-    $("cQ").innerHTML = `vet <b>${a.vet || 0}</b> · ready <b>${a.ready || 0}</b> · approve <b>${a.approve || 0}</b> · done <b>${a.done || 0}</b>`;
+    const a = S.n, rx = S.rn || [], cn = (st) => rx.filter((r) => r.st === st).length;
+    const wk = ["hunt", "repro", "fix", "ci", "review", "gate", "submit"].reduce((s, k) => s + (a[k] || 0), 0);
+    $("cQ").innerHTML = `running <b>${wk + cn("run")}</b> · waiting for you <b>${(a.approve || 0) + cn("wait")}</b> · queued <b>${(a.vet || 0) + (a.ready || 0) + cn("queued")}</b> · done <b>${a.done || 0}</b>`;
     $("bPause").textContent = o.man ? "Resume office" : "Pause office";
     $("ban").hidden = !S.star;
     document.body.classList.toggle("sb", !!S.star);
@@ -494,6 +514,10 @@
     if (d) { post({ a: "drop", id: Number(d.dataset.d) }).then(apply); return; }
     const rq = e.target.closest("[data-rq]");
     if (rq) { post({ a: "requeue", id: Number(rq.dataset.rq) }).then(apply); return; }
+    const ry = e.target.closest("[data-ry],[data-rn]");
+    if (ry && ry.closest("#queue")) { const id = ry.dataset.ry || ry.dataset.rn; fetch(`/api/v2/runs/${id}/answer`, { method: "POST", headers: { "content-type": "application/json", "x-ao": "1" }, body: JSON.stringify({ yes: !!ry.dataset.ry }) }).then(() => get("/api/state")).then(apply); return; }
+    const ru = e.target.closest("[data-run]");
+    if (ru && ru.closest("#queue")) { e.preventDefault(); window.AO.runView && window.AO.runView(Number(ru.dataset.run)); return; }
     const jb = e.target.closest("[data-j]");
     if (jb) { e.preventDefault(); window.AO.job && window.AO.job(Number(jb.dataset.j)); }
   });

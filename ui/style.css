@@ -1074,3 +1074,4 @@ button.dd:active:not(:disabled) { transform: none; }
 .ddi, .ddg { flex-shrink: 0; }
 [data-ty=pixel] :is(.ddi, button.dd) { box-shadow: none; }
 .pgb { max-width: 1400px; }
+.sdesc { margin: -4px 0 12px; font-size: var(--fs3); } .sdesc a { color: var(--t1); text-decoration: underline; text-underline-offset: .2em; } .wtb { display: inline-flex; margin: 0 0 16px; } .wtb button span { color: var(--t2); font-weight: 400; margin-left: 4px; } .li2.bi .lh2 { cursor: default; } .li2.bi .lh2:hover { background: none; }

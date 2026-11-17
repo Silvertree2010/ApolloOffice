@@ -365,6 +365,7 @@
     else if (e.key === "Escape") { e.stopPropagation(); if (menu || sel || esel != null || hireFor !== null) { hideMenu(); sel = null; esel = null; hireFor = null; side(); paint(); } else close(); }
   };
   const close = () => { if (A.route && A.route() === "pipelines") { location.hash = "#/office"; return; } open = false; clearTimeout(tmo); post({ flows: D.flows, crew: D.crew }, "/api/flows").catch(() => {}); document.body.classList.remove("fed"); R.hidden = true; document.removeEventListener("keydown", key, true); window.removeEventListener("resize", lines); };
+  A.flowPick = (id) => { if (!open || !D.flows.some((x) => x.id === id)) return; cur = id; sel = null; esel = null; hideMenu(); side(); paint(); fit(); };
   A.flows = async () => {
     if (open) return close();
     [D, cfg] = await Promise.all([get("/api/flows"), get("/api/cfg")]);

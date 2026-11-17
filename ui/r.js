@@ -1,6 +1,6 @@
 (() => {
   const A = window.AO, { $ } = A;
-  const T = { office: "Office", pipelines: "Pipelines", team: "Team", jobs: "Jobs", prs: "Pull requests", repos: "Repositories", machines: "Machines", costs: "Costs", settings: "Settings", health: "Health" };
+  const T = { office: "Office", pipelines: "Pipelines", team: "Team", jobs: "Work", prs: "Pull requests", repos: "Repositories", machines: "Machines", costs: "Costs", settings: "Settings", health: "Health" };
   const RUN = { repos: () => A.repos(), machines: () => A.hosts(), costs: () => A.costs(), settings: () => A.settings(), health: () => A.health(), team: () => A.team(), jobs: () => A.jobs(), prs: () => A.prs() };
   const B = document.body;
   let busy = false;
@@ -36,8 +36,8 @@
   const prev = A.onState;
   A.onState = (s) => {
     prev && prev(s);
-    const act = s.q.filter((q) => !["park", "vet"].includes(q.st)).length, ap = s.q.filter((q) => q.st === "approve").length + (s.rw || 0);
-    const nj = $("nJobs"); nj.textContent = ap ? ap : act || ""; nj.classList.toggle("hot", ap > 0); nj.title = ap ? `${ap} waiting for your approval` : `${act} active jobs`;
+    const act = s.q.filter((q) => !["park", "vet"].includes(q.st)).length + (s.rn || []).filter((r) => r.st !== "wait").length, ap = s.q.filter((q) => q.st === "approve").length + (s.rw || 0);
+    const nj = $("nJobs"); nj.textContent = ap ? ap : act || ""; nj.classList.toggle("hot", ap > 0); nj.title = ap ? `${ap} waiting for your approval` : `${act} active jobs and runs`;
     const op = s.pr.filter((p) => p.st === "open").length; $("nPr").textContent = op || "";
     A.wdg && A.wdg(s);
   };
@@ -52,6 +52,9 @@
     { t: "Hire someone", d: "Team", run: () => A.go("team") },
     { t: "New pipeline", d: "Pipelines", run: () => A.go("pipelines") },
     { t: "Collapse or expand sidebar", d: "Action", run: () => $("nvC").click() },
+    ...FL.map((f) => ({ t: f.n, d: "Open pipeline", run: () => { try { localStorage.setItem("ao.fcur", f.id); } catch {} A.go("pipelines"); A.flowPick && setTimeout(() => A.flowPick(f.id), 150); } })),
+    ...FL.filter((f) => f.nodes.some((n) => n.t.startsWith("t."))).map((f) => ({ t: "Run " + f.n, d: "Pipeline", run: async () => { const r = await fetch(`/api/v2/flows/${encodeURIComponent(f.id)}/run`, { method: "POST", headers: { "content-type": "application/json", "x-ao": "1" }, body: "{}" }).then((x) => x.json()); if (r.run) A.runView && A.runView(r.run); else if (r.error) alert(r.error); } })),
+    ...(A.S?.rn || []).map((r) => ({ t: `Run ${r.id} · ${r.n || r.flow}`, d: ({ queued: "Queued", run: "Running", wait: "Waiting for you" })[r.st] || r.st, run: () => A.runView && A.runView(r.id) })),
     ...(A.S?.q || []).slice(0, 60).map((j) => ({ t: j.title || "Untitled", d: `${(j.repo || "").split("/")[1] || ""}${j.num ? "#" + j.num : ""} · ${j.st}`, run: () => A.job && A.job(j.id) })),
   ];
   const kdraw = () => {
@@ -63,8 +66,10 @@
   };
   const kclose = () => { K?.remove(); K = null; };
   const krun = (i) => { const c = kl[i]; kclose(); c && c.run(); };
+  let FL = [];
   const kopen = () => {
     if (K) return kclose();
+    A.get("/api/flows").then((d) => { FL = d.flows || []; if (K) kdraw(); }).catch(() => {});
     K = document.createElement("div"); K.className = "cmdk";
     K.innerHTML = `<div class="kb" role="dialog" aria-label="Command palette"><input type="text" placeholder="Search pages, actions and jobs" autocomplete="off"><div class="kl"></div><div class="kf"><span>↑↓ to move</span><span>↵ to open</span><span>esc to close</span></div></div>`;
     B.appendChild(K);
