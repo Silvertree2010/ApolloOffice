@@ -1190,3 +1190,4 @@ input.tpn { position: absolute !important; width: 1px !important; height: 1px !i
 input[type=checkbox], input[type=checkbox]:checked { box-shadow: none; }
 input[type=checkbox]:focus:not(:focus-visible) { outline: none; }
 input[type=checkbox]:focus { border-width: 1.5px; }
+#lay:focus:not(:focus-visible) { outline: none; } #lay:focus-visible { outline: 2px solid var(--ac); outline-offset: -2px; }

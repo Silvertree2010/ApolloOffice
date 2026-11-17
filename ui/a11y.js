@@ -100,7 +100,7 @@
     }
     // skip link: jump to whichever main region is showing
     const sk = D.getElementById("skip");
-    if (sk) sk.onclick = (ev) => { ev.preventDefault(); const m = ["pg", "fe", "main"].map((k) => D.getElementById(k)).find((x) => x && x.getClientRects().length); m?.focus(); };
+    if (sk) sk.onclick = (ev) => { ev.preventDefault(); const m = ["pg", "fe", "main", "lay"].map((k) => D.getElementById(k)).find((x) => x && x.getClientRects().length); if (m && m.tabIndex < 0 && !m.hasAttribute("tabindex")) m.tabIndex = -1; m?.focus(); };
     // live status for the connection chip
     const net = D.getElementById("cNet"); if (net) { net.setAttribute("role", "status"); net.setAttribute("aria-live", "polite"); }
     run();
