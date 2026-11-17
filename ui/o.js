@@ -33,9 +33,6 @@
   const ORD = ["scout", "guard", "vet", "watcher", "hunter", "repro", "fixer", "ci", "reviewer", "submit"];
 
   let VW = 400, VH = 259;
-  const AN = { scout: [34, 74], guard: [74, 74], vet: [150, 74], watcher: [226, 74], repro: [53, 164], fixer: [147, 164], ci: [327, 100], reviewer: [241, 164], submit: [343, 164] };
-  const TEAM = [["hunter", "hunt", 0], ["repro", "repro", 8], ["fixer", "fix", 102], ["reviewer", "review", 196], ["submit", "submit", 290]];
-  const FITC = ["#e8e6df", "#1b1a18", "#4fb3e0", "#e0675a", "#5cbf6a", "#9c7ae0", "#d0649f", "#8d9199"];
 
   const cv = $("cv");
   const cx = cv.getContext("2d");
@@ -49,12 +46,6 @@
   let S = null, err = 0;
   const t0 = performance.now();
 
-  const gray = (h, k) => {
-    const n = parseInt(h.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
-    const y = Math.round((r * 0.3 + g * 0.59 + b * 0.11) * k);
-    return "#" + [y, y, y].map((v) => v.toString(16).padStart(2, "0")).join("");
-  };
-  const dim = (sk) => ({ body: gray(sk.body, 0.6), dark: gray(sk.dark, 0.6), light: gray(sk.light, 0.6) });
   const LT = { "#3d4045": "#8a94a2", "#4a4d54": "#5a6472", "#75746f": "#8a94a2", "#1d1f24": "#c9d1db" };
   const lt = () => document.documentElement.dataset.th === "light";
   const C = (k) => (lt() && LT[k]) || k;
@@ -64,20 +55,6 @@
   const tx = (s, x, y, col) => K.text(c, s, x, y, C(col));
   const party = () => S?.lm && S.t - S.lm.t < 180000;
 
-  const win = (x, y, w, h, t, sd) => {
-    px(x - 1, y - 1, w + 2, h + 2, "#c3ccd7");
-    px(x, y, w, h, "#dcedf8");
-    px(x, y, w, h * 0.6, "#c6e3f6");
-    px(x, y, w, h * 0.3, "#b0d7f1");
-    c.save(); c.beginPath(); c.rect(x, y, w, h); c.clip();
-    for (let k = 0; k < 2; k++) {
-      const cx = x - 14 + ((t * (1.5 + k) + sd * 37 + k * 41) % (w + 28)), cy = y + 4 + k * 8;
-      px(cx, cy, 10, 2, "#ffffff"); px(cx + 2, cy - 2, 5, 2, "#ffffff");
-    }
-    c.restore();
-    if (w > 40) px(x + (w >> 1), y, 1, h, "#c3ccd7");
-    px(x - 3, y + h + 1, w + 6, 2, "#e4e9ef");
-  };
   const SD = { floor: { d: ["#0d0e10", "#111215"], l: ["#e9eef3", "#e2e8ee"] }, wall: { d: ["#121317", "#1d1f24"], l: ["#f8f9fb", "#dde3ea"] } };
   const SV = { floor: { d: ["#24272d", "#3a3e46"], l: ["#d5dce4", "#aeb8c4"] }, wall: { d: ["#24272d", "#3a3e46"], l: ["#d5dce4", "#aeb8c4"] } };
   const PS = { floor: ["check", "plain", "planks", "tiles", "parquet", "carpet"], wall: ["plain", "stripes", "panels", "brick", "dots", "boards"] };
@@ -267,49 +244,7 @@
     load: (o) => { SU = { floor: one("floor", o?.floor), wall: one("wall", o?.wall) }; },
   };
 
-  const board = (t) => {
-    const s = S;
-    tx("APOLLO OFFICE", 162, 9, "#8a8d94");
-    if (!s) return;
-    const q = (s.n.ready || 0) + (s.n.repro || 0) + (s.n.fix || 0) + (s.n.ci || 0) + (s.n.review || 0) + (s.n.gate || 0) + (s.n.submit || 0);
-    const op = s.pr.filter((p) => p.st === "open").length;
-    if (s.o.off) { if (Math.floor(t * 2) % 2) tx("OFFLINE", 164, 18, "#e0675a"); }
-    else if (party()) { if (Math.floor(t * 3) % 2) tx("MERGED!", 164, 18, "#5cbf6a"); }
-    else tx(`Q ${q} PR ${op}`, 164, 18, "#5c5f66");
-    const live = !s.o.off && !s.o.pause && !s.o.man;
-    const ap = (s.n.approve || 0);
-    if (ap) { px(300, 136, 70, 16, "#131a14"); px(300, 136, 70, 1, "#3d9149"); tx(`APPROVE ${ap}`, 304, 141, Math.floor(t * 1.5) % 2 ? "#94dd9e" : "#5cbf6a"); }
-    px(234, 10, 3, 3, live ? (Math.floor(t * 1.5) % 2 ? "#5cbf6a" : "#3d9149") : s.o.off ? "#e0675a" : "#8d9199");
-    const d = new Date();
-    tx(`${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`, 6, 9, "#4a4d54");
-  };
 
-  const PLANE = [["w....", "www..", "wwwww", ".gww.", "..g.."], ["..g..", ".gww.", "wwwww", "www..", "w...."]];
-  const paths = (t) => {
-    if (!S) return;
-    const now = S.t + (performance.now() - last);
-    for (const f of S.fl) {
-      if (!AN[f.a] || !AN[f.b]) continue;
-      const D = 1800, k = Math.min(1, (now - f.t) / D);
-      if (k >= 1) continue;
-      const [x0, y0] = AN[f.a], [x1, y1] = AN[f.b];
-      const ax = x0, ay = y0 - 22, bx = x1, by = y1 - 22;
-      const hgt = 18 + Math.min(40, Math.hypot(bx - ax, by - ay) * 0.25);
-      const pos = (u) => [ax + (bx - ax) * u, ay + (by - ay) * u - Math.sin(u * Math.PI) * hgt];
-      const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-      for (let j = 1; j <= 14; j++) {
-        const u = e - j * 0.018;
-        if (u <= 0) break;
-        if (j % 2) continue;
-        const [tx, ty] = pos(u);
-        c.globalAlpha = (1 - j / 15) * 0.8;
-        px(tx, ty, 1, 1, hl(f.a));
-      }
-      c.globalAlpha = 1;
-      const [x, y] = pos(e), [nx] = pos(Math.min(1, e + 0.02));
-      K.draw(c, PLANE[0], x - 2, y - 2, {}, nx < x);
-    }
-  };
 
   const desk = (x, y, col) => {
     if (lt()) {
@@ -329,108 +264,12 @@
     px(x - 8, y + 6, 16, 1, col);
   };
 
-  const screen = (x, y, w, st, sk, t, so) => {
-    px(x, y, w, 9, "#2a2c32");
-    px(x + 1, y + 1, w - 2, 7, so ? "#0b0c0e" : st === "work" ? "#0f1a1e" : "#0b0c0e");
-    px(x + (w >> 1) - 1, y + 9, 2, 2, "#2a2c32");
-    if (so) { if (Math.floor(t * 2) % 2) px(x + (w >> 1) - 1, y + 3, 2, 2, "#e0675a"); return; }
-    if (st === "work") {
-      const sc = Math.floor(t * 6);
-      for (let i = 0; i < 3; i++) px(x + 2, y + 2 + i * 2, 2 + ((sc + i) * 7) % (w - 5), 1, i === 2 ? sk.light : sk.dark);
-    } else if (st !== "sleep") {
-      px(x + 2, y + 2, 3, 1, sk.dark);
-      if (Math.floor(t * 1.2) % 2) px(x + 6, y + 2, 1, 1, sk.light);
-    }
-  };
 
-  const acc = {
-    hunter: (r, sk, t) => { K.px(fc, r.left - 1, r.top - 1, sk.dark, r.bw + 2, 1); K.px(fc, r.left + 2, r.top - 3, sk.dark, r.bw - 4, 2); K.px(fc, r.cx - 1, r.top - 4, "#5cbf6a", 2, 1); },
-    scout: (r, sk, t) => { K.px(fc, r.cx, r.top - 4, sk.dark, 1, 4); K.px(fc, r.cx - 1, r.top - 6, Math.floor(t * 3) % 2 ? "#e8e6df" : sk.light, 3, 2); },
-    guard: (r, sk) => { K.draw(fc, ["sss", "sws", "sss", ".s."], r.left + 2, r.top + 4, { body: sk.body }); },
-    vet: (r) => { const y = r.eyeY - 1; for (const x of [r.cx - 5, r.cx + 2]) { K.px(fc, x, y, "#e8e6df", 4, 1); K.px(fc, x, y + 3, "#e8e6df", 4, 1); K.px(fc, x, y, "#e8e6df", 1, 4); K.px(fc, x + 3, y, "#e8e6df", 1, 4); } K.px(fc, r.cx - 1, y + 1, "#e8e6df", 3, 1); },
-    repro: (r, sk, t, p) => { const x = r.handR.x, y = r.handR.y - 5 + (p.mood === "work" ? Math.round(Math.sin(t * 4)) : 0); K.draw(fc, [".ww.", "w..w", "w..w", ".ww.", "...g", "....g"], x, y, {}); },
-    reviewer: (r) => { K.px(fc, r.handR.x, r.handR.y - 4, "#e0675a", 1, 4); K.px(fc, r.handR.x, r.handR.y, "#e8e6df", 1, 1); },
-    watcher: (r) => { K.px(fc, r.left - 1, r.top - 2, "#55524b", r.bw + 2, 1); K.px(fc, r.left - 2, r.top - 1, "#55524b", 1, 4); K.px(fc, r.right + 1, r.top - 1, "#55524b", 1, 4); K.px(fc, r.left - 3, r.top + 1, "#e8e6df", 2, 3); K.px(fc, r.right + 1, r.top + 1, "#e8e6df", 2, 3); },
-  };
 
-  const FIT = [
-    () => {},
-    (r, a) => { K.px(fc, r.left + 2, r.top - 2, a, r.bw - 4, 2); K.px(fc, r.right - 3, r.top - 1, a, 5, 1); },
-    (r, a) => { K.px(fc, r.left + 2, r.top - 3, a, r.bw - 4, 3); K.px(fc, r.cx - 1, r.top - 5, "#e8e6df", 2, 2); },
-    (r, a) => { K.px(fc, r.left, r.top + 1, a, r.bw, 1); K.px(fc, r.left - 2, r.top + 2, a, 2, 1); },
-    (r, a) => { K.draw(fc, ["x.x", "xxx", "x.x"].map((l) => l.replace(/x/g, "1")), r.cx - 1, r.top + 6, { c1: a }); },
-    (r, a) => { K.px(fc, r.left + 1, r.top + 6, a, r.bw - 2, 2); K.px(fc, r.right - 4, r.top + 8, a, 2, 3); },
-    (r) => { K.px(fc, r.cx - 5, r.eyeY - 1, "#101112", 4, 2); K.px(fc, r.cx + 2, r.eyeY - 1, "#101112", 4, 2); K.px(fc, r.cx - 1, r.eyeY - 1, "#101112", 3, 1); },
-    (r, a) => { K.px(fc, r.left, r.top - 2, a, r.bw, 1); K.px(fc, r.left - 2, r.top, a, 2, 3); K.px(fc, r.right, r.top, a, 2, 3); },
-    (r, a) => { K.px(fc, r.cx, r.top + 6, a, 1, 3); K.px(fc, r.cx - 1, r.top + 9, a, 3, 1); },
-    (r, a) => { K.px(fc, r.cx - 3, r.top - 6, a, 7, 5); K.px(fc, r.cx - 5, r.top - 1, a, 11, 1); },
-  ];
-  const HAT = (r, t) => { K.draw(fc, ["..1..", ".121.", "11211"], r.cx - 2, r.top - 4, { c1: ["#4fb3e0", "#d0649f", "#5cbf6a"][Math.floor(t * 4) % 3], c2: "#e8e6df" }); };
 
-  const crab = (n, x, y, t, o = {}) => {
-    const bw = S?.w?.[n] || { st: "idle" };
-    const w = o.st ? { st: o.st, t: 0, hold: o.st !== "work" && bw.hold } : bw;
-    const now = S ? S.t + (performance.now() - last) : Date.now();
-    const off = S?.o?.off;
-    const mood = now - (w.t || 0) < 6000 ? w.mood : "";
-    const st = w.hold || (S?.o?.pause && w.st !== "work") || S?.o?.man ? "sleep" : off && w.st !== "work" ? "off" : w.st;
-    const sd = (o.seed ?? n.length) * 1.7;
-    const p = K.pose();
-    p.legs = "sit";
-    p.mouth = null;
-    const bl = Math.floor((t + sd) * 10) % 47 === 0;
-    const pt = party();
-    if (pt) {
-      p.armL = "top"; p.armR = "top"; p.eyes = "glad"; p.mouth = "wide";
-      p.dy = Math.floor(t * 5 + sd) % 2 ? -3 : 0;
-      p.aL = [0, Math.floor(t * 5 + sd) % 2 ? -1 : 0]; p.aR = [0, Math.floor(t * 5 + sd) % 2 ? 0 : -1];
-    } else if (st === "work") {
-      const k = Math.floor(t * 9 + sd);
-      p.armL = "front"; p.armR = "front";
-      p.aL = [0, k % 2 ? -1 : 0]; p.aR = [0, k % 2 ? 0 : -1];
-      p.ex = -1; p.ey = 1;
-      p.dy = Math.floor(t * 4 + sd) % 4 === 0 ? -1 : 0;
-      if (Math.floor(t * 0.7 + sd) % 5 === 0) { p.ex = 0; p.ey = -1; p.eyes = "half"; }
-      if (bl) p.eyes = "shut";
-    } else if (st === "sleep") {
-      p.eyes = "shut"; p.bh = -1; p.dy = 1; p.armL = "low"; p.armR = "low";
-    } else if (st === "off") {
-      p.eyes = "half"; p.mouth = "flat"; p.bh = -1;
-    } else {
-      p.bh = Math.floor((t + sd) * 0.8) % 2 ? 0 : -1;
-      p.ex = [0, 1, 0, -1][Math.floor((t + sd) * 0.4) % 4];
-      if (bl) p.eyes = "shut";
-    }
-    if (!pt && mood === "ok") { p.eyes = "glad"; p.mouth = "smile"; p.armL = "top"; p.armR = "top"; p.dy = Math.floor(t * 6) % 2 ? -2 : 0; }
-    else if (!pt && (mood === "sad" || mood === "err")) { p.eyes = "sad"; p.mouth = "sad"; p.armL = "low"; p.armR = "low"; }
-    p.mood = st;
-    const sk = st === "off" ? dim(SK[n]) : SK[n];
-    fc.clearRect(0, 0, K.W, K.H);
-    const { r } = K.figure(fc, p, t, sk);
-    if (o.fit) FIT[o.fit % FIT.length](r, FITC[(o.fc ?? o.fit) % FITC.length]);
-    if (acc[n]) acc[n](r, sk, t, p);
-    if (pt) HAT(r, t + sd);
-    c.drawImage(fig, Math.round(x - 24), Math.round(y - 41));
-    if (st === "sleep" && !pt) {
-      const k = ((t + sd) * 0.6) % 1;
-      c.globalAlpha = 1 - k;
-      tx("Z", x + 8 + k * 4, y - 26 - k * 8, "#75746f");
-      c.globalAlpha = 1;
-    }
-    return st;
-  };
 
   let hits = [], hov = null, mx = 0, my = 0;
-  const seat = (n, x, y, t, o, lb, hot) => {
-    hits.push({ k: "w:" + n + ":" + (o.q?.id ?? o.vk ?? ""), b: [x - 16, y - 30, x + 18, y + 20], n, q: o.q });
-    const st = crab(n, x + 4, y + 2, t, o);
-    desk(x, y, SK[n].dark);
-    screen(x - 13, y - 11, 11, st, SK[n], t + (o.seed || 0), st === "off");
-    if (lb) tx(lb, x - (K.textWidth(lb) >> 1), y + 16, hot ? hl(n) : "#4a4d54");
-  };
 
-  const RL = (id) => { if (id === "local") return "ME"; const m = id.match(/^([a-z])[a-z]*[-_ ]?(\d+)$/i); return (m ? m[1] + m[2] : id.replace(/[^a-z0-9]/gi, "")).slice(0, 3).toUpperCase(); };
-  const RK = () => (S?.hs || []).filter((h) => h.on_).slice(0, 7).map((h) => [h.id, RL(h.id)]);
   const rack = (x, y, t, h, lb) => {
     hits.push({ k: "h:" + h, b: [x - 9, y - 41, x + 9, y + 21], h });
     const jbs = (S?.q || []).filter((q) => q.h === h && ["repro", "fix", "ci", "review", "gate", "submit"].includes(q.st));
@@ -453,79 +292,10 @@
     tx(lb, x - (K.textWidth(lb) >> 1), y + 15, down ? "#e0675a" : busy ? "#b9bcc2" : "#4a4d54");
   };
 
-  const short = (q) => {
-    const n = String(q.pr || q.num || "H" + q.id), r = (q.repo.split("/")[1] || q.repo).toUpperCase();
-    for (let k = 3; k > 0; k--) if (K.textWidth(r.slice(0, k) + n) <= 30) return r.slice(0, k) + n;
-    return n;
-  };
 
-  const intake = (t) => {
-    seat("scout", 34, 74, t, {}, "SCOUT", S?.w?.scout?.st === "work");
-    seat("guard", 74, 74, t, { seed: 3 }, "GUARD", S?.w?.guard?.st === "work");
-    const vn = S?.o?.vn ?? (S?.w?.vet?.st === "work" ? 1 : 0);
-    for (let k = 0; k < 3; k++) seat("vet", 114 + k * 36, 74, t, { st: k < vn ? "work" : "idle", seed: 11 + k, fit: k ? k + 2 : 0, fc: k + 4, vk: k }, k === 1 ? "VET" : "", k < vn);
-    seat("watcher", 226, 74, t, { seed: 7 }, "WATCHER", S?.w?.watcher?.st === "work");
 
-  };
 
-  const teams = (t) => {
-    const ap = (S?.n?.approve || 0) > 0;
-    const tj = TEAM.map(([n, stg]) => [n, (S?.q || []).filter((q) => q.st === stg || (n === "submit" && q.st === "gate"))]);
-    const lay = (m) => {
-      const it = [];
-      for (const [n, js] of tj) {
-        if (!js.length) it.push({ n, q: null, f: true, c: 0 });
-        else js.slice(0, m).forEach((q, k) => it.push({ n, q, f: k === 0, c: js.length }));
-      }
-      let x = 22, row = 0, pv = null;
-      const lim = (r) => (r ? 360 : ap ? 278 : 370);
-      for (const i of it) {
-        if (pv && i.n !== pv) x += 10;
-        const tw = (it.filter((y) => y.n === i.n).length - 1) * 32;
-        if (i.f && row === 0 && x > 22 && x + tw > lim(0) && 22 + tw <= lim(1)) { row++; x = 22; }
-        if (x > lim(row)) { row++; x = 22; }
-        i.x = x; i.y = 164 + row * 68; i.r = row; x += 32; pv = i.n;
-      }
-      return it;
-    };
-    let m = Math.max(1, ...tj.map(([, js]) => js.length)), it = lay(m);
-    while (m > 1 && it.some((i) => i.r > 1)) it = lay(--m);
-    for (const i of it) {
-      if (i.f) {
-        AN[i.n] = [i.x, i.y];
-        tx(NM[i.n].toUpperCase() + (i.c > 1 ? " X" + i.c : ""), i.x - 12, i.y - 36, i.c ? hl(i.n) : "#4a4d54");
-      }
-      if (!i.q) seat(i.n, i.x, i.y, t, { seed: i.x }, "", false);
-      else seat(i.n, i.x, i.y, t, { st: "work", seed: i.q.id, fit: (i.q.id * 7) % 9 + 1, fc: i.q.id * 3, q: i.q }, short(i.q), true);
-    }
-  };
 
-  const confetti = (t) => {
-    if (!party()) return;
-    const cs = ["#4fb3e0", "#d0649f", "#5cbf6a", "#9c7ae0", "#e0675a", "#e8e6df"];
-    for (let i = 0; i < 70; i++) {
-      const sx = (i * 97.13) % VW, sp = 18 + (i % 7) * 6;
-      const y = ((t * sp + i * 37) % (VH + 20)) - 10;
-      px(sx + Math.sin(t * 2 + i) * 4, y, 2, 1 + (i % 2), cs[i % cs.length]);
-    }
-  };
-
-  const radio = (x, y, t) => {
-    const on = !!(S && S.q.some((q) => q.st === "ci"));
-    px(x, y, 22, 12, "#2a2c32");
-    px(x + 1, y + 1, 20, 10, "#1c1e22");
-    for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) px(x + 3 + i * 2, y + 3 + j * 2, 1, 1, "#3d4045");
-    px(x + 13, y + 3, 6, 2, on ? "#5cbf6a" : "#3d4045");
-    const bar = (i) => (on ? 1 + Math.floor((Math.sin(t * (6 + i * 1.7) + i) + 1) * 1.5) : 1);
-    for (let i = 0; i < 3; i++) px(x + 13 + i * 2, y + 10 - bar(i), 1, bar(i), on ? "#5cbf6a" : "#3d4045");
-    px(x + 4, y - 3, 1, 3, "#3d4045");
-    if (on) for (let k = 0; k < 2; k++) {
-      const p = ((t * 0.5 + k / 2) % 1);
-      c.globalAlpha = 1 - p;
-      K.draw(c, ["..ww", "..w.", "ww..", "ww.."], x + 22 + k * 4 + Math.sin(t * 2 + k) * 2, y - p * 14, {});
-      c.globalAlpha = 1;
-    }
-  };
 
   const plant = (x, y) => {
     px(x - 3, y, 7, 6, "#2a2c32");
