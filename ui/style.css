@@ -1073,3 +1073,4 @@ button.dd:active:not(:disabled) { transform: none; }
 .ddi { display: flex; width: auto; } .ddm { display: flex; flex-direction: column; align-items: stretch; }
 .ddi, .ddg { flex-shrink: 0; }
 [data-ty=pixel] :is(.ddi, button.dd) { box-shadow: none; }
+.pgb { max-width: 1400px; }

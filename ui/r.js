@@ -22,7 +22,7 @@
       for (const a of document.querySelectorAll(".nv a")) a.classList.toggle("on", a.dataset.r === (r === "health" ? "settings" : r));
       $("vt").textContent = r === "office" ? "ApolloOffice" : T[r];
       document.title = r === "office" ? "ApolloOffice" : `${T[r]} · ApolloOffice`;
-      if (pg) { $("pgB").innerHTML = ""; $("pg").scrollTop = 0; }
+      if (pg) { $("pgB").innerHTML = ""; $("pgB").dataset.k = ""; $("pg").scrollTop = 0; }
       if (r === "pipelines" && !B.classList.contains("fed")) await A.flows();
       if (RUN[r]) await RUN[r]();
       window.dispatchEvent(new Event("resize"));
