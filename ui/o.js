@@ -346,7 +346,7 @@
   const kt = (n) => (n > 999999 ? (n / 1e6).toFixed(1) + "M" : n > 999 ? Math.round(n / 1000) + "k" : String(n));
   const STC = { approve: "ok", ready: "", vet: "", repro: "work", fix: "work", ci: "work", review: "work", gate: "work", submit: "work", done: "ok", drop: "bad" };
 
-  const GEAR = `<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M9.4 1l.3 1.8c.4.1.8.3 1.1.5l1.5-1 1.4 1.4-1 1.5c.2.3.4.7.5 1.1L15 6.6v2l-1.8.3c-.1.4-.3.8-.5 1.1l1 1.5-1.4 1.4-1.5-1c-.3.2-.7.4-1.1.5L9.4 15h-2l-.3-1.8c-.4-.1-.8-.3-1.1-.5l-1.5 1-1.4-1.4 1-1.5c-.2-.3-.4-.7-.5-1.1L1.8 8.6v-2l1.8-.3c.1-.4.3-.8.5-1.1l-1-1.5 1.4-1.4 1.5 1c.3-.2.7-.4 1.1-.5L7.4 1h2zM8.4 5.6a2 2 0 100 4 2 2 0 000-4z"/></svg>`;
+  const GEAR = `<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>`;
   window.AO.GEAR = GEAR;
   const mdn = (md) => {
     if (!md) return "";
@@ -392,7 +392,7 @@
   const sel = new Set();
   const QN = { vet: "Checking", ready: "Ready", hunt: "Hunting", repro: "Reproducing", fix: "Fixing", ci: "Testing", review: "Reviewing", gate: "Final check", approve: "Waiting for you", submit: "Submitting", done: "Done", drop: "Dropped", park: "Parked" };
   const KN = { hunt: "Hunt", rebase: "Rebase", review: "Review changes", feat: "Feature" };
-  const jrow = (j, x) => `<div class="row jr${j.st === "approve" ? " apr" : ""}">${j.st === "approve" && x ? `<input type="checkbox" class="bk" data-k="${j.id}" ${sel.has(j.id) ? "checked" : ""} aria-label="select">` : ""}<div class="ti"><a class="a" href="#" data-j="${j.id}">${esc(j.title)}</a><div class="w"><span class="stt st-${esc(j.st)}">${esc((j.kind !== "fix" ? (KN[j.kind] || j.kind) + " · " : "") + (QN[j.st] || j.st))}</span><span>${esc(rn(j))}</span>${(j.st === "ci" && S.cil[j.id]) || j.why ? `<span class="wy">${esc(j.st === "ci" && S.cil[j.id] ? S.cil[j.id] : j.why)}</span>` : ""}</div></div><span class="rp">${j.st === "approve" ? `<button class="go" data-j="${j.id}">Review</button>` : ""}${x && j.st !== "approve" ? `<button class="x" data-d="${j.id}" title="Drop">✕</button>` : ""}${!x && j.st === "drop" && j.kind === "fix" ? `<button class="x" data-rq="${j.id}" title="Try again">↻</button>` : ""}</span></div>`;
+  const jrow = (j, x) => `<div class="row jr${j.st === "approve" ? " apr" : ""}">${j.st === "approve" && x ? `<input type="checkbox" class="bk" data-k="${j.id}" ${sel.has(j.id) ? "checked" : ""} aria-label="select">` : ""}<div class="ti"><a class="a" href="#" data-j="${j.id}">${esc(j.title)}</a><div class="w"><span class="stt st-${esc(j.st)}">${esc((j.kind !== "fix" ? (KN[j.kind] || j.kind) + " · " : "") + (QN[j.st] || j.st))}</span><span>${esc(rn(j))}</span>${(j.st === "ci" && S.cil[j.id]) || j.why ? `<span class="wy">${esc(j.st === "ci" && S.cil[j.id] ? S.cil[j.id] : j.why)}</span>` : ""}</div></div><span class="rp">${j.st === "approve" ? `<button class="go" data-j="${j.id}">Review</button>` : ""}${x && j.st !== "approve" ? `<button class="x" data-d="${j.id}" title="Drop" aria-label="Drop"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : ""}${!x && j.st === "drop" && j.kind === "fix" ? `<button class="x" data-rq="${j.id}" title="Try again" aria-label="Try again"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6M4 4v4.6h4.6"/></svg></button>` : ""}</span></div>`;
 
   let lW = "", lQ = "", lWrap = false, lastLog = "";
   try { lWrap = localStorage.getItem("ao.lw") === "1"; } catch {}
@@ -497,8 +497,8 @@
     const jb = e.target.closest("[data-j]");
     if (jb) { e.preventDefault(); window.AO.job && window.AO.job(Number(jb.dataset.j)); }
   });
-  const SUN = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="currentColor"/><g stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3 3l1 1M12 12l1 1M3 13l1-1M12 4l1-1"/></g></svg>`;
-  const MOON = `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M10.5 1.5a6.5 6.5 0 1 0 4 11.6A7 7 0 0 1 10.5 1.5z"/></svg>`;
+  const SUN = `<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`;
+  const MOON = `<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>`;
   const thb = () => { if (S) lists(); $("bTh").innerHTML = lt() ? MOON : SUN; $("bTh").title = lt() ? "Switch to dark" : "Switch to light"; };
   thb();
   new MutationObserver(thb).observe(document.documentElement, { attributes: true, attributeFilter: ["data-th"] });

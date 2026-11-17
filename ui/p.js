@@ -123,7 +123,7 @@
       ${fun(r)}
       <div class="sec"><h4>Work</h4><div class="box"><div class="fm">
         <label>Status</label>${tg("on_", r.on_, "active")}
-        <label>Work on</label><div class="acts" style="margin:0">${tg("iss", r.iss, "open issues")}${tg("hunt", r.hunt, "hunt for bugs itself")}${tg("feat", r.feat, "build requested features")}</div>
+        <label>Work on</label><div class="acts">${tg("iss", r.iss, "open issues")}${tg("hunt", r.hunt, "hunt for bugs itself")}${tg("feat", r.feat, "build requested features")}</div>
         <label>Skip labels</label><input type="text" name="skl" value="${esc(r.skl || "")}" placeholder="e.g. area:kernel, needs-design">
         <label>Pull requests</label><select name="mode"><option value="ask" ${r.mode !== "auto" ? "selected" : ""}>wait for my approval</option><option value="auto" ${r.mode === "auto" ? "selected" : ""}>submit automatically</option></select>
         <label>PR footer</label>${tg("nm", r.nm ?? 1, "mention ApolloOffice with a link")}
@@ -276,7 +276,7 @@
     show((window.AO.NM?.[w] || w) + " · model", "role");
     const s = cfg.set, ks = RK[w];
     const popt = (sel) => cfg.prov.map((p) => `<option value="${p.id}" ${p.id === sel ? "selected" : ""}>${esc(p.nm)}${p.has ? "" : " (no key yet)"}</option>`).join("");
-    B.innerHTML = `<form id="fr">${ks.map(([k, l]) => { const [p, m] = split(s.md[k]); return `<div class="sec"><h4>${esc(l)}</h4><div class="box" data-k="${k}"><div class="fm" style="margin:0">
+    B.innerHTML = `<form id="fr">${ks.map(([k, l]) => { const [p, m] = split(s.md[k]); return `<div class="sec"><h4>${esc(l)}</h4><div class="box" data-k="${k}"><div class="fm">
         <label>Provider</label><select data-p>${popt(p)}</select>
         <label>Model</label><input type="text" data-m list="dl-${k}" value="${esc(m)}" placeholder="model id"><datalist id="dl-${k}"></datalist>
         <div class="hint" data-h></div>
@@ -334,30 +334,30 @@
     try { tb = localStorage.getItem("ao.st") || "gen"; } catch {}
     if (!TB.some(([k]) => k === tb)) tb = "gen";
     B.innerHTML = `<div class="tabs stb" role="tablist">${TB.map(([k, l]) => `<button type="button" role="tab" data-tb="${k}">${l}</button>`).join("")}</div><form id="fs">
-      <div data-tab="prov" class="sec"><h4>Providers</h4><div class="box"><div class="fm" style="margin:0">
+      <div data-tab="prov" class="sec"><h4>Providers</h4><div class="box"><div class="fm">
         ${keys.map((p) => `<label>${esc(p.nm)}</label><input type="password" autocomplete="off" data-key="${p.id}" placeholder="${p.has ? "saved · type to replace, clear with a single space" : "API key"}">`).join("")}
         <label>Claude Code token</label><input type="password" autocomplete="off" data-key="cc" placeholder="${cfg.prov.find((p) => p.id === "cc").tok ? "saved · type to replace, clear with a single space" : "optional, from claude setup-token"}">
         <label>or keychain item</label><input type="text" name="cckc" value="${esc(s.prov?.cc?.kc || "")}" placeholder="optional, macOS keychain service name">
         <label>Ollama address</label><input type="text" name="ollama" value="${esc(s.prov?.ollama?.base || "")}" placeholder="${esc(ol.dbase)}">
         <label>Ollama context</label><input type="number" name="octx" min="2048" step="1024" value="${s.prov?.ollama?.ctx || 32768}"><div class="hint">Tokens per request. Ollama's default of 4096 is too small for the workers.</div>
       </div></div></div>
-      <div data-tab="md" class="sec"><h4>Models</h4><div class="box"><div class="fm" style="margin:0">
+      <div data-tab="md" class="sec"><h4>Models</h4><div class="box"><div class="fm">
         ${["scout", "guard", "vet", "hunter", "repro", "fixer", "reviewer", "watcher"].map((w) => `<label>${esc(A.NM?.[w] || w)}</label><div class="ck"><span style="flex:1">${RK[w].map(([k, l]) => esc((RK[w].length > 1 ? l + ": " : "") + (A.mdn ? A.mdn(s.md[k]) : s.md[k]))).join(" · ")}</span><button type="button" data-role="${w}">Change</button></div>`).join("")}
       </div></div></div>
       <div data-tab="gen" class="sec"><h4>Sign in</h4><div class="box">${cfg.google ? `<div class="ck"><b class="ok2">Google</b> ${esc(cfg.google)} can sign in.</div><div class="acts"><button type="button" class="dng" id="gu">Disconnect Google</button></div>` : `<div class="ck">Sign in with a one-time link from <code>apollo-office login-link</code>, or connect a Google account.</div><div class="acts"><button type="button" id="gl">Connect Google account</button></div>`}</div></div>
-      <div data-tab="gen" class="sec"><h4>Work</h4><div class="box"><div class="fm" style="margin:0">
+      <div data-tab="gen" class="sec"><h4>Work</h4><div class="box"><div class="fm">
         <label>Hunters</label><input type="number" name="hunters" min="0" max="12" value="${s.hunters}">
         <label>Daily token limit</label><input type="number" name="tokday" min="0" value="${s.tokday}"><div class="hint">0 = no limit.</div>
         <label>Working hours</label><div class="acts" style="margin:0;align-items:center">${tg("whon", s.wh?.on, "only work from")}<input type="time" name="whf" value="${esc(s.wh?.from || "08:00")}" style="width:auto"> to <input type="time" name="wht" value="${esc(s.wh?.to || "22:00")}" style="width:auto"></div>
       </div></div></div>
-      <div data-tab="app" class="sec"><h4>Appearance</h4><div class="box"><div class="fm" style="margin:0">
+      <div data-tab="app" class="sec"><h4>Appearance</h4><div class="box"><div class="fm">
         <label>Style</label><div class="thc" id="tys">${[["calm", "Calm", "Quiet and roomy, soft corners"], ["dense", "Dense", "More rows per screen, numbers in mono"], ["pixel", "Pixel", "Square and bold, like the office"]].map(([v, l, d]) => `<button type="button" data-v="${v}" class="ty-${v}"><span class="pv"><i></i><i></i><i></i></span><b>${l}</b><span>${d}</span></button>`).join("")}</div>
         <label>Theme</label><div class="seg" id="thm">${[["dark", "Dark"], ["light", "Light"], ["system", "Like the system"]].map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join("")}</div>
         <label>Accent</label><div class="sw2" id="acc">${window.TH.AC.map((k) => `<button type="button" data-v="${k}" title="${k}" aria-label="${k}" class="a-${k}"></button>`).join("")}</div>
         <label>Density</label><div class="seg" id="dns">${[["cozy", "Comfortable"], ["compact", "Compact"]].map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join("")}</div>
         <label>Motion</label><div class="seg" id="rmo">${[["0", "Full"], ["1", "Reduced"]].map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join("")}</div>
       </div></div></div>
-      <div data-tab="ntf" class="sec"><h4>Notifications</h4><div class="box"><div class="fm" style="margin:0">
+      <div data-tab="ntf" class="sec"><h4>Notifications</h4><div class="box"><div class="fm">
         <label>In this browser</label><label class="ck"><input type="checkbox" id="bnt"> show a desktop notification when a pull request waits for review</label>
         <div class="hint" id="bnh">Only while this tab is open somewhere.</div>
         <label>ntfy topic URL</label><input type="text" name="ntfy" value="${esc(s.ntfy)}" placeholder="https://ntfy.sh/your-secret-topic">
@@ -365,26 +365,26 @@
       </div><div class="acts"><button type="button" id="bt">Send test</button></div></div></div>
       <div data-tab="int" class="sec"><h4>API</h4><div class="box">
         <div class="ck">${cfg.api.on ? `<b class="ok2">On</b> token created ${new Date(cfg.api.t0).toLocaleDateString()}${cfg.api.last ? ", last used " + new Date(cfg.api.last).toLocaleString() : ", not used yet"}` : "Off. Create a token to send bug reports from your own tools (error trackers, CI, scripts)."}</div>
-        <div id="atk" hidden><input type="text" readonly id="atv" style="margin-top:8px"><div class="hint" style="margin-top:6px">Copy it now, it is shown only once.</div></div>
-        <pre class="df" style="margin-top:8px;white-space:pre-wrap">curl -X POST http://127.0.0.1:${cfg.api.port}/v1/report \\
+        <div id="atk" hidden><input type="text" readonly id="atv"><div class="hint">Copy it now, it is shown only once.</div></div>
+        <pre class="df" style="white-space:pre-wrap">curl -X POST http://127.0.0.1:${cfg.api.port}/v1/report \\
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \\
   -d '{"repo":"owner/name","title":"Crash on empty input","body":"Steps and what happens","logs":"stack trace","src":"Sentry"}'</pre>
         <div class="acts"><button type="button" id="an">${cfg.api.on ? "Replace token" : "Create token"}</button>${cfg.api.on ? `<button type="button" class="dng" id="ao">Revoke</button>` : ""}</div></div></div>
       <div data-tab="int" class="sec"><h4>API and MCP</h4><div class="box">
         <div id="tkl"></div>
         <div class="acts"><input type="text" id="tkn" placeholder="Name, e.g. Claude Code" maxlength="40" style="flex:1;min-width:160px"><select id="tks" style="width:auto"><option value="write">Can change things</option><option value="read">Read only</option></select><button type="button" class="go" id="tkc">Create token</button></div>
-        <div id="tkv" hidden><input type="text" readonly id="tkt" style="margin-top:8px"><div class="hint" style="margin-top:6px">Copy it now, it is shown only once.</div></div>
-        <pre class="df" style="margin-top:10px;white-space:pre-wrap">curl http://127.0.0.1:${cfg.api.port}/v2/status -H "Authorization: Bearer $TOKEN"</pre>
+        <div id="tkv" hidden><input type="text" readonly id="tkt"><div class="hint">Copy it now, it is shown only once.</div></div>
+        <pre class="df" style="white-space:pre-wrap">curl http://127.0.0.1:${cfg.api.port}/v2/status -H "Authorization: Bearer $TOKEN"</pre>
         <div class="hint"><code>GET /v2/openapi.json</code> · MCP</div>
-        <pre class="df" style="margin-top:6px;white-space:pre-wrap" id="tkm"></pre></div></div>
+        <pre class="df" style="white-space:pre-wrap" id="tkm"></pre></div></div>
       <div data-tab="int" class="sec"><h4>Error trackers</h4><div class="box">
         <div class="ck">${cfg.hook.on ? `<b class="ok2">On</b> link created ${new Date(cfg.hook.t0).toLocaleDateString()}` : "Off. Create a link to let Sentry or GlitchTip send errors as reports."}</div>
-        <div id="htk" hidden><input type="text" readonly id="htv" style="margin-top:8px"><div class="hint" style="margin-top:6px">Copy it now, the key is shown only once. Replace owner/name with the repository.</div></div>
+        <div id="htk" hidden><input type="text" readonly id="htv"><div class="hint">Copy it now, the key is shown only once. Replace owner/name with the repository.</div></div>
         <div class="acts"><button type="button" id="hn">${cfg.hook.on ? "Replace link" : "Create link"}</button>${cfg.hook.on ? `<button type="button" class="dng" id="ho">Revoke</button>` : ""}</div></div></div>
       <div data-tab="sys" class="sec"><h4>Updates</h4><div class="box">${tg("updates", s.updates, "install updates automatically when the office is idle")}<div class="msg" id="um">${ust}</div><div class="acts"><button type="button" id="uc">Check now</button>${nu ? `<button type="button" class="pri" id="ua">Install and restart</button>` : ""}</div></div></div>
       <div data-tab="sys" class="sec"><h4>Export and import</h4><div class="box"><div class="ck">Settings, repositories, machines and models as a JSON file. API keys, tokens, logins and notification addresses are not included.</div>
         <div class="acts"><button type="button" id="ex">Export</button><button type="button" id="im">Import…</button><input type="file" id="imf" accept="application/json,.json" hidden></div><div class="msg" id="xm"></div></div></div>
-      <div data-tab="sys" class="sec"><h4>This installation</h4><div class="box"><div class="fm" style="margin:0">
+      <div data-tab="sys" class="sec"><h4>This installation</h4><div class="box"><div class="fm">
         <label>Start at login</label>${tg("auto", cfg.auto, "start ApolloOffice when I log in")}
         <label>Data folder</label><span class="mono" style="font-size:12px;word-break:break-all">${esc(cfg.data)}</span>
         <label>Version</label><span class="mono" style="font-size:12px">${esc(A.S?.v || "")} · ${esc(cfg.asset)}</span>
@@ -394,7 +394,7 @@
         <div class="dzr"><div><b>Sign out everywhere</b><div class="hint">Ends every session, including this one. You need a new link from <code>apollo-office login-link</code>.</div></div><button type="button" class="dng" data-dz="logout">Sign out everywhere</button></div>
         <div class="dzr"><div><b>Clear job history</b><div class="hint">Deletes finished and dropped jobs and their log. Pull requests and costs stay.</div></div><button type="button" class="dng" data-dz="history">Clear history</button></div>
         <div class="dzr"><div><b>Reset settings</b><div class="hint">Models, limits, budgets, notifications and paused workers go back to defaults. Keys, repositories and machines stay.</div></div><button type="button" class="dng" data-dz="reset">Reset settings</button></div>
-        <div class="dzr"><div><b>Delete all data</b><div class="hint">Deletes repositories, machines, jobs, pull request history, costs, settings and stored API keys. Nothing on GitHub changes. Type <code>delete</code> to confirm.</div><input type="text" id="dzw" placeholder="delete" autocomplete="off" style="margin-top:6px;max-width:160px"></div><button type="button" class="dng" data-dz="wipe">Delete everything</button></div>
+        <div class="dzr"><div><b>Delete all data</b><div class="hint">Deletes repositories, machines, jobs, pull request history, costs, settings and stored API keys. Nothing on GitHub changes. Type <code>delete</code> to confirm.</div><input type="text" id="dzw" placeholder="delete" autocomplete="off" style="max-width:160px"></div><button type="button" class="dng" data-dz="wipe">Delete everything</button></div>
         <div class="msg" id="dzm"></div></div></div>`;
     const stab = (k) => {
       tb = k;
@@ -484,7 +484,7 @@
     };
     const tk = async (r) => {
       const d = r || await get("/api/toks");
-      $("tkl").innerHTML = (d.toks || []).length ? `<div class="tw"><table class="tb2 ro"><thead><tr><th>Name</th><th>Access</th><th>Created</th><th>Last used</th><th></th></tr></thead><tbody>${d.toks.map((t) => `<tr><td>${esc(t.n)}</td><td>${t.sc === "read" ? "read only" : "can change"}</td><td>${new Date(t.t0).toLocaleDateString()}</td><td>${t.last ? new Date(t.last).toLocaleString() : "never"}</td><td class="n"><button type="button" class="dng sm2" data-tkd="${esc(t.id)}">Revoke</button></td></tr>`).join("")}</tbody></table></div>` : `<div class="hint" style="margin:0">No tokens yet.</div>`;
+      $("tkl").innerHTML = (d.toks || []).length ? `<div class="tw"><table class="tb2 ro"><thead><tr><th>Name</th><th>Access</th><th>Created</th><th>Last used</th><th></th></tr></thead><tbody>${d.toks.map((t) => `<tr><td>${esc(t.n)}</td><td>${t.sc === "read" ? "read only" : "can change"}</td><td>${new Date(t.t0).toLocaleDateString()}</td><td>${t.last ? new Date(t.last).toLocaleString() : "never"}</td><td class="n"><button type="button" class="dng sm2" data-tkd="${esc(t.id)}">Revoke</button></td></tr>`).join("")}</tbody></table></div>` : `<div class="hint">No tokens yet.</div>`;
       if (d.mcp) $("tkm").textContent = `claude mcp add apollo-office -e APOLLO_OFFICE_TOKEN=$TOKEN -- ${d.mcp.replace(" --token <token>", "")}\n\nor over HTTP: http://127.0.0.1:${cfg.api.port}/mcp with header Authorization: Bearer $TOKEN`;
       for (const b of $("tkl").querySelectorAll("[data-tkd]")) b.onclick = async (e) => { if (e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again"; return; } tk(await post({ op: "del", id: b.dataset.tkd }, "/api/toks")); };
     };
@@ -561,7 +561,7 @@
       ${j.proof ? `<div class="sec"><h4>Proof</h4><pre class="df">${esc((j.proof.a || "") + "\n\n" + (j.proof.b || ""))}</pre></div>` : ""}
       <div class="sec"><h4>Diff</h4>${dview(j.df)}</div>
       <div class="acts"><button class="pri" id="ba">Submit pull request</button><button class="dng" id="bd">Drop</button></div><div class="msg" id="jm"></div>
-      <div class="sec" style="margin-top:20px"><h4>Log</h4><div class="log">${ev}</div></div>`;
+      <div class="sec"><h4>Log</h4><div class="log">${ev}</div></div>`;
       $("ba").onclick = async () => {
         busy($("ba"), true, "Submitting…");
         const r = await post({ a: "approve", id, pt: $("pt").value, pb: $("pb").value });
@@ -669,6 +669,19 @@
   document.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "s" && cur === "set" && document.body.classList.contains("pgm") && $("sbar") && !$("sbar").hidden) { e.preventDefault(); $("fs").requestSubmit(); }
   });
+  const rowify = (root) => {
+    for (const f of root.querySelectorAll(".fm:not(.fx)")) {
+      f.classList.add("fx");
+      let c = null;
+      for (const e of [...f.children]) {
+        if (e.tagName === "LABEL" && !e.classList.contains("ck")) { const r = document.createElement("div"); r.className = "fr3"; c = document.createElement("div"); c.className = "fc3"; f.insertBefore(r, e); r.append(e, c); }
+        else if (c) c.appendChild(e);
+      }
+    }
+  };
+  const mo = new MutationObserver(() => { rowify($("pgB")); rowify($("drB")); });
+  mo.observe($("pgB"), { childList: true, subtree: true });
+  mo.observe($("drB"), { childList: true, subtree: true });
   let asked = false;
   A.onState = (s) => {
     if (!asked && (s.nr === 0 || !s.hs.length)) { asked = true; setup(); }
