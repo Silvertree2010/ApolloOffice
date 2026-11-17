@@ -56,12 +56,12 @@ fn ghd() -> Vec<(&'static str, &'static str, Value)> {
         json!({"type": "object", "properties": p, "required": req})
     };
     vec![
-        ("gh_issue_view", "Read a GitHub issue with its labels and comments.", rn(json!({}), &["repo", "number"])),
+        ("gh_issue_view", "Read an issue with its labels and comments. Only in repositories added to the office.", rn(json!({}), &["repo", "number"])),
         ("gh_issue_list", "List issues of a repository.", json!({"type": "object", "properties": {"repo": {"type": "string"}, "state": {"type": "string", "enum": ["open", "closed", "all"]}, "label": {"type": "string"}, "limit": {"type": "number"}}, "required": ["repo"]})),
         ("gh_pr_view", "Read a pull request with files, reviews and comments.", rn(json!({}), &["repo", "number"])),
         ("gh_pr_list", "List pull requests of a repository.", json!({"type": "object", "properties": {"repo": {"type": "string"}, "state": {"type": "string", "enum": ["open", "closed", "merged", "all"]}, "limit": {"type": "number"}}, "required": ["repo"]})),
         ("gh_pr_diff", "Read the diff of a pull request.", rn(json!({}), &["repo", "number"])),
-        ("gh_search_issues", "Search issues and pull requests on GitHub.", json!({"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "number"}}, "required": ["query"]})),
+        ("gh_search_issues", "Search issues and pull requests in the repositories added to the office.", json!({"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "number"}}, "required": ["query"]})),
         ("gh_comment", "Comment on an issue or pull request. Only in repositories added to the office. Posted under the owner's account with an AI note.", rn(json!({"body": {"type": "string"}}), &["repo", "number", "body"])),
         ("gh_label", "Add or remove labels on an issue or pull request. Only in repositories added to the office.", rn(json!({"add": {"type": "array", "items": {"type": "string"}}, "remove": {"type": "array", "items": {"type": "string"}}}), &["repo", "number"])),
         ("gh_issue_create", "Open a new issue. Only in repositories added to the office. Posted under the owner's account with an AI note.", json!({"type": "object", "properties": {"repo": {"type": "string"}, "title": {"type": "string"}, "body": {"type": "string"}, "labels": {"type": "array", "items": {"type": "string"}}}, "required": ["repo", "title", "body"]})),
@@ -86,9 +86,8 @@ async fn ghcall(a: &Ax, n: &str, g: &Value) -> Result<String, String> {
     if n != "gh_search_issues" && !repo_ok(&repo) {
         return Err("repo must be owner/name".into());
     }
-    let w = matches!(n, "gh_comment" | "gh_label" | "gh_issue_create");
-    if w && a.db.n("select count(*) from rp where lower(full)=lower(?)", crate::pa![repo.clone()]) == 0 {
-        return Err(format!("{repo} is not added to the office, so workers may not write there"));
+    if n != "gh_search_issues" && a.db.n("select count(*) from rp where lower(full)=lower(?)", crate::pa![repo.clone()]) == 0 {
+        return Err(format!("{repo} is not added to the office, so workers may not use it"));
     }
     if matches!(n, "gh_issue_view" | "gh_pr_view" | "gh_pr_diff" | "gh_comment" | "gh_label") && num.is_empty() {
         return Err("number is required".into());
@@ -113,7 +112,12 @@ async fn ghcall(a: &Ax, n: &str, g: &Value) -> Result<String, String> {
             if qy.is_empty() {
                 return Err("query is required".into());
             }
-            crate::sh::gh(&["search", "issues", &qy, "--limit", &lim, "--json", "number,title,state,repository,url"], 60).await
+            let rs: Vec<String> = a.db.all("select full from rp order by full", crate::pa![]).iter().filter_map(|x| x["full"].as_str().map(|f| format!("repo:{f}"))).collect();
+            if rs.is_empty() {
+                return Err("no repositories are added to the office".into());
+            }
+            let qq = format!("{} {}", qy.split_whitespace().filter(|t| !t.to_lowercase().starts_with("repo:") && !t.to_lowercase().starts_with("org:") && !t.to_lowercase().starts_with("user:")).collect::<Vec<_>>().join(" "), rs.join(" "));
+            crate::sh::gh(&["search", "issues", "--limit", &lim, "--json", "number,title,state,repository,url", "--", &qq], 60).await
         }
         "gh_comment" => {
             let b = s("body");
