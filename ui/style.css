@@ -1079,3 +1079,7 @@ button.dd:active:not(:disabled) { transform: none; }
 .tile.nodesk .hd { color: var(--t1); font-weight: 600; }
 .tile.nodesk .sy { display: block; }
 .tile.nodesk .stt { display: block; color: var(--bad); }
+@media (min-width: 861px) {
+  body:not(.lay) main { grid-template-columns: minmax(0, 2fr) minmax(340px, 1fr); grid-template-rows: minmax(0, 2.4fr) minmax(0, 1fr); }
+  body:not(.lay) [data-lp=queue] { grid-row: 1 / span 1; }
+}

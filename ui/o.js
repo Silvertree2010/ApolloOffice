@@ -370,8 +370,10 @@
     }
     if (S?.o?.off) { c.globalAlpha = 0.25; px(0, 35, VW, VH - 35, "#000"); c.globalAlpha = 1; }
     const dp = window.devicePixelRatio || 1;
-    const sc = Math.max(1, Math.floor(Math.min((sgw - 2) * dp / VW, (sgh - 2) * dp / VH)));
-    if (cv.width !== VW * sc || cv.height !== VH * sc) { cv.width = VW * sc; cv.height = VH * sc; cv.style.width = VW * sc / dp + "px"; cv.style.height = VH * sc / dp + "px"; }
+    const kf = Math.min((sgw - 2) * dp / VW, (sgh - 2) * dp / VH), sc = Math.max(1, Math.floor(kf)), ks = kf >= 3 ? kf : sc;
+    if (cv.width !== VW * sc || cv.height !== VH * sc) { cv.width = VW * sc; cv.height = VH * sc; }
+    const cw = Math.floor(VW * ks / dp) + "px", ch = Math.floor(VH * ks / dp) + "px";
+    if (cv.style.width !== cw || cv.style.height !== ch) { cv.style.width = cw; cv.style.height = ch; }
     cx.imageSmoothingEnabled = false;
     cx.drawImage(off, 0, 0, VW * sc, VH * sc);
     if (fedit) { cx.globalAlpha = lt() ? 0.06 : 0.05; cx.fillStyle = lt() ? "#000" : "#fff"; for (let x = 0; x <= GX; x++) cx.fillRect(x * 8 * sc, GO * sc, 1, GY * 8 * sc); for (let y = 0; y <= GY; y++) cx.fillRect(0, (GO + y * 8) * sc, VW * sc, 1); cx.globalAlpha = 1; }
