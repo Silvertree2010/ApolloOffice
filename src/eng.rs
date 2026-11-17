@@ -199,8 +199,8 @@ async fn exec(a: Ax, id: i64) {
                 d["gate"] = json!(true);
                 q.push_front(nid.clone());
                 d["q"] = json!(q.iter().collect::<Vec<_>>());
-                let src = format!("{} #{}{}", d["input"]["repo"].as_str().unwrap_or(""), d["input"]["number"], d["input"]["author"].as_str().map(|x| format!(" by {x}")).unwrap_or_default());
-                rec(&mut d, &n, "", json!({"ask": format!("This run was started by {src} on GitHub. Let a worker with shell, file or GitHub access act on it?")}), true, t0, None);
+                let src = if d["input"]["kind"] == "webhook" { "a webhook call from outside".to_string() } else { format!("{} #{}{} on GitHub", d["input"]["repo"].as_str().unwrap_or(""), d["input"]["number"], d["input"]["author"].as_str().map(|x| format!(" by {x}")).unwrap_or_default()) };
+                rec(&mut d, &n, "", json!({"ask": format!("This run was started by {src}. Let a worker with shell, file or GitHub access act on it?")}), true, t0, None);
                 store(&a, id, "wait", &d);
                 return;
             }
@@ -269,6 +269,86 @@ async fn exec(a: Ax, id: i64) {
     a.say("submit", &format!("pipeline {} finished (run {id})", d["flow"]["n"].as_str().unwrap_or("")), None);
 }
 
+fn hh(t: &str) -> String {
+    use sha2::{Digest, Sha256};
+    hex::encode(Sha256::digest(t.as_bytes()))
+}
+
+fn hook_node(a: &Ax, fid: &str, nid: &str) -> bool {
+    flow(a, fid).and_then(|f| f["nodes"].as_array().map(|ns| ns.iter().any(|n| n["id"] == nid && n["t"] == "t.hook"))).unwrap_or(false)
+}
+
+pub fn hooks(a: &Ax) -> Value {
+    let k = a.db.kg("hooks");
+    let mut o = json!({});
+    if let Some(m) = k.as_object() {
+        for (key, v) in m {
+            o[key] = json!({"t0": v["t0"], "last": v["last"]});
+        }
+    }
+    o
+}
+
+pub fn hook_op(a: &Ax, b: &Value) -> Result<Value, String> {
+    let (fid, nid) = (b["flow"].as_str().unwrap_or(""), b["node"].as_str().unwrap_or(""));
+    if !hook_node(a, fid, nid) {
+        return Err("save the pipeline with this webhook block first".into());
+    }
+    let mut k = a.db.kg("hooks");
+    if !k.is_object() {
+        k = json!({});
+    }
+    let id = format!("{fid}/{nid}");
+    match b["op"].as_str().unwrap_or("") {
+        "new" => {
+            let t = format!("wh_{}", hex::encode(rand::random::<[u8; 24]>()));
+            k[&id] = json!({"h": hh(&t), "t0": now(), "last": null});
+            a.db.ks("hooks", &k);
+            Ok(json!({"key": t, "hooks": hooks(a)}))
+        }
+        "del" => {
+            if let Some(o) = k.as_object_mut() {
+                o.remove(&id);
+            }
+            a.db.ks("hooks", &k);
+            Ok(json!({"hooks": hooks(a)}))
+        }
+        _ => Err("unknown op".into()),
+    }
+}
+
+pub fn hook_run(a: &Ax, fid: &str, nid: &str, key: &str, body: &[u8], ct: &str) -> Result<i64, (u16, String)> {
+    static RL: OnceLock<Mutex<HashMap<String, Vec<i64>>>> = OnceLock::new();
+    let id = format!("{fid}/{nid}");
+    let mut k = a.db.kg("hooks");
+    let ok = key.len() >= 20 && k[&id]["h"].as_str().is_some_and(|h| h == hh(key));
+    if !ok {
+        return Err((401, "unknown webhook or wrong key".into()));
+    }
+    let f = flow(a, fid).ok_or((404, "no such pipeline".to_string()))?;
+    if f["on"] != true {
+        return Err((409, "this pipeline is switched off".into()));
+    }
+    if !hook_node(a, fid, nid) {
+        return Err((404, "this webhook block no longer exists".into()));
+    }
+    {
+        let mut m = RL.get_or_init(|| Mutex::new(HashMap::new())).lock().unwrap();
+        let v = m.entry(id.clone()).or_default();
+        let t = now();
+        v.retain(|x| t - *x < 60_000);
+        if v.len() >= 20 {
+            return Err((429, "too many calls, at most 20 per minute".into()));
+        }
+        v.push(t);
+    }
+    let txt = String::from_utf8_lossy(body).to_string();
+    let data = if ct.contains("json") { serde_json::from_str::<Value>(&txt).unwrap_or(json!(crate::sh::head(&txt, 20000))) } else { json!(crate::sh::head(&txt, 20000)) };
+    k[&id]["last"] = json!(now());
+    a.db.ks("hooks", &k);
+    start(a, fid, Some(nid), json!({"kind": "webhook", "data": data})).map_err(|e| (400, e))
+}
+
 pub fn answer(a: &Ax, id: i64, yes: bool) -> Result<(), String> {
     let (st, mut d) = load(a, id).ok_or("no such run")?;
     if st != "wait" {
@@ -280,7 +360,7 @@ pub fn answer(a: &Ax, id: i64, yes: bool) -> Result<(), String> {
         d["gate"] = Value::Null;
         if !yes {
             d["wait"] = Value::Null;
-            d["err"] = json!("you declined to let workers with shell, file or GitHub access act on this GitHub item");
+            d["err"] = json!("you declined to let workers with shell, file or GitHub access act on this outside input");
             d["q"] = json!(Vec::<String>::new());
             store(a, id, "stop", &d);
             return Ok(());

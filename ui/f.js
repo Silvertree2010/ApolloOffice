@@ -131,7 +131,7 @@
     if (!f.nodes.length) {
       E.innerHTML = "";
       const st = (t, l, d) => `<button type="button" class="sc" data-st="${t}"><span class="mic" style="--g:${GR.t}">${ic(BK[t].ic)}</span><b>${l}</b><small>${d}</small></button>`;
-      N.innerHTML = `<div class="fstart"><h3>When should this run?</h3><div class="scs">${st("t.manual", "When I press Start", "You start it yourself")}${st("t.cron", "On a schedule", "Every day, every hour, …")}${st("t.issue", "When an issue comes in", "For each new GitHub issue")}${st("t.pr", "When a pull request comes in", "For each new pull request")}</div></div>`;
+      N.innerHTML = `<div class="fstart"><h3>When should this run?</h3><div class="scs">${st("t.manual", "When I press Start", "You start it yourself")}${st("t.cron", "On a schedule", "Every day, every hour, …")}${st("t.issue", "When an issue comes in", "For each new GitHub issue")}${st("t.pr", "When a pull request comes in", "For each new pull request")}${st("t.hook", "When another app calls", "A webhook link starts it")}</div></div>`;
       const C = $("fC"); view = { x: Math.max(20, (C.clientWidth - 640) / 2), y: Math.max(20, C.clientHeight / 2 - 160), k: 1 }; tf();
       for (const b of N.querySelectorAll("[data-st]")) b.onclick = () => start(b.dataset.st);
       return;
@@ -272,7 +272,12 @@
     if (hireFor !== null) mid = hireForm();
     else if (n) {
       const b = BK[n.t];
-      mid = `<div class="fsec fi"><h5><span class="mic" style="--g:${GR[b.g]}">${ic(b.ic)}</span><span>${esc(title(n))}</span></h5><div class="ff">${(b.f || []).map((x) => field(n, x)).join("") || `<div class="hint">Nothing to set up here.</div>`}</div>
+      const hk = n.t === "t.hook" ? (D.hooks || {})[`${cur}/${n.id}`] : null;
+      const hook = n.t !== "t.hook" ? "" : `<div class="ff"><label>Link for other apps</label><div class="hint">${hk ? `Active since ${new Date(hk.t0).toLocaleDateString()}${hk.last ? ", last call " + new Date(hk.last).toLocaleString() : ", not called yet"}.` : "No link yet. Create one and give it to the app that should start this pipeline."}</div>
+        <div id="hkV" hidden><input type="text" readonly id="hkU"><div class="hint">Copy it now, the key is shown only once.</div><pre class="df" id="hkC" style="white-space:pre-wrap"></pre></div>
+        <div class="ac"><button type="button" class="go" id="hkN">${hk ? "Replace link" : "Create link"}</button>${hk ? `<button type="button" class="dng" id="hkD">Revoke</button>` : ""}</div>
+        ${f.on ? "" : `<div class="hint">Switch the pipeline On, otherwise calls are refused.</div>`}<div class="hint">The request body becomes the input of the run. Steps with shell, file or GitHub access ask you first.</div></div>`;
+      mid = `<div class="fsec fi"><h5><span class="mic" style="--g:${GR[b.g]}">${ic(b.ic)}</span><span>${esc(title(n))}</span></h5><div class="ff">${(b.f || []).map((x) => field(n, x)).join("") || (hook ? "" : `<div class="hint">Nothing to set up here.</div>`)}</div>${hook}
         <div class="ac">${outs(n).length ? `<button type="button" id="fNext">${ic("plus")}Add next step</button>` : ""}<span class="sp"></span><button type="button" class="dng" id="fDel">Remove</button></div></div>`;
     } else if (esel != null) {
       mid = `<div class="fsec fi"><h5><span>Line</span></h5><div class="ac"><span class="sp"></span><button type="button" class="dng" id="fEdel">Remove line</button></div></div>`;
@@ -310,6 +315,15 @@
       if (r.run) { runs(); A.runView && A.runView(r.run); } else if (r.error) alert(r.error);
     });
     if (f) runs();
+    const hop = async (op) => {
+      clearTimeout(tmo); await post({ flows: D.flows, crew: D.crew }, "/api/flows");
+      const r = await post({ op, flow: cur, node: sel }, "/api/flows/hook");
+      if (r.error) return alert(r.error);
+      D.hooks = r.hooks; side();
+      if (r.key) { const u = `${location.origin}/v1/run/${encodeURIComponent(cur)}/${encodeURIComponent(sel)}?key=${r.key}`; $("hkV").hidden = false; $("hkU").value = u; $("hkU").select(); $("hkC").textContent = `curl -X POST '${u}' \\\n  -H 'Content-Type: application/json' \\\n  -d '{"text": "hello"}'`; }
+    };
+    on("hkN", "onclick", (e) => { if (e.target.textContent.startsWith("Replace") && e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again, the old link stops working"; return; } hop("new"); });
+    on("hkD", "onclick", (e) => { if (e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again to revoke"; return; } hop("del"); });
     on("fSel", "onchange", (e) => { cur = e.target.value; sel = null; esel = null; hideMenu(); side(); paint(); fit(); });
     on("fNew", "onclick", newFlow);
     on("fName", "onchange", (e) => { f.n = e.target.value.trim() || "Untitled"; save(); side(); });

@@ -679,6 +679,19 @@ async fn v1(a: &Ax, m: &Method, p: &str, q: &str, hd: &HeaderMap, b: Body) -> Re
     if m == Method::POST && p == "/v1/hook" {
         return hook(a, q, hd, b).await;
     }
+    if m == Method::POST && p.starts_with("/v1/run/") {
+        let sg: Vec<&str> = p.trim_start_matches("/v1/run/").split('/').collect();
+        if sg.len() != 2 {
+            return er(StatusCode::NOT_FOUND, "use /v1/run/<pipeline>/<block>");
+        }
+        let key = hd.get("x-hook-key").and_then(|v| v.to_str().ok()).map(String::from).unwrap_or_else(|| q.split('&').find_map(|x| x.strip_prefix("key=")).unwrap_or("").to_string());
+        let ct = hd.get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("").to_lowercase();
+        let Ok(by) = to_bytes(b, 1 << 20).await else { return er(StatusCode::PAYLOAD_TOO_LARGE, "body larger than 1 MB") };
+        return match crate::eng::hook_run(a, sg[0], sg[1], &key, &by, &ct) {
+            Ok(id) => js(json!({"run": id})),
+            Err((c, e)) => er(StatusCode::from_u16(c).unwrap_or(StatusCode::BAD_REQUEST), &e),
+        };
+    }
     if !tok_ok(a, hd) {
         return er(StatusCode::UNAUTHORIZED, "missing or wrong API token (Settings → API)");
     }
@@ -957,7 +970,8 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
                 Err((c, e)) => er(StatusCode::from_u16(c).unwrap_or(StatusCode::BAD_REQUEST), &e),
             }
         }
-        ("GET", "/api/flows") => js(crate::flows::get(a)),
+        ("GET", "/api/flows") => { let mut v = crate::flows::get(a); v["hooks"] = crate::eng::hooks(a); js(v) }
+        ("POST", "/api/flows/hook") => match crate::eng::hook_op(a, &b) { Ok(v) => js(v), Err(e) => er(StatusCode::BAD_REQUEST, &e) },
         ("POST", "/api/flows") => js(crate::flows::put(a, &b)),
         ("GET", "/api/cost") => js(costs(a)),
         ("GET", "/api/health") => js(health(a, qv("f") == "1").await),
