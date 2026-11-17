@@ -1083,3 +1083,7 @@ button.dd:active:not(:disabled) { transform: none; }
   body:not(.lay) main { grid-template-columns: minmax(0, 2fr) minmax(340px, 1fr); grid-template-rows: minmax(0, 2.4fr) minmax(0, 1fr); }
   body:not(.lay) [data-lp=queue] { grid-row: 1 / span 1; }
 }
+@media (min-width: 861px) {
+  body:not(.lay) main { grid-template-columns: minmax(0, 1fr) clamp(300px, 28vw, 440px); grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "st q" "st p" "st lg"; }
+  body:not(.lay) [data-lp=queue] { grid-row: auto; }
+}
