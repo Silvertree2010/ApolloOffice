@@ -320,7 +320,7 @@ async fn prep(a: &Ax, j: &mut Job) -> R<()> {
 }
 
 fn rn(a: &Ax, j: &Job) -> Option<Rn> {
-    Some(Rn { h: j.h(), dir: dir(a, j), w: String::new(), md: String::new() })
+    Some(Rn { h: j.h(), dir: dir(a, j), w: String::new(), md: String::new(), tl: None })
 }
 
 fn rules(a: &Ax, j: &Job) -> String {

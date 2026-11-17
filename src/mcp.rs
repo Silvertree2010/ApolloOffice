@@ -38,7 +38,21 @@ pub fn defs() -> Vec<(&'static str, &'static str, Value)> {
     ]
 }
 
+pub fn allowed(r: &Rn, n: &str) -> bool {
+    match &r.tl {
+        None => true,
+        Some(t) => (n == "sh" && t.iter().any(|x| x == "shell")) || (["read", "write", "edit", "grep", "ls"].contains(&n) && t.iter().any(|x| x == "files")),
+    }
+}
+
+pub fn defs_for(r: &Rn) -> Vec<(&'static str, &'static str, Value)> {
+    defs().into_iter().filter(|(n, ..)| allowed(r, n)).collect()
+}
+
 pub async fn call(a: &Ax, r: &Rn, n: &str, g: &Value) -> Result<String, String> {
+    if !allowed(r, n) {
+        return Err(format!("the tool {n} is not allowed for this worker"));
+    }
     let d = &r.dir;
     let s = |k: &str| g[k].as_str().unwrap_or("").to_string();
     if !r.w.is_empty() {
@@ -123,7 +137,7 @@ pub async fn handle(a: &Ax, t: &str, m: &Value) -> Value {
     let Some(r) = a.runs.lock().unwrap().get(t).cloned() else { return json!({"jsonrpc": "2.0", "id": id, "error": {"code": -32001, "message": "run is over"}}) };
     match m["method"].as_str().unwrap_or("") {
         "initialize" => json!({"jsonrpc": "2.0", "id": id, "result": {"protocolVersion": m["params"]["protocolVersion"].as_str().unwrap_or("2025-06-18"), "capabilities": {"tools": {}}, "serverInfo": {"name": "office", "version": crate::app::V}}}),
-        "tools/list" => json!({"jsonrpc": "2.0", "id": id, "result": {"tools": defs().into_iter().map(|(n, d, s)| json!({"name": n, "description": d, "inputSchema": s})).collect::<Vec<_>>()}}),
+        "tools/list" => json!({"jsonrpc": "2.0", "id": id, "result": {"tools": defs_for(&r).into_iter().map(|(n, d, s)| json!({"name": n, "description": d, "inputSchema": s})).collect::<Vec<_>>()}}),
         "tools/call" => {
             let n = m["params"]["name"].as_str().unwrap_or("");
             let g = if m["params"]["arguments"].is_object() { m["params"]["arguments"].clone() } else { json!({}) };
@@ -161,6 +175,18 @@ pub async fn bridge(port: u16, t: String) {
 
 #[cfg(test)]
 mod t {
+
+    #[test]
+    fn scoped_tools() {
+        let r = |t: Option<Vec<&str>>| super::Rn { h: "local".into(), dir: "/tmp".into(), w: String::new(), md: String::new(), tl: t.map(|v| v.into_iter().map(String::from).collect()) };
+        assert!(super::allowed(&r(None), "sh"));
+        assert!(super::allowed(&r(Some(vec!["shell"])), "sh"));
+        assert!(!super::allowed(&r(Some(vec!["shell"])), "write"));
+        assert!(super::allowed(&r(Some(vec!["files"])), "edit"));
+        assert!(!super::allowed(&r(Some(vec!["files"])), "sh"));
+        assert_eq!(super::defs_for(&r(Some(vec!["files"]))).len(), 5);
+    }
+
     use super::*;
 
     #[cfg(unix)]
@@ -176,11 +202,11 @@ mod t {
         std::fs::write(root.join(".venv/bin/activate"),"echo UNSAFE_ACTIVATION >&2; exit 90\n").unwrap();
         let db=crate::db::Db::mem();db.run("insert into hs(id,on_) values('local',1)",crate::pa![]);
         let a=std::sync::Arc::new(crate::app::App::new(db,root.clone(),1,"x".into()));
-        let r=Rn{h:"local".into(),dir:root.display().to_string(),w:String::new(),md:String::new()};
+        let r=Rn{h:"local".into(),dir:root.display().to_string(),w:String::new(),md:String::new(),tl:None};
         let out=call(&a,&r,"sh",&json!({"cmd":"cd tool && python3 && printf '%s' \"$VIRTUAL_ENV\""})).await.unwrap();
         assert!(out.contains("prepared-project-python"),"{out}");assert!(out.contains(&root.join(".venv").display().to_string()),"{out}");
         assert!(!out.contains("UNSAFE_ACTIVATION"));assert!(out.contains("[exit 0]"),"{out}");
-        let missing=Rn{h:"local".into(),dir:root.join("missing").display().to_string(),w:String::new(),md:String::new()};
+        let missing=Rn{h:"local".into(),dir:root.join("missing").display().to_string(),w:String::new(),md:String::new(),tl:None};
         let out=call(&a,&missing,"sh",&json!({"cmd":"echo OUTSIDE_WORKSPACE"})).await.unwrap();
         assert!(!out.contains("OUTSIDE_WORKSPACE"),"must not run when cd fails: {out}");
         assert!(out.contains("[exit 1]"),"{out}");

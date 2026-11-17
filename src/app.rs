@@ -58,6 +58,7 @@ pub struct Rn {
     pub dir: String,
     pub w: String,
     pub md: String,
+    pub tl: Option<Vec<String>>,
 }
 
 pub struct App {

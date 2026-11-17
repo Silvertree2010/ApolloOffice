@@ -55,9 +55,10 @@ fn load(a: &Ax, id: i64) -> Option<(String, Value)> {
     Some((r["st"].as_str().unwrap_or("").to_string(), r["d"].clone()))
 }
 
-fn store(a: &Ax, id: i64, st: &str, d: &Value) {
+fn store(a: &Ax, id: i64, st: &str, d: &Value) -> bool {
     let fin = matches!(st, "done" | "fail" | "stop");
-    a.db.run("update runs set st=?, d=?, t1=? where id=?", pa![st.to_string(), d.to_string(), if fin { now() } else { 0 }, id]);
+    a.db.run("update runs set st=?, d=?, t1=? where id=? and (st<>'stop' or ?='stop')", pa![st.to_string(), d.to_string(), if fin { now() } else { 0 }, id, st.to_string()]);
+    st == "stop" || load(a, id).map(|x| x.0) != Some("stop".into())
 }
 
 fn targets(d: &Value, nid: &str, port: &str) -> Vec<String> {
@@ -131,7 +132,7 @@ async fn step(a: &Ax, id: i64, d: &mut Value, n: &Value) -> Result<(Value, bool)
         if r.c != 0 {
             return Err(format!("could not prepare {h}: {}", crate::sh::head(r.all().trim(), 200)));
         }
-        o.rn = Some(Rn { h, dir, w: String::new(), md: String::new() });
+        o.rn = Some(Rn { h, dir, w: String::new(), md: String::new(), tl: Some(tl.iter().map(|t| t.to_string()).collect()) });
         o.turns = 60;
         o.t = 30 * 60;
     }
@@ -139,6 +140,14 @@ async fn step(a: &Ax, id: i64, d: &mut Value, n: &Value) -> Result<(Value, bool)
     let out = if js.is_object() { js } else { json!({"result": crate::sh::head(txt.trim(), 20000)}) };
     let ok = !chk || out["ok"].as_bool().unwrap_or(false);
     Ok((out, ok))
+}
+
+fn gate(d: &Value, n: &Value) -> bool {
+    if d["approved"] == true || !d["input"]["kind"].is_string() {
+        return false;
+    }
+    let wid = n["c"]["w"].as_str().unwrap_or("");
+    d["crew"].as_array().and_then(|c| c.iter().find(|x| x["id"] == wid)).and_then(|w| w["tl"].as_array()).is_some_and(|t| t.iter().any(|x| x == "shell" || x == "files"))
 }
 
 fn rec(d: &mut Value, n: &Value, w: &str, out: Value, ok: bool, t0: i64, err: Option<String>) {
@@ -179,6 +188,17 @@ async fn exec(a: Ax, id: i64) {
                 let inp = json!({"input": d["input"].clone()});
                 rec(&mut d, &n, "", inp, true, t0, None);
                 next = targets(&d, &nid, "out");
+            }
+            "worker" | "check" if gate(&d, &n) => {
+                d["vis"][&nid] = json!(v - 1);
+                d["wait"] = json!(nid);
+                d["gate"] = json!(true);
+                q.push_front(nid.clone());
+                d["q"] = json!(q.iter().collect::<Vec<_>>());
+                let src = format!("{} #{}{}", d["input"]["repo"].as_str().unwrap_or(""), d["input"]["number"], d["input"]["author"].as_str().map(|x| format!(" by {x}")).unwrap_or_default());
+                rec(&mut d, &n, "", json!({"ask": format!("This run was started by {src} on GitHub. Let a worker with shell or file access act on it?")}), true, t0, None);
+                store(&a, id, "wait", &d);
+                return;
             }
             "worker" | "check" => {
                 let wn = d["crew"].as_array().and_then(|c| c.iter().find(|x| x["id"] == n["c"]["w"]).and_then(|x| x["n"].as_str().map(String::from))).unwrap_or_default();
@@ -235,9 +255,13 @@ async fn exec(a: Ax, id: i64) {
         }
         q.extend(next);
         d["q"] = json!(q.iter().collect::<Vec<_>>());
-        store(&a, id, "run", &d);
+        if !store(&a, id, "run", &d) {
+            return;
+        }
     }
-    store(&a, id, "done", &d);
+    if !store(&a, id, "done", &d) {
+        return;
+    }
     a.say("submit", &format!("pipeline {} finished (run {id})", d["flow"]["n"].as_str().unwrap_or("")), None);
 }
 
@@ -248,7 +272,19 @@ pub fn answer(a: &Ax, id: i64, yes: bool) -> Result<(), String> {
     }
     let w = d["wait"].as_str().unwrap_or("").to_string();
     let mut q: Vec<String> = d["q"].as_array().map(|x| x.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default();
-    q.extend(targets(&d, &w, if yes { "yes" } else { "no" }));
+    if d["gate"] == true {
+        d["gate"] = Value::Null;
+        if !yes {
+            d["wait"] = Value::Null;
+            d["err"] = json!("you declined to let workers with shell or file access act on this GitHub item");
+            d["q"] = json!(Vec::<String>::new());
+            store(a, id, "stop", &d);
+            return Ok(());
+        }
+        d["approved"] = json!(true);
+    } else {
+        q.extend(targets(&d, &w, if yes { "yes" } else { "no" }));
+    }
     d["q"] = json!(q);
     d["wait"] = Value::Null;
     if let Some(s) = d["steps"].as_array_mut().and_then(|s| s.last_mut()) {
@@ -272,7 +308,7 @@ pub fn list(a: &Ax, fid: Option<&str>, st: Option<&str>, lim: i64) -> Vec<Value>
         .into_iter()
         .map(|r| {
             let d = &r["d"];
-            let ask = d["wait"].as_str().and_then(|w| d["flow"]["nodes"].as_array().and_then(|ns| ns.iter().find(|n| n["id"] == w)).map(|n| n["c"]["ask"].clone()));
+            let ask = if d["gate"] == true { d["steps"].as_array().and_then(|s| s.last()).map(|s| s["out"]["ask"].clone()) } else { d["wait"].as_str().and_then(|w| d["flow"]["nodes"].as_array().and_then(|ns| ns.iter().find(|n| n["id"] == w)).map(|n| n["c"]["ask"].clone())) };
             json!({"id": r["id"], "flow": r["flow"], "name": d["flow"]["n"], "st": r["st"], "t0": r["t0"], "t1": r["t1"], "steps": d["steps"].as_array().map(|s| s.len()).unwrap_or(0), "err": d["err"], "ask": ask})
         })
         .collect()
@@ -353,7 +389,7 @@ async fn poll(a: &Ax, fid: &str, n: &Value, pr: bool) {
         seen = json!({});
     }
     for r in repos {
-        let Ok(v) = crate::sh::ghj(&[if pr { "pr" } else { "issue" }, "list", "-R", &r, "--state", "open", "--limit", "20", "--json", "number,title,body,url,labels,createdAt"], 60).await else { continue };
+        let Ok(v) = crate::sh::ghj(&[if pr { "pr" } else { "issue" }, "list", "-R", &r, "--state", "open", "--limit", "20", "--json", "number,title,body,url,labels,createdAt,author"], 60).await else { continue };
         let mut have: Vec<i64> = seen[&r].as_array().map(|x| x.iter().filter_map(|n| n.as_i64()).collect()).unwrap_or_default();
         for it in v.as_array().cloned().unwrap_or_default() {
             let num = it["number"].as_i64().unwrap_or(0);
@@ -367,7 +403,7 @@ async fn poll(a: &Ax, fid: &str, n: &Value, pr: bool) {
             if !lb.is_empty() && !it["labels"].as_array().is_some_and(|ls| ls.iter().any(|l| l["name"].as_str().map(|x| x.to_lowercase()) == Some(lb.clone()))) {
                 continue;
             }
-            let _ = start(a, fid, n["id"].as_str(), json!({"repo": r, "number": num, "title": it["title"], "body": crate::sh::head(it["body"].as_str().unwrap_or(""), 8000), "url": it["url"], "kind": if pr { "pull request" } else { "issue" }}));
+            let _ = start(a, fid, n["id"].as_str(), json!({"repo": r, "number": num, "title": it["title"], "body": crate::sh::head(it["body"].as_str().unwrap_or(""), 8000), "url": it["url"], "author": it["author"]["login"], "kind": if pr { "pull request" } else { "issue" }}));
         }
         let k = have.len().saturating_sub(500);
         have.drain(..k);
@@ -428,6 +464,17 @@ mod t {
         assert!(cron("30 8 1,15 * 7", 30, 8, 15, 6, 0));
         assert!(!cron("bad", 0, 0, 1, 1, 0));
         assert!(!cron("*/0 * * * *", 0, 0, 1, 1, 0));
+    }
+
+    #[test]
+    fn github_gate() {
+        let crew = json!([{"id": "a", "tl": ["shell"]}, {"id": "b", "tl": []}]);
+        let n = |w: &str| json!({"c": {"w": w}});
+        let gh = json!({"crew": crew, "input": {"kind": "issue"}});
+        assert!(gate(&gh, &n("a")));
+        assert!(!gate(&gh, &n("b")));
+        assert!(!gate(&json!({"crew": crew, "input": {"text": "x"}}), &n("a")));
+        assert!(!gate(&json!({"crew": crew, "input": {"kind": "issue"}, "approved": true}), &n("a")));
     }
 
     #[test]
