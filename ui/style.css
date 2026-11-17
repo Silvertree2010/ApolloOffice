@@ -855,3 +855,26 @@ html, body { font-size: var(--fs3); }
 .tile:not(.work) { padding: 0 7px; }
 .log .tm { display: inline; padding: 0; border: 0; border-radius: 0; color: var(--t2); }
 .log div { align-items: baseline; }
+.fe { grid-template-columns: 320px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+.fbar { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.fbar select { width: auto; max-width: 240px; font: 500 var(--fs3) var(--s); padding: 8px 10px; border-radius: var(--ri); }
+.fbar input[type=text] { width: 260px; font: var(--fs3) var(--s); padding: 8px 10px; border-radius: var(--ri); }
+.fbar .sp { flex: 1; }
+.fbar svg, .fs svg { width: 14px; height: 14px; }
+.fbar button svg { margin-right: 5px; vertical-align: -2px; }
+.fbar .fRun { width: auto; padding: 9px 14px; }
+.fs { padding: 10px; gap: 16px; }
+.ftb { display: flex; justify-self: stretch; }
+.ftb button { flex: 1; font-size: var(--fs4); }
+.ftb button span { color: var(--t2); font-weight: 400; margin-left: 2px; }
+.fs .fsec { padding: 0 4px; }
+.fs .fsec.fi { padding: 12px; }
+.fcl .cw:first-child { border-top: 0; }
+.fcl .cw b { font-size: var(--fs3); }
+.fs #fHire { margin-top: 4px; }
+.fmh { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-top: 1px solid var(--h); font-size: var(--fs4); color: var(--t2); }
+.fmh span { display: inline-flex; align-items: center; gap: 8px; }
+button.lnk { background: none; border: 0; padding: 4px 0; color: var(--t1); font-size: var(--fs4); text-decoration: underline; text-decoration-color: var(--l); text-underline-offset: .25em; }
+button.lnk:hover { background: none; text-decoration-color: var(--t1); }
+.fruns .frn { width: 100%; padding: 9px 8px; border-radius: var(--ri); }
+.fruns .frn + .frn { border-top: 1px solid var(--h); border-radius: 0; }

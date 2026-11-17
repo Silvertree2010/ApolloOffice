@@ -36,7 +36,7 @@
   const PN = { ok: "good", back: "fix it", yes: "yes", no: "no" };
   const GR = { t: "#3fb6a8", w: "#6fa8dc", c: "#d0649f", l: "#9c7ae0", x: "#8d9199" };
   const TLN = { shell: "Run commands on my machines", files: "Read and change files", github: "Use GitHub: read issues and pull requests, comment and label in your repositories", web: "Look things up on the web" };
-  let D = null, cfg = null, cur = null, sel = null, esel = null, open = false, view = { x: 40, y: 40, k: 1 }, tmo = 0, hist = [], menu = null, hireFor = null;
+  let D = null, cfg = null, cur = null, sel = null, esel = null, open = false, view = { x: 40, y: 40, k: 1 }, tmo = 0, hist = [], menu = null, hireFor = null, tab = "set";
   const R = $("fe");
   const outs = (n) => { const b = BK[n.t]; return typeof b.o === "function" ? b.o(n.c || {}) : b.o; };
   const fl = () => D.flows.find((f) => f.id === cur);
@@ -59,7 +59,7 @@
   const miss = (n) => ((n.t === "worker" || n.t === "check") && !who(n.c.w)) ? "Pick who does this" : n.t === "t.cron" && !n.c.cron ? "Pick when" : n.t === "branch" && !n.c.field ? "Pick what to decide by" : "";
 
   const shell = () => {
-    R.innerHTML = `<aside class="fs" id="fS"></aside><div class="fc" id="fC"><div class="fw" id="fW"><svg class="fe2" id="fE"></svg><div id="fN"></div></div><div class="fz"><button type="button" data-z="-" aria-label="Zoom out">−</button><span id="fZ"></span><button type="button" data-z="+" aria-label="Zoom in">+</button><button type="button" data-z="0">Fit</button></div><div class="fm2" id="fM" hidden></div></div>`;
+    R.innerHTML = `<div class="fbar" id="fB"></div><aside class="fs" id="fS"></aside><div class="fc" id="fC"><div class="fw" id="fW"><svg class="fe2" id="fE"></svg><div id="fN"></div></div><div class="fz"><button type="button" data-z="-" aria-label="Zoom out">−</button><span id="fZ"></span><button type="button" data-z="+" aria-label="Zoom in">+</button><button type="button" data-z="0">Fit</button></div><div class="fm2" id="fM" hidden></div></div>`;
     const C = $("fC");
     let pan = null;
     C.addEventListener("pointerdown", (e) => {
@@ -282,14 +282,15 @@
     } else if (esel != null) {
       mid = `<div class="fsec fi"><h5><span>Line</span></h5><div class="ac"><span class="sp"></span><button type="button" class="dng" id="fEdel">Remove line</button></div></div>`;
     }
-    const hs = cfg?.hosts || [], hst = A.S?.hst || {};
-    const mach = `<div class="fsec"><h6>Machines</h6>${hs.length ? hs.map((h) => { const st = hst[h.id] || {}; return `<div class="mc ${h.on_ ? "" : "off"}"><i class="md2 ${!h.on_ ? "" : up(h.id) ? "up" : "dn"}"></i><b>${esc(h.id)}</b><span>${!h.on_ ? "off" : up(h.id) ? `${h.ln || 1} lane${(h.ln || 1) > 1 ? "s" : ""}${st.load != null ? " · load " + Number(st.load).toFixed(1) : ""}` : "offline"}</span></div>`; }).join("") : `<div class="hint">No machines yet.</div>`}<button type="button" id="fMgr">${ic("server")}Manage machines</button></div>`;
-    const team = `<div class="fsec"><h6>Your team</h6>${D.crew.length ? D.crew.map((w) => `<div class="cw"><span class="mic" style="--g:${GR.w}">${ic("person")}</span><b>${esc(w.n)}</b><span>${esc(w.r && w.r !== w.n ? w.r : "")}</span><button type="button" class="dng" data-fire="${w.id}">Let go</button></div>`).join("") : `<div class="hint">Nobody here yet.</div>`}<button type="button" id="fHire">${ic("plus")}Hire someone</button></div>`;
-    S.innerHTML = `<div class="fsec fh"><div class="frow"><select id="fSel" aria-label="Pipeline">${D.flows.map((x) => `<option value="${x.id}" ${x.id === cur ? "selected" : ""}>${esc(x.n)}</option>`).join("")}</select><button type="button" id="fNew">${ic("plus")}New</button></div>
-      ${f ? `<div class="frow"><input type="text" id="fName" value="${esc(f.n)}" maxlength="60" aria-label="Name"><button type="button" class="sw ${f.on ? "on" : ""}" id="fOn" role="switch" aria-checked="${f.on}" title="On: schedules and GitHub triggers start this pipeline by themselves"><i></i>${f.on ? "On" : "Off"}</button></div>
-      <div class="frow"><button type="button" class="go fRun" id="fRun" ${f.nodes.some((n) => n.t.startsWith("t.")) ? "" : "disabled"}>${ic("play")}Run now</button></div><div id="fRuns" class="fruns"></div>` : ""}</div>
-      ${mid}${team}${mach}
-      ${f ? `<div class="fsec fbot"><div class="ac"><button type="button" id="fUndo" ${hist.length ? "" : "disabled"}>Undo</button><span class="sp"></span><button type="button" class="dng" id="fRm">Delete pipeline</button></div></div>` : ""}`;
+    if (hireFor !== null) tab = "team";
+    else if (n || esel != null) tab = "set";
+    const hs = (cfg?.hosts || []).filter((h) => h.on_), upn = hs.filter((h) => up(h.id)).length;
+    const team = hireFor !== null ? mid : `<div class="fsec">${D.crew.length ? `<div class="fcl">${D.crew.map((w) => `<div class="cw"><span class="mic" style="--g:${GR.w}">${ic("person")}</span><b>${esc(w.n)}</b><span>${esc(w.r && w.r !== w.n ? w.r : "")}</span><button type="button" class="dng" data-fire="${w.id}">Let go</button></div>`).join("")}</div>` : `<p class="hint">Nobody here yet. Steps need someone who does the work.</p>`}<button type="button" id="fHire">${ic("plus")}Hire someone</button></div>`;
+    const set = f ? (mid || `<div class="fsec"><p class="hint">Click a step to change it. The + on a step adds the next one.</p></div>`) + `<div class="fsec fbot"><div class="fmh"><span><i class="dot2 ${upn ? "up" : "dn"}"></i>${upn} of ${hs.length} machines online</span><button type="button" class="lnk" id="fMgr">Manage</button></div><div class="ac"><button type="button" id="fUndo" ${hist.length ? "" : "disabled"}>Undo</button><span class="sp"></span><button type="button" class="dng" id="fRm">Delete pipeline</button></div></div>` : "";
+    $("fB").innerHTML = `<select id="fSel" aria-label="Pipeline">${D.flows.map((x) => `<option value="${x.id}" ${x.id === cur ? "selected" : ""}>${esc(x.n)}</option>`).join("")}</select><button type="button" id="fNew">${ic("plus")}New</button>
+      ${f ? `<input type="text" id="fName" value="${esc(f.n)}" maxlength="60" aria-label="Name"><span class="sp"></span><button type="button" class="sw ${f.on ? "on" : ""}" id="fOn" role="switch" aria-checked="${f.on}" title="On: schedules and GitHub triggers start this pipeline by themselves"><i></i>${f.on ? "On" : "Off"}</button><button type="button" class="go fRun" id="fRun" ${f.nodes.some((n) => n.t.startsWith("t.")) ? "" : "disabled"}>${ic("play")}Run now</button>` : ""}`;
+    S.innerHTML = `<div class="seg ftb" role="tablist">${[["set", n ? "Step" : esel != null ? "Line" : "Settings"], ["runs", "Runs"], ["team", `Team${D.crew.length ? ` <span>${D.crew.length}</span>` : ""}`]].map(([k, l]) => `<button type="button" role="tab" data-ft="${k}" class="${tab === k ? "on" : ""}" aria-selected="${tab === k}">${l}</button>`).join("")}</div>
+      ${tab === "set" ? set : tab === "runs" ? `<div class="fsec"><div id="fRuns" class="fruns"><p class="hint">Loading…</p></div></div>` : team}`;
     bind();
   };
   let rT = 0;
@@ -297,9 +298,9 @@
     clearTimeout(rT);
     const f = fl(), el = $("fRuns"); if (!f || !el || !open) return;
     let rs = [];
-    try { rs = await get(`/api/v2/runs?flow=${encodeURIComponent(f.id)}&limit=6`); } catch {}
+    try { rs = await get(`/api/v2/runs?flow=${encodeURIComponent(f.id)}&limit=20`); } catch {}
     if (!Array.isArray(rs) || $("fRuns") !== el) return;
-    el.innerHTML = rs.length ? `<h6>Recent runs</h6>${rs.map((r) => `<button type="button" class="frn" data-run="${r.id}"><i class="dot2 rd-${esc(r.st)}"></i><span>${esc((A.runSt || {})[r.st] || r.st)}</span><small>${new Date(r.t0).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.steps} steps</small></button>`).join("")}` : "";
+    el.innerHTML = rs.length ? `${rs.map((r) => `<button type="button" class="frn" data-run="${r.id}"><i class="dot2 rd-${esc(r.st)}"></i><span>${esc((A.runSt || {})[r.st] || r.st)}</span><small>${new Date(r.t0).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.steps} steps</small></button>`).join("")}` : `<p class="hint">No runs yet. Press Run now or switch the pipeline On.</p>`;
     for (const b of el.querySelectorAll("[data-run]")) b.onclick = () => A.runView && A.runView(+b.dataset.run);
     if (rs.some((r) => ["queued", "run"].includes(r.st))) rT = setTimeout(runs, 3000);
   };
@@ -310,7 +311,7 @@
     on("fRun", "onclick", async () => {
       clearTimeout(tmo); await post({ flows: D.flows, crew: D.crew }, "/api/flows");
       const r = await fetch(`/api/v2/flows/${encodeURIComponent(f.id)}/run`, { method: "POST", headers: { "content-type": "application/json", "x-ao": "1" }, body: "{}" }).then((x) => x.json());
-      if (r.run) { runs(); A.runView && A.runView(r.run); } else if (r.error) alert(r.error);
+      if (r.run) { tab = "runs"; sel = null; esel = null; side(); paint(); A.runView && A.runView(r.run); } else if (r.error) alert(r.error);
     });
     if (f) runs();
     const hop = async (op) => {
@@ -345,6 +346,7 @@
     for (const b of $("fS").querySelectorAll("[data-pick]")) b.onclick = () => { snap(); n.c.w = b.dataset.pick; save(); paint(); side(); };
     for (const b of $("fS").querySelectorAll("[data-host]")) b.onclick = () => { snap(); if (b.dataset.host) n.c.h = b.dataset.host; else delete n.c.h; save(); paint(); side(); };
     on("fMgr", "onclick", () => A.go && A.go("machines"));
+    for (const b of $("fS").querySelectorAll("[data-ft]")) b.onclick = () => { tab = b.dataset.ft; sel = null; esel = null; hireFor = null; custom = false; hideMenu(); side(); paint(); };
     for (const b of $("fS").querySelectorAll("[data-cron]")) b.onclick = () => { snap(); n.c.cron = b.dataset.cron; save(); paint(); side(); };
     for (const b of $("fS").querySelectorAll("[data-newfor]")) b.onclick = () => { hireFor = b.dataset.newfor; side(); $("fHf")?.n.focus(); };
     for (const b of $("fS").querySelectorAll("[data-fire]")) b.onclick = () => { const w = who(b.dataset.fire); if (!confirm(`Let ${w.n} go?`)) return; snap(); D.crew = D.crew.filter((x) => x !== w); save(); side(); paint(); };
