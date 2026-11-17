@@ -46,7 +46,7 @@ pub fn start(a: &Ax, fid: &str, node: Option<&str>, input: Value) -> Result<i64,
     a.db.run("insert into runs(flow, st, t0, t1, d) values(?, 'queued', ?, 0, ?)", pa![fid.to_string(), now(), d.to_string()]);
     let id = a.db.n("select max(id) from runs", pa![]);
     a.db.run("delete from runs where id < ?", pa![id - 500]);
-    a.say("scout", &format!("pipeline {} started (run {id})", f["n"].as_str().unwrap_or(fid)), None);
+    a.say("pipe", &format!("{} started (run {id})", f["n"].as_str().unwrap_or(fid)), None);
     Ok(id)
 }
 
@@ -136,6 +136,7 @@ async fn step(a: &Ax, id: i64, d: &mut Value, n: &Value) -> Result<(Value, bool)
         sys.push_str(&format!("\n\nSecrets are available as environment variables in the sh tool: {}. Use them only for the service they belong to. Never print, write or send their values anywhere else.", names.join(", ")));
     }
     let mut o = Ask::new(key(wid), md, sys, user);
+    o.run = Some(id);
     o.ef = Some("medium");
     if !tl.iter().any(|t| *t == "shell" || *t == "files") && tl.contains(&"github") {
         o.rn = Some(Rn { h: "local".into(), dir: String::new(), w: String::new(), md: String::new(), tl: Some(vec!["github".into()]), sec: vec![] });
@@ -279,7 +280,20 @@ async fn exec(a: Ax, id: i64) {
             }
             "worker" | "check" => {
                 let wn = d["crew"].as_array().and_then(|c| c.iter().find(|x| x["id"] == n["c"]["w"]).and_then(|x| x["n"].as_str().map(String::from))).unwrap_or_default();
-                match step(&a, id, &mut d, &n).await {
+                let wk = key(n["c"]["w"].as_str().unwrap_or(""));
+                let fname = d["flow"]["n"].as_str().unwrap_or("").to_string();
+                let task: String = n["c"]["task"].as_str().unwrap_or("").split_whitespace().collect::<Vec<_>>().join(" ").chars().take(120).collect();
+                d["cur"] = json!(nid);
+                store(&a, id, "run", &d);
+                a.say(wk, &format!("{fname}: {} (run {id})", if task.is_empty() { if t == "check" { "checking".to_string() } else { "working".to_string() } } else { task }), None);
+                let res = step(&a, id, &mut d, &n).await;
+                d["cur"] = Value::Null;
+                match &res {
+                    Ok((_, ok)) if t == "check" => a.say(wk, &format!("{fname}: {} (run {id})", if *ok { "looks good" } else { "sent it back with changes" }), None),
+                    Ok(_) => a.say(wk, &format!("{fname}: done (run {id})"), None),
+                    Err(e) => a.say(wk, &format!("{fname}: failed, {} (run {id})", crate::sh::head(e, 160)), None),
+                }
+                match res {
                     Ok((out, ok)) => {
                         if t == "check" {
                             if ok {
@@ -295,6 +309,7 @@ async fn exec(a: Ax, id: i64) {
                         rec(&mut d, &n, &wn, out, ok, t0, None);
                     }
                     Err(e) => {
+                        a.say("pipe", &format!("{fname} failed (run {id})"), None);
                         rec(&mut d, &n, &wn, Value::Null, false, t0, Some(e.clone()));
                         d["err"] = json!(e);
                         d["q"] = json!(Vec::<String>::new());
@@ -324,7 +339,7 @@ async fn exec(a: Ax, id: i64) {
                 d["q"] = json!(q.iter().collect::<Vec<_>>());
                 rec(&mut d, &n, "", json!({"ask": n["c"]["ask"].as_str().unwrap_or("Continue?")}), true, t0, None);
                 store(&a, id, "wait", &d);
-                a.say("submit", &format!("pipeline {} waits for your answer (run {id})", d["flow"]["n"].as_str().unwrap_or("")), None);
+                a.say("pipe", &format!("{} waits for your answer (run {id})", d["flow"]["n"].as_str().unwrap_or("")), None);
                 return;
             }
             "end" => rec(&mut d, &n, "", json!({"done": true}), true, t0, None),
@@ -339,7 +354,7 @@ async fn exec(a: Ax, id: i64) {
     if !store(&a, id, "done", &d) {
         return;
     }
-    a.say("submit", &format!("pipeline {} finished (run {id})", d["flow"]["n"].as_str().unwrap_or("")), None);
+    a.say("pipe", &format!("{} finished (run {id})", d["flow"]["n"].as_str().unwrap_or("")), None);
 }
 
 fn hh(t: &str) -> String {
@@ -485,6 +500,19 @@ pub fn stop(a: &Ax, id: i64) -> Result<(), String> {
     }
     store(a, id, "stop", &d);
     Ok(())
+}
+
+pub fn active(a: &Ax) -> Vec<Value> {
+    a.db.all("select id, flow, st, t0, d from runs where st in ('queued','run','wait') order by id desc limit 40", pa![])
+        .into_iter()
+        .map(|r| {
+            let d = &r["d"];
+            let nid = d["cur"].as_str().or(d["wait"].as_str()).unwrap_or("");
+            let n = d["flow"]["nodes"].as_array().and_then(|ns| ns.iter().find(|x| x["id"] == nid).cloned()).unwrap_or(Value::Null);
+            let ask = d["steps"].as_array().and_then(|s| s.last()).map(|s| s["out"]["ask"].clone()).unwrap_or(Value::Null);
+            json!({"id": r["id"], "flow": r["flow"], "n": d["flow"]["n"], "st": r["st"], "t0": r["t0"], "w": n["c"]["w"], "nt": n["t"], "ask": if r["st"] == "wait" { ask } else { Value::Null }})
+        })
+        .collect()
 }
 
 pub fn list(a: &Ax, fid: Option<&str>, st: Option<&str>, lim: i64) -> Vec<Value> {
