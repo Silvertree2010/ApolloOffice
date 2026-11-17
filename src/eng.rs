@@ -278,7 +278,23 @@ async fn exec(a: Ax, id: i64) {
                 store(&a, id, "wait", &d);
                 return;
             }
+            "worker" | "check" if !seated(&a, n["c"]["w"].as_str().unwrap_or("")) => {
+                let wn = d["crew"].as_array().and_then(|c| c.iter().find(|x| x["id"] == n["c"]["w"]).and_then(|x| x["n"].as_str().map(String::from))).unwrap_or_else(|| "This worker".into());
+                d["vis"][&nid] = json!(v - 1);
+                q.push_front(nid.clone());
+                d["q"] = json!(q.iter().collect::<Vec<_>>());
+                let msg = format!("{wn} needs a desk. Place one in Edit office.");
+                if d["blk"] != msg {
+                    a.say("pipe", &format!("{}: {msg} (run {id})", d["flow"]["n"].as_str().unwrap_or("")), None);
+                }
+                d["blk"] = json!(msg);
+                d["blkw"] = n["c"]["w"].clone();
+                store(&a, id, "queued", &d);
+                return;
+            }
             "worker" | "check" => {
+                d["blk"] = Value::Null;
+                d["blkw"] = Value::Null;
                 let wn = d["crew"].as_array().and_then(|c| c.iter().find(|x| x["id"] == n["c"]["w"]).and_then(|x| x["n"].as_str().map(String::from))).unwrap_or_default();
                 let wk = key(n["c"]["w"].as_str().unwrap_or(""));
                 let fname = d["flow"]["n"].as_str().unwrap_or("").to_string();
@@ -502,6 +518,20 @@ pub fn stop(a: &Ax, id: i64) -> Result<(), String> {
     Ok(())
 }
 
+pub fn staff(a: &Ax) -> Vec<String> {
+    let fl = a.db.kg("flows");
+    let used: HashSet<String> = fl.as_array().map(|fs| fs.iter().flat_map(|f| f["nodes"].as_array().cloned().unwrap_or_default()).filter_map(|n| n["c"]["w"].as_str().map(String::from)).collect()).unwrap_or_default();
+    a.db.kg("crew").as_array().map(|c| c.iter().filter_map(|w| w["id"].as_str().map(String::from)).filter(|id| used.contains(id)).collect()).unwrap_or_default()
+}
+
+pub fn desks(a: &Ax) -> usize {
+    a.set()["office"]["items"].as_array().map(|it| it.iter().filter(|x| x["i"] == "desk").count()).unwrap_or(0)
+}
+
+pub fn seated(a: &Ax, wid: &str) -> bool {
+    staff(a).iter().position(|x| x == wid).is_some_and(|i| i < desks(a))
+}
+
 pub fn active(a: &Ax) -> Vec<Value> {
     a.db.all("select id, flow, st, t0, d from runs where st in ('queued','run','wait') order by id desc limit 40", pa![])
         .into_iter()
@@ -510,7 +540,7 @@ pub fn active(a: &Ax) -> Vec<Value> {
             let nid = d["cur"].as_str().or(d["wait"].as_str()).unwrap_or("");
             let n = d["flow"]["nodes"].as_array().and_then(|ns| ns.iter().find(|x| x["id"] == nid).cloned()).unwrap_or(Value::Null);
             let ask = d["steps"].as_array().and_then(|s| s.last()).map(|s| s["out"]["ask"].clone()).unwrap_or(Value::Null);
-            json!({"id": r["id"], "flow": r["flow"], "n": d["flow"]["n"], "st": r["st"], "t0": r["t0"], "w": n["c"]["w"], "nt": n["t"], "ask": if r["st"] == "wait" { ask } else { Value::Null }})
+            json!({"id": r["id"], "flow": r["flow"], "n": d["flow"]["n"], "st": r["st"], "t0": r["t0"], "w": if n.is_null() { d["blkw"].clone() } else { n["c"]["w"].clone() }, "nt": n["t"], "blk": d["blk"], "ask": if r["st"] == "wait" { ask } else { Value::Null }})
         })
         .collect()
 }
