@@ -123,10 +123,15 @@ async fn step(a: &Ax, id: i64, d: &mut Value, n: &Value) -> Result<(Value, bool)
         if prev.is_empty() { String::new() } else { format!("Previous steps:\n{}\n\n", wrap("steps", &prev.join("\n\n"))) },
         if fb.is_empty() || chk { String::new() } else { format!("A check sent this back. Fix these problems:\n{}", wrap("feedback", &fb)) }
     );
+    let sec = if tl.contains(&"shell") { secrets_for(a, wid) } else { vec![] };
+    if !sec.is_empty() {
+        let names: Vec<String> = sec.iter().map(|(n, _)| n.clone()).collect();
+        sys.push_str(&format!("\n\nSecrets are available as environment variables in the sh tool: {}. Use them only for the service they belong to. Never print, write or send their values anywhere else.", names.join(", ")));
+    }
     let mut o = Ask::new(key(wid), md, sys, user);
     o.ef = Some("medium");
     if !tl.iter().any(|t| *t == "shell" || *t == "files") && tl.contains(&"github") {
-        o.rn = Some(Rn { h: "local".into(), dir: String::new(), w: String::new(), md: String::new(), tl: Some(vec!["github".into()]) });
+        o.rn = Some(Rn { h: "local".into(), dir: String::new(), w: String::new(), md: String::new(), tl: Some(vec!["github".into()]), sec: vec![] });
         o.turns = 40;
         o.t = 20 * 60;
     } else if tl.iter().any(|t| *t == "shell" || *t == "files") {
@@ -136,14 +141,75 @@ async fn step(a: &Ax, id: i64, d: &mut Value, n: &Value) -> Result<(Value, bool)
         if r.c != 0 {
             return Err(format!("could not prepare {h}: {}", crate::sh::head(r.all().trim(), 200)));
         }
-        o.rn = Some(Rn { h, dir, w: String::new(), md: String::new(), tl: Some(tl.iter().map(|t| t.to_string()).collect()) });
+        o.rn = Some(Rn { h, dir, w: String::new(), md: String::new(), tl: Some(tl.iter().map(|t| t.to_string()).collect()), sec: sec.clone() });
         o.turns = 60;
         o.t = 30 * 60;
     }
     let (txt, js) = ask(a, o).await.map_err(|e| e.to_string())?;
     let out = if js.is_object() { js } else { json!({"result": crate::sh::head(txt.trim(), 20000)}) };
+    let out = if sec.is_empty() { out } else { serde_json::from_str(&redact(&out.to_string(), &sec)).unwrap_or(out) };
     let ok = !chk || out["ok"].as_bool().unwrap_or(false);
     Ok((out, ok))
+}
+
+pub fn redact(t: &str, sec: &[(String, String)]) -> String {
+    let mut o = t.to_string();
+    for (n, v) in sec {
+        if v.len() >= 4 {
+            o = o.replace(v.as_str(), &format!("[secret {n}]"));
+            let j = serde_json::to_string(v).unwrap_or_default();
+            let j = j.trim_matches('"');
+            if j != v && j.len() >= 4 {
+                o = o.replace(j, &format!("[secret {n}]"));
+            }
+        }
+    }
+    o
+}
+
+fn secname(n: &str) -> bool {
+    n.len() >= 2 && n.len() <= 40 && n.chars().next().is_some_and(|c| c.is_ascii_uppercase()) && n.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+}
+
+pub fn secrets(a: &Ax) -> Vec<Value> {
+    a.db.kg("wsec").as_array().cloned().unwrap_or_default().into_iter().map(|mut x| { x["has"] = json!(crate::vault::has(a, &format!("ws:{}", x["n"].as_str().unwrap_or("")))); x }).collect()
+}
+
+fn secrets_for(a: &Ax, wid: &str) -> Vec<(String, String)> {
+    secrets(a).iter().filter(|x| x["who"].as_array().is_some_and(|w| w.iter().any(|y| y == wid))).filter_map(|x| {
+        let n = x["n"].as_str()?.to_string();
+        let v = crate::vault::get(a, &format!("ws:{n}")).ok().filter(|v| !v.is_empty())?;
+        Some((n, v))
+    }).collect()
+}
+
+pub fn secret_op(a: &Ax, b: &Value) -> Result<Value, String> {
+    let n = b["n"].as_str().unwrap_or("").trim().to_string();
+    if !secname(&n) {
+        return Err("names use capital letters, digits and _, like GITHUB_TOKEN".into());
+    }
+    let mut l: Vec<Value> = a.db.kg("wsec").as_array().cloned().unwrap_or_default();
+    match b["op"].as_str().unwrap_or("") {
+        "set" => {
+            let who: Vec<Value> = b["who"].as_array().cloned().unwrap_or_default().into_iter().filter(|x| x.as_str().is_some_and(|s| s.len() <= 40)).take(64).collect();
+            let d: String = b["d"].as_str().unwrap_or("").trim().chars().take(200).collect();
+            if let Some(v) = b["v"].as_str().filter(|v| !v.is_empty()) {
+                crate::vault::put(a, &format!("ws:{n}"), v)?;
+            } else if !l.iter().any(|x| x["n"] == n.as_str()) {
+                return Err("give the secret a value".into());
+            }
+            l.retain(|x| x["n"] != n.as_str());
+            l.push(json!({"n": n, "d": d, "who": who, "t0": now()}));
+            l.sort_by(|x, y| x["n"].as_str().cmp(&y["n"].as_str()));
+        }
+        "del" => {
+            l.retain(|x| x["n"] != n.as_str());
+            crate::vault::put(a, &format!("ws:{n}"), "")?;
+        }
+        _ => return Err("unknown op".into()),
+    }
+    a.db.ks("wsec", &json!(l.into_iter().take(100).collect::<Vec<_>>()));
+    Ok(json!({"secrets": secrets(a)}))
 }
 
 fn gate(d: &Value, n: &Value) -> bool {
@@ -575,6 +641,14 @@ mod t {
         assert!(cron("30 8 1,15 * 7", 30, 8, 15, 6, 0));
         assert!(!cron("bad", 0, 0, 1, 1, 0));
         assert!(!cron("*/0 * * * *", 0, 0, 1, 1, 0));
+    }
+
+    #[test]
+    fn secret_redaction() {
+        let sec = vec![("API_KEY".to_string(), "sk-abc\"123".to_string()), ("X".to_string(), "abc".to_string())];
+        assert_eq!(redact("token sk-abc\"123 and abc", &sec), "token [secret API_KEY] and abc");
+        assert_eq!(redact(&json!({"t": "sk-abc\"123"}).to_string(), &sec), r#"{"t":"[secret API_KEY]"}"#);
+        assert!(secname("GITHUB_TOKEN") && !secname("lower") && !secname("A-B") && !secname("1AB"));
     }
 
     #[test]

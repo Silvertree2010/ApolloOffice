@@ -693,3 +693,12 @@ body.nvs .nvk span, body.nvs .nvk kbd { display: none; }
 .kvr { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 8px; margin-top: 6px; }
 .kvr span { color: var(--t3); font-size: 12px; }
 .kvr pre { margin: 0; font: 12px/1.5 var(--m); white-space: pre-wrap; word-break: break-word; background: var(--f); border: 1px solid var(--l); border-radius: 8px; padding: 8px 10px; }
+.sec2 h3 .sm2, .sm2 { margin-left: auto; padding: 5px 9px; font-size: 12px; }
+.sec2 h3 { display: flex; align-items: center; gap: 6px; }
+.sform { margin: 0 0 10px; gap: 10px; max-width: 760px; }
+.sform label, .sedit label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--t2); }
+.whos { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.srow .lh2 { cursor: default; }
+.srow .av { font-size: 18px; }
+.mono { font-family: var(--m); }
+.le .ck, .sedit .ck, .sform .ck { flex-direction: row; align-items: center; gap: 8px; color: var(--t1); }

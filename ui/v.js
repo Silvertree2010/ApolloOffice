@@ -10,9 +10,10 @@
   const empty = (t, d) => `<div class="emp"><b>${t}</b><span>${d}</span></div>`;
 
   A.team = async () => {
-    const [F, C] = await Promise.all([get("/api/flows"), get("/api/cfg")]);
+    const [F, C, SE] = await Promise.all([get("/api/flows"), get("/api/cfg"), get("/api/secrets")]);
     if (A.route() !== "team") return;
-    let open = null, cat = false, q = "";
+    let open = null, cat = false, q = "", sec = SE.secrets || [], sedit = null, snew = false;
+    const sop = async (b) => { const r = await post(b, "/api/secrets"); if (r.error) { alert(r.error); return false; } sec = r.secrets; return true; };
     const BI = [["scout", "Scout"], ["guard", "Guard"], ["vet", "Vet"], ["watcher", "Watcher"], ["hunter", "Hunter"], ["repro", "Repro"], ["fixer", "Fixer"], ["reviewer", "Reviewer"]];
     const save = async () => { const r = await post({ crew: F.crew }, "/api/flows"); F.crew = r.crew; draw(); };
     const uniq = (n) => { let x = n, k = 2; while (F.crew.some((w) => w.n === x)) x = `${n} ${k++}`; return x; };
@@ -25,6 +26,10 @@
         + (cat ? `<section class="sec2"><div class="frow2"><input type="text" id="tQ" placeholder="Search roles" value="${esc(q)}" autocomplete="off"></div>${groups.map(([g, gn]) => { const xs = rs.filter((r) => r.g === g); return xs.length ? `<h3>${gn}</h3><div class="grd">${xs.map((r) => `<button type="button" class="rcard" data-r="${esc(r.t)}"><b>${esc(r.n)}</b><span>${esc(r.d)}</span></button>`).join("")}</div>` : ""; }).join("")}<h3>Something else</h3><form class="rcard frm" id="tCu"><input type="text" name="n" placeholder="Name" maxlength="40" required><textarea name="p" rows="3" placeholder="What is their job?" maxlength="8000"></textarea><button class="go">Hire</button></form></section>` : "")
         + `<section class="sec2"><h3>Your team <span class="mut">${F.crew.length}</span></h3>${F.crew.length ? `<div class="lst">${F.crew.map((w) => `<div class="li2 ${open === w.id ? "on" : ""}" data-w="${esc(w.id)}"><div class="lh2" data-tog><span class="av">${esc((w.n || "?").slice(0, 1).toUpperCase())}</span><div class="lt"><b>${esc(w.n)}</b><span>${esc([w.r && w.r !== w.n ? w.r : "", w.md || "default model", (w.tl || []).map((t) => TLN[t] || t).join(", ")].filter(Boolean).join(" · "))}</span></div><span class="chev"></span></div>
           ${open === w.id ? `<form class="le" data-f="${esc(w.id)}"><div class="g2"><label>Name<input type="text" name="n" value="${esc(w.n)}" maxlength="40"></label><label>Role<input type="text" name="r" value="${esc(w.r || "")}" maxlength="40"></label><label>Model<input type="text" name="md" value="${esc(w.md || "")}" placeholder="default model" maxlength="120"></label><div class="tlg"><span>Allowed to</span>${(F.tl || []).map((t) => `<label class="ck"><input type="checkbox" name="tl" value="${t}" ${(w.tl || []).includes(t) ? "checked" : ""}> ${TLN[t] || t}</label>`).join("")}</div></div><label>Instructions<textarea name="p" rows="8" maxlength="8000">${esc(w.p || "")}</textarea></label><div class="acts"><button class="go">Save</button><span class="sp"></span><button type="button" class="dng" data-fire>Let go</button></div></form>` : ""}</div>`).join("")}</div>` : empty("Nobody hired yet", "Hire someone to use them in your pipelines.")}</section>`
+        + `<section class="sec2"><h3>Secrets <span class="mut">${sec.length}</span><button type="button" class="sm2" id="sNew">${snew ? "Cancel" : "Add secret"}</button></h3><p class="mut">Keys and passwords for other services. Team members with shell access get the ones you allow as environment variables. They see the name, never the value, and values are blanked out in every output.</p>
+          ${snew ? `<form class="rcard frm sform" id="sF"><div class="g2"><label>Name<input type="text" name="n" placeholder="e.g. SLACK_TOKEN" maxlength="40" required></label><label>Value<input type="password" name="v" autocomplete="new-password" required></label></div><label>What is it for<input type="text" name="d" maxlength="200" placeholder="optional"></label><div class="whos">${F.crew.map((w) => `<label class="ck"><input type="checkbox" name="who" value="${esc(w.id)}"> ${esc(w.n)}</label>`).join("") || `<span class="mut">Hire someone first to give them access.</span>`}</div><div class="acts"><button class="go">Save secret</button></div></form>` : ""}
+          ${sec.length ? `<div class="lst">${sec.map((x) => `<div class="li2 srow" data-s="${esc(x.n)}"><div class="lh2"><span class="av">${x.has ? "•" : "!"}</span><div class="lt"><b class="mono">${esc(x.n)}</b><span>${esc(x.d || "")}${x.d ? " · " : ""}${(x.who || []).length ? "used by " + (x.who || []).map((id) => esc((F.crew.find((w) => w.id === id) || {}).n || id)).join(", ") : "nobody may use it yet"}</span></div><button type="button" class="sm2" data-se="${esc(x.n)}">${sedit === x.n ? "Close" : "Edit"}</button></div>
+            ${sedit === x.n ? `<form class="le sedit" data-sf="${esc(x.n)}"><label>New value<input type="password" name="v" autocomplete="new-password" placeholder="leave empty to keep the current value"></label><label>What is it for<input type="text" name="d" value="${esc(x.d || "")}" maxlength="200"></label><div class="whos">${F.crew.map((w) => `<label class="ck"><input type="checkbox" name="who" value="${esc(w.id)}" ${(x.who || []).includes(w.id) ? "checked" : ""}> ${esc(w.n)}</label>`).join("")}</div><div class="acts"><button class="go">Save</button><span class="sp"></span><button type="button" class="dng" data-sd="${esc(x.n)}">Delete</button></div></form>` : ""}</div>`).join("")}</div>` : snew ? "" : empty("No secrets yet", "Add one when a pipeline step needs to call another service.")}</section>`
         + `<section class="sec2"><h3>Built-in bug-fix crew</h3><p class="mut">These run the classic bug-fix pipeline for your repositories. Change their model here.</p><div class="grd">${BI.map(([k, n]) => `<div class="rcard st"><b>${n}</b><span>${esc(md[k] || "")}</span><button type="button" data-role="${k}">Change model</button></div>`).join("")}</div></section>`;
       $("tHire").onclick = () => { cat = !cat; draw(); if (cat) $("tQ").focus(); };
       const tq = $("tQ"); if (tq) tq.oninput = () => { q = tq.value; draw(); const i = $("tQ"); i.focus(); i.setSelectionRange(q.length, q.length); };
@@ -37,6 +42,14 @@
         f.querySelector("[data-fire]").onclick = () => { if (!confirm(`Let ${w.n} go?`)) return; F.crew = F.crew.filter((x) => x !== w); open = null; save(); };
       }
       for (const b of P().querySelectorAll("[data-role]")) b.onclick = () => A.role && A.role(b.dataset.role);
+      $("sNew").onclick = () => { snew = !snew; sedit = null; draw(); };
+      const sf = $("sF");
+      if (sf) sf.onsubmit = async (e) => { e.preventDefault(); if (await sop({ op: "set", n: sf.n.value.trim().toUpperCase(), v: sf.v.value, d: sf.d.value, who: [...sf.querySelectorAll("[name=who]:checked")].map((x) => x.value) })) { snew = false; draw(); } };
+      for (const b of P().querySelectorAll("[data-se]")) b.onclick = () => { sedit = sedit === b.dataset.se ? null : b.dataset.se; draw(); };
+      for (const f of P().querySelectorAll("form[data-sf]")) {
+        f.onsubmit = async (e) => { e.preventDefault(); if (await sop({ op: "set", n: f.dataset.sf, v: f.v.value, d: f.d.value, who: [...f.querySelectorAll("[name=who]:checked")].map((x) => x.value) })) { sedit = null; draw(); } };
+        f.querySelector("[data-sd]").onclick = async (e) => { if (e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again to delete"; return; } if (await sop({ op: "del", n: f.dataset.sf })) { sedit = null; draw(); } };
+      }
     };
     draw();
   };

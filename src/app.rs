@@ -59,6 +59,7 @@ pub struct Rn {
     pub w: String,
     pub md: String,
     pub tl: Option<Vec<String>>,
+    pub sec: Vec<(String, String)>,
 }
 
 pub struct App {

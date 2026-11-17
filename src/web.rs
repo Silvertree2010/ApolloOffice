@@ -971,6 +971,8 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
             }
         }
         ("GET", "/api/flows") => { let mut v = crate::flows::get(a); v["hooks"] = crate::eng::hooks(a); js(v) }
+        ("GET", "/api/secrets") => js(json!({"secrets": crate::eng::secrets(a)})),
+        ("POST", "/api/secrets") => match crate::eng::secret_op(a, &b) { Ok(v) => js(v), Err(e) => er(StatusCode::BAD_REQUEST, &e) },
         ("POST", "/api/flows/hook") => match crate::eng::hook_op(a, &b) { Ok(v) => js(v), Err(e) => er(StatusCode::BAD_REQUEST, &e) },
         ("POST", "/api/flows") => js(crate::flows::put(a, &b)),
         ("GET", "/api/cost") => js(costs(a)),

@@ -162,6 +162,14 @@ async fn ghcall(a: &Ax, n: &str, g: &Value) -> Result<String, String> {
 }
 
 pub async fn call(a: &Ax, r: &Rn, n: &str, g: &Value) -> Result<String, String> {
+    let o = call0(a, r, n, g).await;
+    if r.sec.is_empty() {
+        return o;
+    }
+    o.map(|t| crate::eng::redact(&t, &r.sec)).map_err(|e| crate::eng::redact(&e, &r.sec))
+}
+
+async fn call0(a: &Ax, r: &Rn, n: &str, g: &Value) -> Result<String, String> {
     if !allowed(r, n) {
         return Err(format!("the tool {n} is not allowed for this worker"));
     }
@@ -233,7 +241,8 @@ pub async fn call(a: &Ax, r: &Rn, n: &str, g: &Value) -> Result<String, String> 
             // the default for model commands too, including commands that cd
             // into a subdirectory. Never source repository activation scripts.
             let env = "if [ -x .venv/bin/python ]; then export VIRTUAL_ENV=\"$PWD/.venv\"; export PATH=\"$PWD/.venv/bin:$PATH\"; fi";
-            let o = hx(a, &r.h, &format!("cd \"{d}\" && {{ {env}; to {} bash -c {}\n}} 2>&1; echo \"[exit $?]\"", m * 60, q(&c)), m * 60 + 30).await;
+            let ex: String = r.sec.iter().map(|(n, v)| format!("export {n}={}; ", q(v))).collect();
+            let o = hx(a, &r.h, &format!("cd \"{d}\" && {{ {ex}{env}; to {} bash -c {}\n}} 2>&1; echo \"[exit $?]\"", m * 60, q(&c)), m * 60 + 30).await;
             let t = o.all();
             Ok(if t.len() > 30000 { format!("…{}", crate::sh::last(&t, 30000)) } else { t })
         }
@@ -296,7 +305,7 @@ mod t {
 
     #[test]
     fn scoped_tools() {
-        let r = |t: Option<Vec<&str>>| super::Rn { h: "local".into(), dir: "/tmp".into(), w: String::new(), md: String::new(), tl: t.map(|v| v.into_iter().map(String::from).collect()) };
+        let r = |t: Option<Vec<&str>>| super::Rn { h: "local".into(), dir: "/tmp".into(), w: String::new(), md: String::new(), tl: t.map(|v| v.into_iter().map(String::from).collect()), sec: vec![] };
         assert!(super::allowed(&r(None), "sh"));
         assert!(super::allowed(&r(Some(vec!["shell"])), "sh"));
         assert!(!super::allowed(&r(Some(vec!["shell"])), "write"));
@@ -325,11 +334,11 @@ mod t {
         std::fs::write(root.join(".venv/bin/activate"),"echo UNSAFE_ACTIVATION >&2; exit 90\n").unwrap();
         let db=crate::db::Db::mem();db.run("insert into hs(id,on_) values('local',1)",crate::pa![]);
         let a=std::sync::Arc::new(crate::app::App::new(db,root.clone(),1,"x".into()));
-        let r=Rn{h:"local".into(),dir:root.display().to_string(),w:String::new(),md:String::new(),tl:None};
+        let r=Rn{h:"local".into(),dir:root.display().to_string(),w:String::new(),md:String::new(),tl:None,sec:vec![]};
         let out=call(&a,&r,"sh",&json!({"cmd":"cd tool && python3 && printf '%s' \"$VIRTUAL_ENV\""})).await.unwrap();
         assert!(out.contains("prepared-project-python"),"{out}");assert!(out.contains(&root.join(".venv").display().to_string()),"{out}");
         assert!(!out.contains("UNSAFE_ACTIVATION"));assert!(out.contains("[exit 0]"),"{out}");
-        let missing=Rn{h:"local".into(),dir:root.join("missing").display().to_string(),w:String::new(),md:String::new(),tl:None};
+        let missing=Rn{h:"local".into(),dir:root.join("missing").display().to_string(),w:String::new(),md:String::new(),tl:None,sec:vec![]};
         let out=call(&a,&missing,"sh",&json!({"cmd":"echo OUTSIDE_WORKSPACE"})).await.unwrap();
         assert!(!out.contains("OUTSIDE_WORKSPACE"),"must not run when cd fails: {out}");
         assert!(out.contains("[exit 1]"),"{out}");
