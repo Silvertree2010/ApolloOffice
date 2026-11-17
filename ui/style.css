@@ -600,7 +600,7 @@ body.lay:not(.ed):not(.fed):not(.pgm) .wdg:not(.lph) { display: flex !important;
 .wl { margin-top: 8px; width: 100%; }
 .dot2 { width: 8px; height: 8px; border-radius: 50%; background: var(--t3); flex: none; }
 .dot2.up { background: var(--ok); } .dot2.dn { background: var(--bad); }
-.kp { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 2px 0 10px; }
+.kp { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin: 2px 0 10px; }
 .kp b { font: 600 18px/1 var(--s); }
 .kp > div { padding: 10px; }
 .wb { display: flex; align-items: flex-end; gap: 2px; height: 60px; }
@@ -643,3 +643,25 @@ body.nvs .nvk span, body.nvs .nvk kbd { display: none; }
 .ki.on, .ki:hover { background: color-mix(in oklch, var(--ac) 14%, transparent); }
 .ke { padding: 18px; text-align: center; color: var(--t3); font-size: 13px; }
 .kf { display: flex; gap: 14px; padding: 9px 14px; border-top: 1px solid var(--l); color: var(--t3); font-size: 11.5px; }
+.mlist { display: flex; flex-direction: column; gap: 10px; }
+.mc2 { background: var(--p); box-shadow: var(--hl); padding: 0; overflow: hidden; }
+.mc2 > .hd2, .mc2 > .fm, .mc2 > .acts, .mc2 > .msg { display: none; }
+.mc2.open > .hd2, .mc2.open > .acts { display: flex; }
+.mc2.open > .fm { display: grid; }
+.mc2.open > .msg { display: block; }
+.mc2.open > .hd2, .mc2.open > .fm, .mc2.open > .acts, .mc2.open > .msg { margin-left: 14px; margin-right: 14px; }
+.mc2.open > .acts { margin-bottom: 14px; }
+.mc2.open > .hd2 { margin-top: 12px; }
+.msum { display: flex; align-items: center; gap: 14px; padding: 14px; }
+.mc2.open .msum { border-bottom: 1px solid var(--h); }
+.msum .dot2 { width: 10px; height: 10px; }
+.mn { display: flex; flex-direction: column; gap: 3px; width: 250px; flex: none; min-width: 0; }
+.mn b { font: 600 14px/1.2 var(--s); }
+.mn span { color: var(--t3); font-size: 12px; }
+.mst { flex: 1; display: flex; flex-wrap: wrap; gap: 6px 22px; }
+.mst div { display: flex; flex-direction: column; gap: 2px; }
+.mst span { color: var(--t3); font-size: 11px; }
+.mst b { font: 500 13px/1.2 var(--s); }
+.mtg { flex: none; }
+.mc2.open .mtg { background: color-mix(in oklch, var(--ac) 14%, transparent); border-color: color-mix(in oklch, var(--ac) 45%, transparent); }
+.madd { margin-top: 22px; }

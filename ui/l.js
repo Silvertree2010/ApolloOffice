@@ -28,6 +28,20 @@
     o.cur = o.scenes.some((s) => s.id === x?.cur) ? x.cur : "classic";
     return o;
   };
+  const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  const place = (s, k, v) => {
+    const os = Object.entries(s.items).filter(([x, w]) => x !== k && w.v).map(([, w]) => w);
+    for (const [w, h] of [[v.w, v.h], [24, 30], [20, 24], [16, 20]]) {
+      for (let y = 0; y + h <= 100; y += 2) for (let x = 0; x + w <= 100; x += 2) { const r = { x, y, w, h }; if (!os.some((o) => hit(r, o))) return r; }
+    }
+    const r = lay.getBoundingClientRect(), ax = (r.width || 1200) / 100, ay = (r.height || 700) / 100;
+    const big = os.filter((o) => o.w * ax >= 360 || o.h * ay >= 300).sort((a, b) => b.w * ax * b.h * ay - a.w * ax * a.h * ay)[0];
+    if (big) {
+      if (big.w * ax >= big.h * ay) { const w = Math.round(big.w * 0.34); big.w -= w; return { x: big.x + big.w, y: big.y, w, h: big.h }; }
+      const h = Math.round(big.h * 0.36); big.h -= h; return { x: big.x, y: big.y + big.h, w: big.w, h };
+    }
+    return { x: v.x, y: v.y, w: v.w, h: v.h };
+  };
   const save = () => { clearTimeout(tmo); tmo = setTimeout(() => post({ layout: L }, "/api/set").catch(() => {}), 350); };
   const snap = () => { hist.push(JSON.stringify(L)); if (hist.length > 60) hist.shift(); };
   const uid = (p) => { let i = 1; while (L.scenes.some((s) => s.id === p + i)) i++; return p + i; };
@@ -130,7 +144,7 @@
       m = document.createElement("div"); m.id = "lMenu"; m.className = "lmenu";
       m.innerHTML = hid.length ? hid.map((k) => `<button type="button" data-add="${k}">${esc(SRC[k])}</button>`).join("") : `<span>Every window is already shown.</span>`;
       sb.parentElement.appendChild(m);
-      for (const b of m.querySelectorAll("[data-add]")) b.onclick = () => { snap(); const v = s.items[b.dataset.add]; v.v = true; v.z = Math.max(...Object.values(s.items).map((x) => x.z)) + 1; sel = b.dataset.add; save(); apply(); dock(); };
+      for (const b of m.querySelectorAll("[data-add]")) b.onclick = () => { snap(); const v = s.items[b.dataset.add]; Object.assign(v, place(s, b.dataset.add, v)); v.v = true; v.z = Math.max(...Object.values(s.items).map((x) => x.z)) + 1; sel = b.dataset.add; save(); apply(); dock(); };
       setTimeout(() => document.addEventListener("click", () => $("lMenu")?.remove(), { once: true }));
     };
     $("lUndo").onclick = undo;

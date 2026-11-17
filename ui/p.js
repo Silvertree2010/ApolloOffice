@@ -224,8 +224,26 @@
         <div class="hint">Old clones and build folders are deleted above this, or when less than 20 GB are free.</div>
       </div>
       <div class="acts"><button class="pri" data-op="set">${nw ? "Add" : "Save"}</button>${nw ? "" : `<span class="sp"></span><button type="button" class="dng" data-op="del">Remove</button>`}</div><div class="msg"></div></form>`;
-    B.innerHTML = `<div class="sec"><h4>Machines that build and test</h4>${hs.map((h) => form(h, false)).join("") || `<div class="empty">No machine yet. Add this computer below.</div>`}</div>
-    <div class="sec"><h4>Add</h4>${hl ? "" : form({ id: "local", dk: 1 }, true)}${form({ id: "", dk: 1 }, true)}</div>`;
+    const S0 = A.S || {}, busyN = {};
+    for (const v of Object.values(S0.ln || {})) { const k = String(v).split("#")[0]; busyN[k] = (busyN[k] || 0) + 1; }
+    const sum = (h) => {
+      const up = S0.o?.net?.[h.id] !== false, st = (S0.hst || {})[h.id] || {}, on = h.on_ !== 0;
+      const dk = Array.isArray(st.disk) ? st.disk : null, mem = Array.isArray(st.mem) ? st.mem : null;
+      const kv = (l, v) => v == null ? "" : `<div><span>${l}</span><b>${v}</b></div>`;
+      return `<div class="msum"><i class="dot2 ${!on ? "" : up ? "up" : "dn"}"></i><div class="mn"><b>${esc(h.id === "local" ? "This computer" : h.id)}</b><span>${!on ? "Off" : up ? "Online" : "Offline"}${h.ssh ? " · " + esc(h.ssh) : ""} · ${h.dk === 0 ? "directly" : "Docker"}</span></div>
+        <div class="mst">${kv("Lanes", `${busyN[h.id] || 0}/${h.ln || 1}`)}${kv("Load", st.load != null ? Number(st.load).toFixed(1) : null)}${kv("CPU", st.cpu != null ? st.cpu + " cores" : null)}${kv("Memory", mem ? Math.round((mem[0] - mem[1]) / 1024 * 10) / 10 + " / " + Math.round(mem[0] / 1024) + " GB" : null)}${kv("Disk free", dk ? Math.round(dk[1]) + " GB" : null)}${kv("Temp", st.temp ? Math.round(st.temp) + " °C" : null)}${kv("Up", st.up ? esc(String(st.up).split(",")[0]) : null)}</div>
+        <button type="button" class="mtg">Settings</button></div>`;
+    };
+    B.innerHTML = `<div class="ph2"><div><p>Machines run the builds and tests. Each one works through as many jobs at once as it has lanes.</p></div><div class="pa2"><button type="button" class="go" id="hAdd">Add a machine</button></div></div>
+    <div class="mlist">${hs.map((h) => form(h, false)).join("") || `<div class="emp"><b>No machine yet</b><span>Add this computer or an SSH machine.</span></div>`}</div>
+    <div class="sec madd" id="hNew" hidden><h4>Add a machine</h4>${hl ? "" : form({ id: "local", dk: 1 }, true)}${form({ id: "", dk: 1 }, true)}</div>`;
+    for (const f of B.querySelectorAll("form[data-h]:not([data-new='1'])")) {
+      const h = hs.find((x) => x.id === f.dataset.h); if (!h) continue;
+      f.classList.add("mc2");
+      f.insertAdjacentHTML("afterbegin", sum(h));
+      f.querySelector(".mtg").onclick = () => f.classList.toggle("open");
+    }
+    $("hAdd").onclick = () => { const n = $("hNew"); n.hidden = !n.hidden; if (!n.hidden) n.scrollIntoView({ behavior: "smooth", block: "start" }); };
     for (const f of B.querySelectorAll("form[data-h]")) {
       f.dk.onchange = () => { f.querySelector(".raw").hidden = f.dk.value === "1"; };
       f.onsubmit = (e) => e.preventDefault();
