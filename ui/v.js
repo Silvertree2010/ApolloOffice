@@ -85,7 +85,31 @@
     await load();
   };
 
-  let cc = null, cf = null, cfl = null, ct = 0;
+  const RST = { queued: "Queued", run: "Running", wait: "Waiting for you", done: "Done", fail: "Failed", stop: "Stopped" };
+  const RTN = { "t.manual": "Started by hand", "t.cron": "Schedule", "t.issue": "New issue", "t.pr": "New pull request", "t.hook": "Called by an app", worker: "Step", check: "Check", branch: "Choice", approve: "Your approval", end: "Done", parallel: "Split", join: "Join" };
+  A.runSt = RST;
+  let rvT = 0;
+  const pretty = (o) => {
+    if (o == null) return "";
+    if (typeof o !== "object") return esc(String(o));
+    const parts = [];
+    for (const [k, v] of Object.entries(o)) parts.push(`<div class="kvr"><span>${esc(k)}</span><pre>${esc(typeof v === "string" ? v : JSON.stringify(v, null, 2))}</pre></div>`);
+    return parts.join("");
+  };
+  A.runView = async (id) => {
+    clearTimeout(rvT);
+    const r = await get("/api/v2/runs/" + id);
+    if (r.error) return;
+    const live = ["queued", "run"].includes(r.st);
+    const B = A.drawer(`Run ${r.id} · ${r.name || r.flow}`, `<div class="rvh"><span class="stt rs-${esc(r.st)}">${esc(RST[r.st] || r.st)}</span><span class="mut">${new Date(r.t0).toLocaleString()}${r.t1 ? " · took " + Math.max(1, Math.round((r.t1 - r.t0) / 1000)) + " s" : ""}</span><span class="sp"></span>${r.st === "wait" ? `<button type="button" class="go" data-ans="1">Yes</button><button type="button" data-ans="0">No</button>` : ""}${live || r.st === "wait" ? `<button type="button" class="dng" id="rvStop">Stop</button>` : ""}</div>
+      ${r.err ? `<div class="warn">${esc(r.err)}</div>` : ""}
+      <div class="tln">${(r.steps || []).map((x) => `<div class="tli ${x.err ? "bad" : x.ok === false ? "back" : ""}"><i></i><div class="tlb"><div class="tlh"><b>${esc(x.w || RTN[x.t] || x.t)}</b><span>${esc(RTN[x.t] || x.t)}${x.t1 && x.t0 ? " · " + Math.max(0, Math.round((x.t1 - x.t0) / 1000)) + " s" : ""}</span></div>${x.err ? `<div class="tle">${esc(x.err)}</div>` : ""}${x.out ? `<details ${x.t === "worker" || x.t === "check" ? "open" : ""}><summary>Output</summary>${pretty(x.out)}</details>` : ""}</div></div>`).join("")}${live ? `<div class="tli run"><i></i><div class="tlb"><div class="tlh"><b>Working…</b></div></div></div>` : ""}</div>`);
+    for (const b of B.querySelectorAll("[data-ans]")) b.onclick = async () => { await v2("POST", `/runs/${id}/answer`, { yes: b.dataset.ans === "1" }); A.runView(id); };
+    const st = B.querySelector("#rvStop"); if (st) st.onclick = async () => { await v2("POST", `/runs/${id}/stop`); A.runView(id); };
+    if (live) rvT = setTimeout(() => { if (A.drawerOpen()) A.runView(id); }, 2500);
+  };
+
+  let cc = null, cf = null, cfl = null, ct = 0, crw = [], crt = 0;
   const refresh = async () => {
     if (Date.now() - ct < 30000) return;
     ct = Date.now();
@@ -99,9 +123,11 @@
     if (!any) return;
     if (["costs", "pipelines", "team", "repohealth"].some(vis)) await refresh();
     if (vis("approvals")) {
+      if (S.rw && Date.now() - crt > 8000) { crt = Date.now(); try { crw = await get("/api/v2/runs?st=wait&limit=20"); } catch {} } else if (!S.rw) crw = [];
       const ap = S.q.filter((q) => q.st === "approve");
-      $("wApN").textContent = ap.length || "";
-      $("wAp").innerHTML = ap.length ? ap.map((j) => `<div class="wr"><div class="wt"><b>${esc(j.title)}</b><span>${esc(j.repo)}${j.num ? "#" + j.num : ""}</span></div><button type="button" class="go" data-ap="${j.id}">Approve</button><button type="button" data-dr="${j.id}">Drop</button></div>`).join("") : `<div class="wmut">Nothing waits for you.</div>`;
+      $("wApN").textContent = ap.length + crw.length || "";
+      $("wAp").innerHTML = ap.length || crw.length ? crw.map((r) => `<div class="wr"><div class="wt"><b>${esc(r.ask || "Continue?")}</b><span>${esc(r.name || r.flow)} · run ${r.id}</span></div><button type="button" class="go" data-ry="${r.id}">Yes</button><button type="button" data-rn="${r.id}">No</button></div>`).join("") + ap.map((j) => `<div class="wr"><div class="wt"><b>${esc(j.title)}</b><span>${esc(j.repo)}${j.num ? "#" + j.num : ""}</span></div><button type="button" class="go" data-ap="${j.id}">Approve</button><button type="button" data-dr="${j.id}">Drop</button></div>`).join("") : `<div class="wmut">Nothing waits for you.</div>`;
+      for (const b of $("wAp").querySelectorAll("[data-ry],[data-rn]")) b.onclick = async () => { const id = b.dataset.ry || b.dataset.rn; await v2("POST", `/runs/${id}/answer`, { yes: !!b.dataset.ry }); crt = 0; A.wdg(S); };
       for (const b of $("wAp").querySelectorAll("[data-ap]")) b.onclick = () => post({ a: "approve", id: +b.dataset.ap }).then(A.apply);
       for (const b of $("wAp").querySelectorAll("[data-dr]")) b.onclick = () => post({ a: "drop", id: +b.dataset.dr }).then(A.apply);
     }

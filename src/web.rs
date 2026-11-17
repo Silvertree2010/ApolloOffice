@@ -149,6 +149,7 @@ fn state(a: &Ax) -> Value {
         "q": a.db.all("select id,repo,num,kind,title,url,st,why,pr,t0,t1,json_extract(d,'$.h') h from jobs where st not in ('done','drop') order by st in ('hunt','repro','fix','ci','review','gate','submit') desc, st='approve' desc, st='vet', id limit 60", pa![]),
         "dn": a.db.all("select id,repo,num,kind,title,url,st,why,pr,t1 from jobs where st in ('done','drop') order by t1 desc limit 25", pa![]),
         "pr": a.db.all("select repo,num,st,title,url,upd,merged from prs order by t0 desc limit 40", pa![]),
+        "rw": a.db.n("select count(*) from runs where st='wait'", pa![]),
         "mg": a.db.all("select substr(merged,1,10) day, count(*) n from prs where merged is not null and merged >= date('now','-30 day') group by 1 order by 1", pa![]),
         "ev": a.db.all("select t,w,m,j from ev order by id desc limit 120", pa![]),
         "n": Value::Object(a.db.all("select st, count(*) n from jobs group by st", pa![]).into_iter().map(|x| (x["st"].as_str().unwrap_or("").to_string(), x["n"].clone())).collect()),

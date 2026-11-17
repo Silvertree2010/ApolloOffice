@@ -283,15 +283,33 @@
     const mach = `<div class="fsec"><h6>Machines</h6>${hs.length ? hs.map((h) => { const st = hst[h.id] || {}; return `<div class="mc ${h.on_ ? "" : "off"}"><i class="md2 ${!h.on_ ? "" : up(h.id) ? "up" : "dn"}"></i><b>${esc(h.id)}</b><span>${!h.on_ ? "off" : up(h.id) ? `${h.ln || 1} lane${(h.ln || 1) > 1 ? "s" : ""}${st.load != null ? " · load " + Number(st.load).toFixed(1) : ""}` : "offline"}</span></div>`; }).join("") : `<div class="hint">No machines yet.</div>`}<button type="button" id="fMgr">${ic("server")}Manage machines</button></div>`;
     const team = `<div class="fsec"><h6>Your team</h6>${D.crew.length ? D.crew.map((w) => `<div class="cw"><span class="mic" style="--g:${GR.w}">${ic("person")}</span><b>${esc(w.n)}</b><span>${esc(w.r && w.r !== w.n ? w.r : "")}</span><button type="button" class="dng" data-fire="${w.id}">Let go</button></div>`).join("") : `<div class="hint">Nobody here yet.</div>`}<button type="button" id="fHire">${ic("plus")}Hire someone</button></div>`;
     S.innerHTML = `<div class="fsec fh"><div class="frow"><select id="fSel" aria-label="Pipeline">${D.flows.map((x) => `<option value="${x.id}" ${x.id === cur ? "selected" : ""}>${esc(x.n)}</option>`).join("")}</select><button type="button" id="fNew">${ic("plus")}New</button></div>
-      ${f ? `<div class="frow"><input type="text" id="fName" value="${esc(f.n)}" maxlength="60" aria-label="Name"><button type="button" class="sw ${f.on ? "on" : ""}" id="fOn" role="switch" aria-checked="${f.on}"><i></i>${f.on ? "On" : "Off"}</button></div>` : ""}</div>
+      ${f ? `<div class="frow"><input type="text" id="fName" value="${esc(f.n)}" maxlength="60" aria-label="Name"><button type="button" class="sw ${f.on ? "on" : ""}" id="fOn" role="switch" aria-checked="${f.on}" title="On: schedules and GitHub triggers start this pipeline by themselves"><i></i>${f.on ? "On" : "Off"}</button></div>
+      <div class="frow"><button type="button" class="go fRun" id="fRun" ${f.nodes.some((n) => n.t.startsWith("t.")) ? "" : "disabled"}>${ic("play")}Run now</button></div><div id="fRuns" class="fruns"></div>` : ""}</div>
       ${mid}${team}${mach}
       ${f ? `<div class="fsec fbot"><div class="ac"><button type="button" id="fUndo" ${hist.length ? "" : "disabled"}>Undo</button><span class="sp"></span><button type="button" class="dng" id="fRm">Delete pipeline</button></div></div>` : ""}`;
     bind();
+  };
+  let rT = 0;
+  const runs = async () => {
+    clearTimeout(rT);
+    const f = fl(), el = $("fRuns"); if (!f || !el || !open) return;
+    let rs = [];
+    try { rs = await get(`/api/v2/runs?flow=${encodeURIComponent(f.id)}&limit=6`); } catch {}
+    if (!Array.isArray(rs) || $("fRuns") !== el) return;
+    el.innerHTML = rs.length ? `<h6>Recent runs</h6>${rs.map((r) => `<button type="button" class="frn" data-run="${r.id}"><i class="dot2 rd-${esc(r.st)}"></i><span>${esc((A.runSt || {})[r.st] || r.st)}</span><small>${new Date(r.t0).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${r.steps} steps</small></button>`).join("")}` : "";
+    for (const b of el.querySelectorAll("[data-run]")) b.onclick = () => A.runView && A.runView(+b.dataset.run);
+    if (rs.some((r) => ["queued", "run"].includes(r.st))) rT = setTimeout(runs, 3000);
   };
   const newFlow = () => { snap(); const id = uid("p", D.flows); D.flows.push({ id, n: "My pipeline " + (D.flows.length + 1), on: false, nodes: [], edges: [] }); cur = id; sel = null; save(); side(); paint(); };
   const bind = () => {
     const f = fl(), on = (id, ev, fn) => { const e = $(id); if (e) e[ev] = fn; };
     const n = f && sel ? f.nodes.find((m) => m.id === sel) : null;
+    on("fRun", "onclick", async () => {
+      clearTimeout(tmo); await post({ flows: D.flows, crew: D.crew }, "/api/flows");
+      const r = await fetch(`/api/v2/flows/${encodeURIComponent(f.id)}/run`, { method: "POST", headers: { "content-type": "application/json", "x-ao": "1" }, body: "{}" }).then((x) => x.json());
+      if (r.run) { runs(); A.runView && A.runView(r.run); } else if (r.error) alert(r.error);
+    });
+    if (f) runs();
     on("fSel", "onchange", (e) => { cur = e.target.value; sel = null; esel = null; hideMenu(); side(); paint(); fit(); });
     on("fNew", "onclick", newFlow);
     on("fName", "onchange", (e) => { f.n = e.target.value.trim() || "Untitled"; save(); side(); });

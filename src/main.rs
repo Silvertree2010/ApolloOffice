@@ -1,5 +1,6 @@
 mod ai;
 mod xs;
+mod eng;
 mod api2;
 mod flows;
 mod app;
@@ -121,6 +122,7 @@ async fn main() -> anyhow::Result<()> {
     };
     let ax: Ax = Arc::new(App::new(d, dd.clone(), a.port, me));
     crate::xs::sync(&ax);
+    crate::eng::init(&ax);
     pipe::recover(&ax);
     tokio::spawn(net::watch(ax.clone()));
     tokio::spawn(pipe::lanes(ax.clone()));
@@ -128,6 +130,8 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(wk::scout(ax.clone()));
     tokio::spawn(wk::vet(ax.clone()));
     tokio::spawn(wk::watch(ax.clone()));
+    tokio::spawn(eng::runner(ax.clone()));
+    tokio::spawn(eng::triggers(ax.clone()));
     if !a.quiet {
         println!("\n  ApolloOffice {}\n\n  Open {}\n\n  Data: {}\n  Stop with Ctrl+C\n", app::V, url(&ax.db, a.port), dd.display());
     }

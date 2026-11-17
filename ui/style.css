@@ -665,3 +665,31 @@ body.nvs .nvk span, body.nvs .nvk kbd { display: none; }
 .mtg { flex: none; }
 .mc2.open .mtg { background: color-mix(in oklch, var(--ac) 14%, transparent); border-color: color-mix(in oklch, var(--ac) 45%, transparent); }
 .madd { margin-top: 22px; }
+.fRun { width: 100%; justify-content: center; display: inline-flex; align-items: center; gap: 4px; padding: 8px 12px; }
+.fRun svg { width: 14px; height: 14px; }
+.fruns { display: flex; flex-direction: column; gap: 2px; }
+.fruns h6 { margin: 6px 0 4px; }
+.frn { display: flex; align-items: center; gap: 8px; background: none; border-color: transparent; padding: 6px 4px; text-align: left; }
+.frn:hover { background: var(--f); }
+.frn span { font-size: 12.5px; flex: 1; }
+.frn small { color: var(--t3); font-size: 11px; }
+.rd-done { background: var(--ok); } .rd-fail, .rd-stop { background: var(--bad); } .rd-wait { background: var(--ac); } .rd-run, .rd-queued { background: var(--info); }
+.rvh { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
+.rvh .go { padding: 8px 14px; }
+.rs-done::before { background: var(--ok); } .rs-fail::before, .rs-stop::before { background: var(--bad); } .rs-wait::before { background: var(--ac); } .rs-run::before, .rs-queued::before { background: var(--info); }
+.tln { display: flex; flex-direction: column; }
+.tli { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; position: relative; padding-bottom: 14px; }
+.tli::before { content: ""; position: absolute; left: 8px; top: 16px; bottom: 0; width: 1px; background: var(--l); }
+.tli:last-child::before { display: none; }
+.tli > i { width: 10px; height: 10px; border-radius: 50%; background: var(--ok); margin: 4px 0 0 4px; }
+.tli.back > i { background: var(--ac); } .tli.bad > i { background: var(--bad); } .tli.run > i { background: var(--info); animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+.tlh { display: flex; align-items: baseline; gap: 8px; }
+.tlh b { font-weight: 600; font-size: 13px; }
+.tlh span { color: var(--t3); font-size: 12px; }
+.tle { color: var(--bad); font-size: 12.5px; margin-top: 4px; }
+.tlb details { margin-top: 6px; }
+.tlb summary { cursor: pointer; color: var(--t3); font-size: 12px; }
+.kvr { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 8px; margin-top: 6px; }
+.kvr span { color: var(--t3); font-size: 12px; }
+.kvr pre { margin: 0; font: 12px/1.5 var(--m); white-space: pre-wrap; word-break: break-word; background: var(--f); border: 1px solid var(--l); border-radius: 8px; padding: 8px 10px; }

@@ -36,6 +36,11 @@ pub const TOOLS: &[T] = &[
     T { n: "update_settings", m: "PATCH", p: "/settings", w: true, d: "Change office settings (models per worker in md, hunters, pipe, office, notifications).", a: &[("set", "object", "fields to change", true)] },
     T { n: "list_flows", m: "GET", p: "/flows", w: false, d: "Pipelines (graphs of triggers, workers and checks) and the hired team.", a: &[] },
     T { n: "save_flows", m: "PUT", p: "/flows", w: true, d: "Replace pipelines and/or the team. Send flows and/or crew.", a: &[("flows", "array", "pipelines", false), ("crew", "array", "team members", false)] },
+    T { n: "run_flow", m: "POST", p: "/flows/{id}/run", w: true, d: "Start a pipeline now. The input is passed to every step.", a: &[("id", "string", "pipeline id", true), ("input", "object", "data for the steps, e.g. {\"text\": \"...\"}", false)] },
+    T { n: "list_runs", m: "GET", p: "/runs", w: false, d: "Pipeline runs, newest first.", a: &[("flow", "string", "only this pipeline", false), ("st", "string", "queued, run, wait, done, fail or stop", false), ("limit", "integer", "1-200", false)] },
+    T { n: "get_run", m: "GET", p: "/runs/{id}", w: false, d: "One run with the output of every step.", a: &[("id", "integer", "run id", true)] },
+    T { n: "answer_run", m: "POST", p: "/runs/{id}/answer", w: true, d: "Answer an Approval step of a waiting run.", a: &[("id", "integer", "run id", true), ("yes", "boolean", "true continues on yes, false on no", true)] },
+    T { n: "stop_run", m: "POST", p: "/runs/{id}/stop", w: true, d: "Stop a run.", a: &[("id", "integer", "run id", true)] },
     T { n: "list_roles", m: "GET", p: "/roles", w: false, d: "Roles you can hire, with their default instructions.", a: &[] },
     T { n: "hire", m: "POST", p: "/crew", w: true, d: "Hire a team member, from a role or custom.", a: &[("role", "string", "role id from list_roles", false), ("n", "string", "name", false), ("p", "string", "instructions", false), ("md", "string", "model", false), ("tl", "array", "tools: shell, files, github, web", false)] },
     T { n: "fire", m: "DELETE", p: "/crew/{id}", w: true, d: "Let a team member go.", a: &[("id", "string", "crew id", true)] },
@@ -183,6 +188,11 @@ pub async fn run(a: &Ax, m: &str, path: &str, q: &Map<String, Value>, b: Value, 
         ("PATCH", ["settings"]) => int(a, "POST", "/api/set", "", if b["set"].is_object() { b["set"].clone() } else { b }).await.map(|c| c["set"].clone()),
         ("GET", ["flows"]) => { let mut v = crate::flows::get(a); if let Some(o) = v.as_object_mut() { o.remove("xc"); } Ok(v) }
         ("PUT", ["flows"]) => Ok(crate::flows::put(a, &b)),
+        ("POST", ["flows", fid, "run"]) => crate::eng::start(a, fid, None, if b["input"].is_null() { json!({}) } else { b["input"].clone() }).map(|id| json!({"run": id})).map_err(|e| (400, e)),
+        ("GET", ["runs"]) => Ok(json!(crate::eng::list(a, qs(q, "flow").as_deref(), qs(q, "st").as_deref(), qn(q, "limit", 50, 1, 200)))),
+        ("GET", ["runs", _]) => crate::eng::get(a, id(1)?).ok_or((404, "no such run".into())),
+        ("POST", ["runs", _, "answer"]) => crate::eng::answer(a, id(1)?, b["yes"].as_bool().unwrap_or(false)).map(|_| json!({"ok": true})).map_err(|e| (400, e)),
+        ("POST", ["runs", _, "stop"]) => crate::eng::stop(a, id(1)?).map(|_| json!({"ok": true})).map_err(|e| (400, e)),
         ("GET", ["roles"]) => Ok(json!(crate::flows::roles(a))),
         ("POST", ["crew"]) => {
             let r = b["role"].as_str().and_then(|t| crate::flows::roles(a).into_iter().find(|x| x["t"] == t));

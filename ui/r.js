@@ -36,7 +36,7 @@
   const prev = A.onState;
   A.onState = (s) => {
     prev && prev(s);
-    const act = s.q.filter((q) => !["park", "vet"].includes(q.st)).length, ap = s.q.filter((q) => q.st === "approve").length;
+    const act = s.q.filter((q) => !["park", "vet"].includes(q.st)).length, ap = s.q.filter((q) => q.st === "approve").length + (s.rw || 0);
     const nj = $("nJobs"); nj.textContent = ap ? ap : act || ""; nj.classList.toggle("hot", ap > 0); nj.title = ap ? `${ap} waiting for your approval` : `${act} active jobs`;
     const op = s.pr.filter((p) => p.st === "open").length; $("nPr").textContent = op || "";
     A.wdg && A.wdg(s);

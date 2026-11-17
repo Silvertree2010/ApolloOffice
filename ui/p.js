@@ -671,6 +671,8 @@
   };
   $("bCz").onclick = cz;
   A.hosts = hosts;
+  A.drawer = (t, html) => { show(t, "run"); B.innerHTML = html; return B; };
+  A.drawerOpen = () => !dr.hidden && cur === "run";
   A.repos = repos;
   A.costs = costs;
   A.settings = settings;
