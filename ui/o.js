@@ -135,15 +135,61 @@
   };
   const box = (u, cl, a) => { const f = FC[u.i], X = u.x * 8, Y = GO + u.y * 8; c.globalAlpha = a; px(X, Y, f.w * 8, 1, cl); px(X, Y + f.h * 8 - 1, f.w * 8, 1, cl); px(X, Y, 1, f.h * 8, cl); px(X + f.w * 8 - 1, Y, 1, f.h * 8, cl); c.globalAlpha = 1; };
   const pick = (p) => { if (!p) return -1; for (let k = FU.length - 1; k >= 0; k--) { const u = FU[k], f = FC[u.i]; if (fl(u.i) && p.x >= u.x && p.x < u.x + f.w && p.y >= u.y && p.y < u.y + f.h) return k; } return FU.findIndex((u) => p.x >= u.x && p.x < u.x + FC[u.i].w && p.y >= u.y && p.y < u.y + FC[u.i].h); };
+  const seats = () => {
+    const st = (S?.staff || []).filter((id) => (S?.crew || []).some((w) => w.id === id));
+    const ds = FU.map((u, k) => [u, k]).filter(([u]) => u.i === "desk").sort((a, b) => a[0].y - b[0].y || a[0].x - b[0].x);
+    const m = new Map();
+    st.forEach((id, i) => { if (ds[i]) m.set(ds[i][1], id); });
+    return { m, wait: st.slice(ds.length) };
+  };
+  const pst = (id) => {
+    const rs = (S?.rn || []).filter((r) => r.w === id);
+    if (rs.some((r) => r.st === "run" && !r.blk)) return "work";
+    if (S?.o?.man) return "sleep";
+    return "idle";
+  };
+  const person = (id, x, y, t, sit) => {
+    const k = "c:" + id, sk = SK[k] || { body: "#8d9199", dark: "#62666d", light: "#b9bcc2" };
+    const st = sit ? pst(id) : "wait", sd = id.length * 1.7 + id.charCodeAt(0) * 0.13;
+    const p = K.pose();
+    p.legs = sit ? "sit" : "stand";
+    const bl = Math.floor((t + sd) * 10) % 47 === 0;
+    if (st === "work") {
+      const q = Math.floor(t * 9 + sd);
+      p.armL = "front"; p.armR = "front"; p.aL = [0, q % 2 ? -1 : 0]; p.aR = [0, q % 2 ? 0 : -1];
+      p.ex = -1; p.ey = 1; p.dy = Math.floor(t * 4 + sd) % 4 === 0 ? -1 : 0;
+      if (bl) p.eyes = "shut";
+    } else if (st === "sleep") {
+      p.eyes = "shut"; p.bh = -1; p.dy = 1; p.armL = "low"; p.armR = "low";
+    } else if (st === "wait") {
+      p.ex = [0, 1, 0, -1][Math.floor((t + sd) * 0.7) % 4]; p.armL = "low"; p.armR = "low";
+      if (bl) p.eyes = "shut";
+    } else {
+      p.bh = Math.floor((t + sd) * 0.8) % 2 ? 0 : -1; p.ex = [0, 1, 0, -1][Math.floor((t + sd) * 0.4) % 4];
+      if (bl) p.eyes = "shut";
+    }
+    fc.clearRect(0, 0, K.W, K.H);
+    K.figure(fc, p, t, sk);
+    c.drawImage(fig, Math.round(x - 24), Math.round(y - 41));
+    hits.push({ k: "p:" + id, b: [x - 9, y - 30, x + 9, y - 4], p: id });
+    if (st === "sleep") { const z = ((t + sd) * 0.6) % 1; c.globalAlpha = 1 - z; tx("Z", x + 8 + z * 4, y - 26 - z * 8, "#75746f"); c.globalAlpha = 1; }
+    if (st === "wait") tx("?", x + 9, y - 18 + (Math.floor(t * 2 + sd) % 2), "#e0675a");
+  };
+  const pname = (id) => ((S?.crew || []).find((w) => w.id === id)?.n || id).slice(0, 10).toUpperCase();
   const fdraw = (t) => {
     const ord = FU.map((u, k) => [u, k]).sort((a, b) => fl(a[0].i) - fl(b[0].i) || a[0].y + FC[a[0].i].h - (b[0].y + FC[b[0].i].h));
     const hk = fedit && !fdrag && !ftool ? pick(fhov) : -1;
+    const sm = fedit ? { m: new Map(), wait: [] } : seats();
     for (const [u, k] of ord) {
       if (fdrag && fdrag.k === k) continue;
+      if (sm.m.has(k)) person(sm.m.get(k), u.x * 8 + 25, GO + u.y * 8 + 3, t, true);
       FU[k] && FC[u.i].d(u.x * 8, GO + u.y * 8, t);
+
       if (fedit && k === fsel) box(u, "#4fb3e0", 0.95);
       else if (k === hk) box(u, lt() ? "#000" : "#fff", 0.35);
     }
+    for (const [k, id] of sm.m) { const u = FU[k]; if (!u || (fdrag && fdrag.k === k)) continue; const nm = pname(id), on = pst(id) === "work"; tx(nm, u.x * 8 + 16 - (K.textWidth(nm) >> 1), GO + u.y * 8 - 15, on ? hl("c:" + id) : "#6b6f76"); }
+    sm.wait.forEach((id, i) => { const x = 20 + i * 24, y = VH - 8; person(id, x, y, t, false); const nm = pname(id); tx(nm, x - (K.textWidth(nm) >> 1), y - 26, "#e0675a"); });
     const g = ghost();
     fbad = false;
     if (g) {
@@ -363,7 +409,7 @@
     const po = window.AO.pord || [], xk = Object.keys(S.w).filter((k) => k.startsWith("x:")).sort((a, b) => (po.indexOf(a.slice(2)) + 99) % 99 - (po.indexOf(b.slice(2)) + 99) % 99);
     xk.forEach((k, i) => { const c = XP[i % XP.length]; SK[k] = { body: c, dark: c, light: c }; NM[k] = S.w[k].nm || k.slice(2); });
     const CP = ["#e39b6b", "#7fc8a9", "#b5a3e0", "#6fa8dc", "#e0848f", "#8fb3c9", "#c77dba", "#c9b37f"];
-    const ck = (S.crew || []).map((w, i) => { const k = "c:" + w.id; SK[k] = { body: CP[i % CP.length], dark: CP[i % CP.length], light: CP[i % CP.length] }; NM[k] = w.n || w.id; return k; });
+    const ck = (S.crew || []).filter((w) => (S.staff || []).includes(w.id)).map((w, i) => { const k = "c:" + w.id; SK[k] = { body: CP[i % CP.length], dark: CP[i % CP.length], light: CP[i % CP.length] }; NM[k] = w.n || w.id; return k; });
     const all = [...ck, ...ORD, ...xk];
     if (all.join() !== tkeys) { tkeys = all.join(); el.innerHTML = ""; el.style.gridTemplateColumns = all.length > 10 ? "repeat(auto-fill, minmax(124px, 1fr))" : `repeat(${all.length}, minmax(0, 1fr))`; }
     if (!el.children.length) {
@@ -380,6 +426,8 @@
       if (n.startsWith("c:")) {
         const id = n.slice(2), cw = (S.crew || []).find((x) => x.id === id) || {}, rs = (S.rn || []).filter((r) => r.st === "run" && r.w === id);
         const ev = (S.ev || []).find((e) => e.w === n);
+        const nd = seats().wait.includes(id);
+        if (nd) { t.className = "tile nodesk"; t.style.order = 0; t.querySelector(".md").textContent = ""; t.querySelector(".sy").textContent = "Place a desk in Edit office"; t.querySelector(".stt").textContent = "No desk"; t.querySelector(".ft").textContent = ""; t.title = "Needs a desk to work"; continue; }
         t.className = "tile " + (rs.length ? "work" : "");
         t.style.order = rs.length ? 0 : 1;
         t.querySelector(".md").textContent = mdn(cw.md || "");
@@ -437,7 +485,7 @@
   };
 
   const RQN = { queued: "Queued", run: "Running", wait: "Waiting for you" };
-  const rrow = (r) => { const w = (S.crew || []).find((x) => x.id === r.w); return `<div class="row jr${r.st === "wait" ? " apr" : ""}"><div class="ti"><a class="a" href="#" data-run="${r.id}">${esc(r.st === "wait" && r.ask ? r.ask : r.n || r.flow)}</a><div class="w"><span class="stt rs-${esc(r.st)}">${esc(RQN[r.st] || r.st)}</span><span>${esc(r.st === "wait" && r.ask ? r.n || r.flow : w ? (r.nt === "check" ? w.n + " checks" : w.n + " works") : "Pipeline")}</span><span>run ${r.id}</span></div></div><span class="rp">${r.st === "wait" ? `<button class="go" data-ry="${r.id}">Yes</button><button data-rn="${r.id}">No</button>` : ""}</span></div>`; };
+  const rrow = (r) => { const w = (S.crew || []).find((x) => x.id === r.w); return `<div class="row jr${r.st === "wait" ? " apr" : ""}"><div class="ti"><a class="a" href="#" data-run="${r.id}">${esc(r.st === "wait" && r.ask ? r.ask : r.n || r.flow)}</a><div class="w"><span class="stt rs-${esc(r.blk ? "fail" : r.st)}">${esc(r.blk ? "Needs a desk" : RQN[r.st] || r.st)}</span><span>${esc(r.blk ? r.blk : r.st === "wait" && r.ask ? r.n || r.flow : w ? (r.nt === "check" ? w.n + " checks" : w.n + " works") : "Pipeline")}</span><span>run ${r.id}</span></div></div><span class="rp">${r.st === "wait" ? `<button class="go" data-ry="${r.id}">Yes</button><button data-rn="${r.id}">No</button>` : ""}</span></div>`; };
   const lists = () => {
     const q = S.q, rx = S.rn || [];
     $("qn").textContent = [q.length ? q.length + (q.length === 1 ? " job" : " jobs") : "", rx.length ? rx.length + (rx.length === 1 ? " run" : " runs") : ""].filter(Boolean).join(" · ");
@@ -562,6 +610,17 @@
       + (cs.length ? `<div class="tc">${cs.map(([t, c]) => `<div><span class="k">${ago(t)}</span><span>${esc(c)}</span></div>`).join("")}</div>` : "")
       + (q ? `<div class="tf">click to open the job</div>` : "");
   };
+  const ptip = (h) => {
+    const w = (S.crew || []).find((x) => x.id === h.p) || {}, rs = (S.rn || []).filter((r) => r.w === h.p), k = "c:" + h.p;
+    const sit = seats().m.size && [...seats().m.values()].includes(h.p);
+    const cs = S.ev.filter((e) => e.w === k).slice(0, 3);
+    return `<div class="th"><b>${esc(w.n || h.p)}</b><span>${esc(w.r || "")}</span></div>`
+      + tr("model", esc(mdn(w.md || "")))
+      + tr("status", !sit ? `<span class="bad2">needs a desk</span>` : rs.some((r) => r.st === "run" && !r.blk) ? "working" : S.o.man ? "paused" : "idle")
+      + rs.map((r) => tr("run", `${esc(r.n || r.flow)} <span class="k">run ${r.id}</span>`)).join("")
+      + (cs.length ? `<div class="tc">${cs.map((e) => `<div><span class="k">${ago(e.t)}</span><span>${esc(e.m)}</span></div>`).join("")}</div>` : "")
+      + `<div class="tf">${!sit ? "place a desk in Edit office" : rs.length ? "click to open the run" : "click to open Team"}</div>`;
+  };
   const htip = (h) => {
     const x = (S.hs || []).find((y) => y.id === h.h) || {}, m = S.hst?.[h.h], down = S.o.net?.[h.h] === false;
     const js = S.q.filter((q) => q.h === h.h && ["repro", "fix", "ci", "review", "gate", "submit"].includes(q.st));
@@ -580,7 +639,7 @@
   const tip = () => {
     const el = $("tip"), h = hov && hits.find((x) => x.k === hov);
     if (!h || !S) { el.hidden = true; return; }
-    el.innerHTML = h.h ? htip(h) : wtip(h);
+    el.innerHTML = h.h ? htip(h) : h.p ? ptip(h) : wtip(h);
     el.hidden = false;
     const r = el.getBoundingClientRect(), W = window.innerWidth, H = window.innerHeight;
     el.style.left = Math.min(mx + 16, W - r.width - 8) + "px";
@@ -591,7 +650,7 @@
     mx = e.clientX; my = e.clientY;
     const h = at(e);
     hov = h ? h.k : null;
-    cv.style.cursor = h && (h.h || h.q || (S?.w?.[h.n]?.job)) ? "pointer" : "";
+    cv.style.cursor = h && (h.h || h.p || h.q || (S?.w?.[h.n]?.job)) ? "pointer" : "";
     tip();
   });
   cv.addEventListener("mouseleave", () => { hov = null; cv.style.cursor = ""; tip(); });
@@ -599,6 +658,7 @@
     const h = at(e);
     if (!h) return;
     if (h.h) return window.AO.go && window.AO.go("machines");
+    if (h.p) { const r = (S.rn || []).find((x) => x.w === h.p); if (!seats().wait.includes(h.p) && r) return window.AO.runView && window.AO.runView(r.id); if (seats().wait.includes(h.p)) return $("bCz").click(); return window.AO.go && window.AO.go("team"); }
     const id = h.q?.id || S?.w?.[h.n]?.job;
     if (id && S.q.some((q) => q.id === id)) window.AO.job && window.AO.job(id);
   });
