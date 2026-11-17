@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="grid">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,7 +7,7 @@
 <meta name="description" content="Privacy policy of ApolloOffice: the software runs on your own computer and sends no data to us. What Google sign-in stores and where.">
 <link rel="canonical" href="https://office.apollonet.dev/privacy">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<meta name="theme-color" content="#1c1b18">
+<meta name="theme-color" content="#0b0c0e">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ApolloOffice">
 <meta property="og:title" content="Privacy policy · ApolloOffice">
@@ -21,13 +21,14 @@
 <meta name="twitter:title" content="Privacy policy · ApolloOffice">
 <meta name="twitter:description" content="Privacy policy of ApolloOffice: the software runs on your own computer and sends no data to us. What Google sign-in stores and where.">
 <meta name="twitter:image" content="https://raw.githubusercontent.com/Silvertree2010/ApolloOffice/main/site/public/og.jpg">
-<link rel="stylesheet" href="/style.css">
+
+<link rel="stylesheet" href="/site.css">
 </head>
 <body>
-<div class="wrap">
-<nav><a class="brand" href="/">ApolloOffice</a><a href="https://github.com/Silvertree2010/ApolloOffice">GitHub</a><a href="/privacy">Privacy</a></nav>
+<header class="top"><div class="frame top-in"><a class="brand" href="/"><svg class="mark" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 14h3v-3h6v3h3V5h-2V2H4v3H2zm3-6V5h6v3z"/></svg><span>ApolloOffice</span></a><div class="top-act"><a class="btn ghost sm" href="https://github.com/Silvertree2010/ApolloOffice">GitHub</a><a class="btn sm" href="/#download">Download</a></div></div></header>
+<main class="frame"><article class="legal">
 <h1>Privacy policy</h1>
-<p class="muted">Last updated: 19 October 2026</p>
+<p class="num"><b>§</b>Last updated 19 October 2026</p>
 <p>ApolloOffice is software that runs on your own computer. We do not operate a server for it, we do not have user accounts, and the software sends us no data at all: no telemetry, no crash reports, no usage statistics.</p>
 <h2>Sign in with Google</h2>
 <p>You can connect a Google account as a way to sign in to your own ApolloOffice. ApolloOffice then asks Google for the scopes <code>openid</code> and <code>email</code> only. It receives your Google account ID and your email address and stores them in the local database on your computer, to recognise that account the next time you sign in. The access token from Google is used once for this and is not stored. None of this data leaves your computer or reaches us. You can disconnect Google in Settings at any time, which deletes the stored ID and address. You can also revoke access in your Google account under Security, Third-party connections.</p>
@@ -38,7 +39,7 @@
 <p>office.apollonet.dev is a static page served by Cloudflare. It sets no cookies and uses no analytics. Cloudflare processes technical request data such as IP addresses to deliver the page and protect it from abuse.</p>
 <h2>Contact</h2>
 <p>Questions about this policy: <a href="mailto:silvertreexsing@gmail.com">silvertreexsing@gmail.com</a>, or open an issue on <a href="https://github.com/Silvertree2010/ApolloOffice">GitHub</a>.</p>
-<footer><span>ApolloOffice, AGPL-3.0</span><a href="/">Home</a><a href="https://github.com/Silvertree2010/ApolloOffice">Source</a></footer>
-</div>
+</article></main>
+<footer class="foot"><div class="frame"><div class="foot-row cell"><span>ApolloOffice · AGPL-3.0</span><nav><a href="/">Home</a><a href="https://github.com/Silvertree2010/ApolloOffice">Source</a></nav></div></div></footer>
 </body>
 </html>

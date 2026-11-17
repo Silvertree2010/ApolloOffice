@@ -1,47 +1,236 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="grid">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ApolloOffice: AI workers that fix GitHub bugs with proof</title>
-<meta name="description" content="AI workers that turn GitHub issues into verified bug-fix pull requests. Reproduce, fix with a regression test, prove it, open the PR. Runs on your computer with Claude Code, Codex, OpenAI, Gemini or Ollama.">
+<title>ApolloOffice: build pipelines of AI workers on your own computer</title>
+<meta name="description" content="Build pipelines of AI workers that run on your own computer. Start on an issue, a pull request, a schedule or a webhook, hire from 42 ready roles, add checks and approval steps. A bug-fix team that turns issues into proven pull requests comes ready.">
 <link rel="canonical" href="https://office.apollonet.dev/">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<meta name="theme-color" content="#1c1b18">
+<meta name="theme-color" content="#0b0c0e">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ApolloOffice">
-<meta property="og:title" content="ApolloOffice: AI workers that fix GitHub bugs with proof">
-<meta property="og:description" content="AI workers that turn GitHub issues into verified bug-fix pull requests. Reproduce, fix with a regression test, prove it, open the PR. Runs on your computer with Claude Code, Codex, OpenAI, Gemini or Ollama.">
+<meta property="og:title" content="ApolloOffice: build pipelines of AI workers on your own computer">
+<meta property="og:description" content="Build pipelines of AI workers that run on your own computer. Start on an issue, a pull request, a schedule or a webhook, hire from 42 ready roles, add checks and approval steps. A bug-fix team that turns issues into proven pull requests comes ready.">
 <meta property="og:url" content="https://office.apollonet.dev/">
 <meta property="og:image" content="https://raw.githubusercontent.com/Silvertree2010/ApolloOffice/main/site/public/og.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="The ApolloOffice dashboard: a pixel office with one desk per AI worker">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="ApolloOffice: AI workers that fix GitHub bugs with proof">
-<meta name="twitter:description" content="AI workers that turn GitHub issues into verified bug-fix pull requests. Reproduce, fix with a regression test, prove it, open the PR. Runs on your computer with Claude Code, Codex, OpenAI, Gemini or Ollama.">
 <meta name="twitter:image" content="https://raw.githubusercontent.com/Silvertree2010/ApolloOffice/main/site/public/og.jpg">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"ApolloOffice","applicationCategory":"DeveloperApplication","operatingSystem":"Windows, macOS, Linux","description":"AI workers that turn GitHub issues into verified bug-fix pull requests. Reproduce, fix with a regression test, prove it, open the PR. Runs on your computer with Claude Code, Codex, OpenAI, Gemini or Ollama.","url":"https://office.apollonet.dev","downloadUrl":"https://github.com/Silvertree2010/ApolloOffice/releases/latest","codeRepository":"https://github.com/Silvertree2010/ApolloOffice","license":"https://www.gnu.org/licenses/agpl-3.0.html","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}</script>
-<link rel="stylesheet" href="/style.css">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"ApolloOffice","applicationCategory":"DeveloperApplication","operatingSystem":"Windows, macOS, Linux","description":"Build pipelines of AI workers that run on your own computer. Start on an issue, a pull request, a schedule or a webhook, hire from 42 ready roles, add checks and approval steps. A bug-fix team that turns issues into proven pull requests comes ready.","url":"https://office.apollonet.dev","downloadUrl":"https://github.com/Silvertree2010/ApolloOffice/releases/latest","license":"https://www.gnu.org/licenses/agpl-3.0.html","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}</script>
+<link rel="preload" href="/geist.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/geist-mono.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/site.css">
 </head>
 <body>
-<div class="wrap">
-<nav><a class="brand" href="/">ApolloOffice</a><a href="https://github.com/Silvertree2010/ApolloOffice">GitHub</a><a href="/privacy">Privacy</a></nav>
-<h1>Bug fixes that prove themselves.</h1>
-<p class="lede">ApolloOffice is a small office of AI workers on your own computer. Add a GitHub repository and it picks up bug reports, reproduces them, writes a fix with a regression test and opens a pull request once the proof holds.</p>
-<a class="btn" href="https://github.com/Silvertree2010/ApolloOffice/releases/latest">Download</a><a class="alt" href="https://github.com/Silvertree2010/ApolloOffice#readme">Read the README</a>
-<img src="https://raw.githubusercontent.com/Silvertree2010/ApolloOffice/main/site/public/office.jpg" alt="The ApolloOffice dashboard: a pixel office with one desk per worker, the queue, pull requests and the log" width="1100" height="619" loading="lazy">
-<p class="muted">The office at work: every worker has its own desk.</p>
-<h2>How it works</h2>
-<ul>
-<li>A fixed pipeline: Scout, Guard, Vet, Hunter, Repro, Fixer, CI, Reviewer, Submit and Watcher.</li>
-<li>ApolloOffice checks the proof itself: the new test fails without the fix, passes with it, and your test command stays green.</li>
-<li>Every pull request waits for your approval, with the diff, the proof and an editable text.</li>
-<li>Pick a provider per worker: Claude Code or Codex with your own login, the Claude, OpenAI or Gemini API, or a local model through Ollama.</li>
-</ul>
-<h2>Runs on your machine</h2>
-<p>One binary for Windows, macOS and Linux. It uses your own GitHub and AI accounts and runs repository code in Docker on your computer or on any machine you reach with <code>ssh</code>. There is no ApolloOffice server, no account with us and no telemetry.</p>
-<footer><span>ApolloOffice, AGPL-3.0</span><a href="/privacy">Privacy policy</a><a href="https://github.com/Silvertree2010/ApolloOffice">Source</a></footer>
-</div>
+<header class="top">
+  <div class="frame top-in">
+    <a class="brand" href="/" aria-label="ApolloOffice home">
+      <svg class="mark" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 14h3v-3h6v3h3V5h-2V2H4v3H2zm3-6V5h6v3z"/></svg>
+      <span>ApolloOffice</span><span class="sep">/</span><span class="ver">beta</span>
+    </a>
+    <nav class="links">
+      <a href="#pipeline">Pipelines</a>
+      <a href="#team">Team</a>
+      <a href="#proof">Bug-fix team</a>
+      <a href="#features">Features</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="top-act">
+      <a class="btn ghost sm" href="https://github.com/Silvertree2010/ApolloOffice"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.72 1.22 1.88.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.65-.89-3.65-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0"/></svg><span data-stars>GitHub</span></a>
+      <a class="btn sm" href="#download">Download</a>
+    </div>
+  </div>
+</header>
+
+<main>
+<section class="frame hero">
+  <div class="cell hero-copy">
+    <p class="kick"><i></i>Open source · AGPL-3.0 · Windows, macOS, Linux</p>
+    <h1>Build the pipeline.<br><span class="acc">Hire the workers.</span><b class="caret" aria-hidden="true"></b></h1>
+    <p class="lede">An office of AI workers on your own computer. Pick what starts a pipeline, who works in it and who checks the result. Fixing bugs with proof, writing release notes, research, upkeep: you decide the route.</p>
+    <div class="cta">
+      <a class="btn" href="#download" data-dl>Download for <span data-os>your system</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v9m-4-4 4 4 4-4M3 14h10"/></svg></a>
+      <a class="btn ghost" href="https://github.com/Silvertree2010/ApolloOffice">View source<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 11 11 5M6 5h5v5"/></svg></a>
+    </div>
+  </div>
+  <div class="cell hero-stage">
+    <div class="stage-bar"><span class="tag">pipelines</span><span class="live"><i></i>live</span></div>
+    <canvas id="office" aria-label="Animated ASCII pipelines: release notes with a review loop, issue triage with three branches, nightly upkeep with parallel steps" role="img"></canvas>
+  </div>
+  <div class="cell facts">
+    <span><i></i>No account with us</span>
+    <span><i></i>No telemetry</span>
+    <span><i></i>Your own AI logins</span>
+  </div>
+</section>
+
+<div class="frame hatch" aria-hidden="true"></div>
+
+<section class="frame" id="pipeline">
+  <div class="cell head">
+    <p class="num"><b>01</b>Pipelines</p>
+    <h2>Any start. Any team.<br>Any route.</h2>
+  </div>
+  <div class="cell head-side">
+    <p>Put a pipeline together from blocks in the editor. Click the plus on a step to say what comes next, drag steps to move them. Every worker can run on a different model and a different machine.</p>
+  </div>
+  <ol class="desks" data-desks>
+    <li style="--c:var(--w0)"><span class="d-n">01</span><b>Press Start</b><p>Run it yourself, whenever you want.</p></li>
+    <li style="--c:var(--w1)"><span class="d-n">02</span><b>On a schedule</b><p>Every day, every hour, any cron time.</p></li>
+    <li style="--c:var(--w2)"><span class="d-n">03</span><b>New issue</b><p>For each new GitHub issue, filtered by label if you like.</p></li>
+    <li style="--c:var(--w3)"><span class="d-n">04</span><b>New pull request</b><p>For each pull request that comes in.</p></li>
+    <li style="--c:var(--w4)"><span class="d-n">05</span><b>Webhook</b><p>Another app calls a link, for example CI or your own scripts.</p></li>
+    <li style="--c:var(--w5)"><span class="d-n">06</span><b>Do something</b><p>A team member gets a task and does it.</p></li>
+    <li style="--c:var(--w6)"><span class="d-n">07</span><b>Check the work</b><p>Someone reviews it. If it is wrong, it goes back to be fixed.</p></li>
+    <li style="--c:var(--w7)"><span class="d-n">08</span><b>Choose a way</b><p>Go different ways depending on the answer.</p></li>
+    <li style="--c:var(--w8)"><span class="d-n">09</span><b>At the same time</b><p>Start several steps together, then wait for all.</p></li>
+    <li style="--c:var(--w9)"><span class="d-n">10</span><b>Ask me first</b><p>The pipeline waits until you say yes.</p></li>
+  </ol>
+</section>
+
+<div class="frame hatch" aria-hidden="true"></div>
+
+<section class="frame" id="team">
+  <div class="cell head">
+    <p class="num"><b>02</b>Team</p>
+    <h2>42 roles ready<br>to hire.</h2>
+  </div>
+  <div class="cell head-side">
+    <p>Each role comes with its own instructions. Change them, or describe someone new in your own words. You decide what each worker may do: run commands on your machines, read and change files, use GitHub, look things up on the web.</p>
+  </div>
+  <div class="roles">
+    <div class="cell"><h3>Bug-fix team</h3><p>Scout, Guard, Vet, Hunter, Repro, Fixer, CI, Reviewer, Submit, Watcher</p></div>
+    <div class="cell"><h3>Checks</h3><p>Security, Test critic, Scope critic, Docs, Performance, Accessibility</p></div>
+    <div class="cell"><h3>Code</h3><p>Tester, Auditor, Gardener, Release, Migrator, Merger, Benchmarker, Experimenter, Designer</p></div>
+    <div class="cell"><h3>Writing</h3><p>Writer, Translator, Reporter, Critic</p></div>
+    <div class="cell"><h3>Data and research</h3><p>Researcher, Analyst, Scraper, Cleaner, Librarian</p></div>
+    <div class="cell"><h3>Operations and planning</h3><p>Ops, Housekeeper, Backup Keeper, Notifier, Accountant, Planner, Triage, Coach</p></div>
+  </div>
+</section>
+
+<div class="frame hatch" aria-hidden="true"></div>
+
+<section class="frame" id="proof">
+  <div class="cell head">
+    <p class="num"><b>03</b>Bug-fix team</p>
+    <h2>The first team<br>comes ready.</h2>
+  </div>
+  <div class="cell head-side">
+    <p>One click hires the bug-fix team with its pipeline: from issue to pull request. It does not trust the model. ApolloOffice runs the proof itself: the new test has to fail without the fix and pass with it, and your suite has to stay green. Otherwise no PR opens.</p>
+  </div>
+  <div class="cell term-wrap">
+    <div class="term" data-term>
+      <div class="term-bar"><i></i><i></i><i></i><span>ao-testbed#7 · Fix mean() dividing by len(xs) + 1</span></div>
+      <pre><code data-lines>
+<span class="t-m"># without the fix, on main</span>
+<span class="t-d">$</span> pytest tests/test_mean.py
+<span class="t-r">FAILED</span>  test_mean   mean([2, 4]) returned 2.0, expected 3
+<span class="t-ok">✓</span> red without the fix
+
+<span class="t-m"># with the fix</span>
+<span class="t-d">$</span> pytest tests/test_mean.py
+<span class="t-g">PASSED</span>  test_mean
+<span class="t-ok">✓</span> green with the fix
+
+<span class="t-m"># whole suite</span>
+<span class="t-d">$</span> pytest
+<span class="t-g">PASSED</span>
+<span class="t-ok">✓</span> test command still green
+
+<span class="t-a">→</span> PR waits for your approval: diff, proof, editable text</code></pre>
+    </div>
+  </div>
+  <div class="cell shot">
+    <figure>
+      <video autoplay muted loop playsinline preload="metadata" poster="/sparkles.jpg" width="1280" height="722" aria-label="Building a pipeline in ApolloOffice: pick a trigger, hire the whole bug-fix team, open the team page">
+        <source src="/sparkles.webm" type="video/webm">
+        <source src="/sparkles.mp4" type="video/mp4">
+      </video>
+      <figcaption><span class="tag">app</span>One click hires the bug-fix team and builds its pipeline. Every step stays editable.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<div class="frame hatch" aria-hidden="true"></div>
+
+<section class="frame" id="features">
+  <div class="cell head">
+    <p class="num"><b>04</b>Features</p>
+    <h2>Runs on your machine.<br>Answers to you.</h2>
+  </div>
+  <div class="cell head-side">
+    <p>One binary. Your GitHub, your AI accounts, your Docker. There is no ApolloOffice server in the middle and nothing to sign up for.</p>
+  </div>
+  <div class="grid-6">
+    <article class="cell"><span class="ico">⌁</span><h3>Any provider per worker</h3><p>Claude Code or Codex with your own login, the Claude, OpenAI or Gemini API, or a local model through Ollama.</p></article>
+    <article class="cell"><span class="ico">▣</span><h3>Docker isolation</h3><p>Repository code runs in containers on this computer or on any machine you reach with <code>ssh</code>. The GitHub token stays home.</p></article>
+    <article class="cell"><span class="ico">◷</span><h3>Costs and budgets</h3><p>Cost per job, worker and repository, a daily USD budget, and which model gets merged most per dollar.</p></article>
+    <article class="cell"><span class="ico">⚿</span><h3>Secrets, kept back</h3><p>Give workers keys for other services. Runs started from GitHub or a webhook never get them.</p></article>
+    <article class="cell"><span class="ico">⌘</span><h3>API and MCP</h3><p>Start pipelines, answer approval steps, read jobs, PRs and costs. As a REST API and as MCP tools for Claude Code, Cursor and other agents.</p></article>
+    <article class="cell"><span class="ico">✓</span><h3>Honest commits</h3><p>Every commit names the models that wrote it, every PR says it was made with AI. Always on.</p></article>
+  </div>
+  <div class="providers" aria-label="Supported providers">
+    <span>Claude Code</span><span>Codex</span><span>Anthropic API</span><span>OpenAI</span><span>Gemini</span><span>Ollama</span>
+  </div>
+</section>
+
+<div class="frame hatch" aria-hidden="true"></div>
+
+<section class="frame" id="download">
+  <div class="cell head">
+    <p class="num"><b>05</b>Download</p>
+    <h2>From download<br>to first run.</h2>
+  </div>
+  <div class="cell head-side">
+    <p>You need <code>git</code>, the GitHub CLI logged in, and one provider. Docker is recommended. Run the binary, open the login link it prints, add a repository.</p>
+    <div class="install">
+      <code><span class="t-d">$</span> apollo-office</code>
+      <button class="copy" data-copy="apollo-office" aria-label="Copy command">copy</button>
+    </div>
+  </div>
+  <div class="dl">
+    <a class="cell" data-os-card="win" href="https://github.com/Silvertree2010/ApolloOffice/releases/latest/download/apollo-office-windows-x64.exe">
+      <span class="tag">x64</span><b>Windows</b><span class="file">apollo-office-windows-x64.exe</span><span class="arrow">↓</span>
+    </a>
+    <a class="cell" data-os-card="mac" href="https://github.com/Silvertree2010/ApolloOffice/releases/latest/download/apollo-office-macos-arm64">
+      <span class="tag">Apple silicon</span><b>macOS</b><span class="file">apollo-office-macos-arm64</span><span class="arrow">↓</span>
+    </a>
+    <a class="cell" data-os-card="linux" href="https://github.com/Silvertree2010/ApolloOffice/releases/latest/download/apollo-office-linux-x64">
+      <span class="tag">x64</span><b>Linux</b><span class="file">apollo-office-linux-x64</span><span class="arrow">↓</span>
+    </a>
+  </div>
+  <p class="cell more">ARM builds for Windows and Linux and Intel Macs are on the <a href="https://github.com/Silvertree2010/ApolloOffice/releases/latest">release page</a>. The app updates itself.</p>
+</section>
+
+<div class="frame hatch" aria-hidden="true"></div>
+
+<section class="frame" id="faq">
+  <div class="cell head">
+    <p class="num"><b>06</b>FAQ</p>
+    <h2>Questions.</h2>
+  </div>
+  <div class="faq">
+    <details><summary>Does my code leave my computer?</summary><p>Only to the AI provider you choose for a worker, and to GitHub when a PR opens. With Ollama no code goes to an AI provider at all. ApolloOffice itself sends us nothing.</p></details>
+    <details><summary>Does it open PRs without asking?</summary><p>No. By default every PR waits for your approval with the diff, the proof and an editable text. You can switch single repositories to submit on their own.</p></details>
+    <details><summary>What does it cost?</summary><p>The app is free and open source. You pay your AI provider per use, or nothing extra if you use an existing Claude or ChatGPT subscription through Claude Code or Codex, or a local model. With a daily budget the office pauses until midnight once the limit is reached.</p></details>
+    <details><summary>Is it only for bug fixes?</summary><p>No. The bug-fix team is one ready-made pipeline. Build others for release notes, translations, reports, research, dependency upkeep or backups, with the roles above or your own.</p></details>
+    <details><summary>Can it build features too?</summary><p>Feature mode is off by default. Turned on, Scout and Vet also pick small, clearly specified feature requests, a Planner checks the feature is still missing and Fixer builds it test-first.</p></details>
+    <details><summary>Is it stable?</summary><p>It is in beta. Expect bugs and <a href="https://github.com/Silvertree2010/ApolloOffice/issues">report them</a>.</p></details>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="frame">
+    <canvas id="word" aria-hidden="true"></canvas>
+    <div class="foot-row cell">
+      <span>ApolloOffice · AGPL-3.0</span>
+      <nav><a href="https://github.com/Silvertree2010/ApolloOffice">Source</a><a href="https://github.com/Silvertree2010/ApolloOffice/releases">Releases</a><a href="https://github.com/Silvertree2010/ApolloOffice/issues">Issues</a><a href="/privacy">Privacy</a></nav>
+    </div>
+  </div>
+</footer>
+<script src="/site.js" defer></script>
 </body>
 </html>
