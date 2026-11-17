@@ -123,10 +123,10 @@ async fn step(a: &Ax, id: i64, d: &mut Value, n: &Value) -> Result<(Value, bool)
         if prev.is_empty() { String::new() } else { format!("Previous steps:\n{}\n\n", wrap("steps", &prev.join("\n\n"))) },
         if fb.is_empty() || chk { String::new() } else { format!("A check sent this back. Fix these problems:\n{}", wrap("feedback", &fb)) }
     );
-    let ext = d["input"]["kind"].is_string();
+    let ext = d["input"]["kind"].is_string() || d["tainted"] == true;
     let sec = if tl.contains(&"shell") && !ext { secrets_for(a, wid) } else { vec![] };
     if ext && tl.contains(&"shell") && !secrets_for(a, wid).is_empty() {
-        sys.push_str("\n\nThis run was started from outside (GitHub or a webhook), so your secrets are not available in it.");
+        sys.push_str("\n\nThis run contains outside content (GitHub, the web or a webhook), so your secrets are not available in it.");
     }
     if !sec.is_empty() {
         let names: Vec<String> = sec.iter().map(|(n, _)| n.clone()).collect();
@@ -148,6 +148,9 @@ async fn step(a: &Ax, id: i64, d: &mut Value, n: &Value) -> Result<(Value, bool)
         o.rn = Some(Rn { h, dir, w: String::new(), md: String::new(), tl: Some(tl.iter().map(|t| t.to_string()).collect()), sec: sec.clone() });
         o.turns = 60;
         o.t = 30 * 60;
+    }
+    if tl.iter().any(|t| *t == "github" || *t == "web") {
+        d["tainted"] = json!(true);
     }
     let (txt, js) = ask(a, o).await.map_err(|e| e.to_string())?;
     let out = if js.is_object() { js } else { json!({"result": crate::sh::head(txt.trim(), 20000)}) };

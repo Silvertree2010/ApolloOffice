@@ -112,7 +112,7 @@
   const showMenu = (a, p, el) => {
     menu = { a, p };
     const M = $("fM"), C = $("fC"), r = el.getBoundingClientRect(), c = C.getBoundingClientRect();
-    const it = (t, l, d) => `<button type="button" class="mi" data-t="${t}"><span class="mic" style="--g:${GR[BK[t].g]}">${ic(BK[t].ic)}</span><span><b>${l}</b><small>${d}</small></span></button>`;
+    const it = (t, l) => `<button type="button" class="mi" data-t="${t}"><span class="mic" style="--g:${GR[BK[t].g]}">${ic(BK[t].ic)}</span><span><b>${l}</b></span></button>`;
     M.innerHTML = `<div class="mh">What happens next?</div>
       ${it("worker", "Someone does something", "Pick a team member and give them a task")}
       ${it("check", "Someone checks it", "If something is wrong, it goes back to be fixed")}
@@ -130,7 +130,7 @@
     if (!f) { N.innerHTML = ""; E.innerHTML = ""; return; }
     if (!f.nodes.length) {
       E.innerHTML = "";
-      const st = (t, l, d) => `<button type="button" class="sc" data-st="${t}"><span class="mic" style="--g:${GR.t}">${ic(BK[t].ic)}</span><b>${l}</b><small>${d}</small></button>`;
+      const st = (t, l) => `<button type="button" class="sc" data-st="${t}"><span class="mic" style="--g:${GR.t}">${ic(BK[t].ic)}</span><b>${l}</b></button>`;
       N.innerHTML = `<div class="fstart"><h3>When should this run?</h3><div class="scs">${st("t.manual", "When I press Start", "You start it yourself")}${st("t.cron", "On a schedule", "Every day, every hour, …")}${st("t.issue", "When an issue comes in", "For each new GitHub issue")}${st("t.pr", "When a pull request comes in", "For each new pull request")}${st("t.hook", "When another app calls", "A webhook link starts it")}</div></div>`;
       const C = $("fC"); view = { x: Math.max(20, (C.clientWidth - 640) / 2), y: Math.max(20, C.clientHeight / 2 - 160), k: 1 }; tf();
       for (const b of N.querySelectorAll("[data-st]")) b.onclick = () => start(b.dataset.st);
@@ -273,16 +273,14 @@
     else if (n) {
       const b = BK[n.t];
       const hk = n.t === "t.hook" ? (D.hooks || {})[`${cur}/${n.id}`] : null;
-      const hook = n.t !== "t.hook" ? "" : `<div class="ff"><label>Link for other apps</label><div class="hint">${hk ? `Active since ${new Date(hk.t0).toLocaleDateString()}${hk.last ? ", last call " + new Date(hk.last).toLocaleString() : ", not called yet"}.` : "No link yet. Create one and give it to the app that should start this pipeline."}</div>
-        <div id="hkV" hidden><label>Address</label><input type="text" readonly id="hkU"><label>Key</label><input type="text" readonly id="hkK"><div class="hint">Copy the key now, it is shown only once. Send it in the X-Hook-Key header.</div><pre class="df" id="hkC" style="white-space:pre-wrap"></pre><div class="hint">Only if the sending app cannot set headers: add ?key=… to the address. Keys in addresses can end up in logs.</div></div>
+      const hook = n.t !== "t.hook" ? "" : `<div class="ff"><label>Link for other apps</label><div class="hint">${hk ? `Active since ${new Date(hk.t0).toLocaleDateString()}${hk.last ? ", last call " + new Date(hk.last).toLocaleString() : ", not called yet"}.` : "No link yet."}</div>
+        <div id="hkV" hidden><label>Address</label><input type="text" readonly id="hkU"><label>Key</label><input type="text" readonly id="hkK"><div class="hint">Shown only once. Send it as X-Hook-Key.</div><pre class="df" id="hkC" style="white-space:pre-wrap"></pre><div class="hint">No header support: add ?key=… to the address.</div></div>
         <div class="ac"><button type="button" class="go" id="hkN">${hk ? "Replace link" : "Create link"}</button>${hk ? `<button type="button" class="dng" id="hkD">Revoke</button>` : ""}</div>
-        ${f.on ? "" : `<div class="hint">Switch the pipeline On, otherwise calls are refused.</div>`}<div class="hint">The request body becomes the input of the run. Steps with shell, file or GitHub access ask you first.</div></div>`;
-      mid = `<div class="fsec fi"><h5><span class="mic" style="--g:${GR[b.g]}">${ic(b.ic)}</span><span>${esc(title(n))}</span></h5><div class="ff">${(b.f || []).map((x) => field(n, x)).join("") || (hook ? "" : `<div class="hint">Nothing to set up here.</div>`)}</div>${hook}
+        ${f.on ? "" : `<div class="hint">Switch the pipeline On, otherwise calls are refused.</div>`}</div>`;
+      mid = `<div class="fsec fi"><h5><span class="mic" style="--g:${GR[b.g]}">${ic(b.ic)}</span><span>${esc(title(n))}</span></h5><div class="ff">${(b.f || []).map((x) => field(n, x)).join("") || ""}</div>${hook}
         <div class="ac">${outs(n).length ? `<button type="button" id="fNext">${ic("plus")}Add next step</button>` : ""}<span class="sp"></span><button type="button" class="dng" id="fDel">Remove</button></div></div>`;
     } else if (esel != null) {
       mid = `<div class="fsec fi"><h5><span>Line</span></h5><div class="ac"><span class="sp"></span><button type="button" class="dng" id="fEdel">Remove line</button></div></div>`;
-    } else if (f && f.nodes.length) {
-      mid = `<div class="fsec"><div class="hint">Click a step to set it up. Click the + on a step to add what comes next. Drag steps to move them.</div></div>`;
     }
     const hs = cfg?.hosts || [], hst = A.S?.hst || {};
     const mach = `<div class="fsec"><h6>Machines</h6>${hs.length ? hs.map((h) => { const st = hst[h.id] || {}; return `<div class="mc ${h.on_ ? "" : "off"}"><i class="md2 ${!h.on_ ? "" : up(h.id) ? "up" : "dn"}"></i><b>${esc(h.id)}</b><span>${!h.on_ ? "off" : up(h.id) ? `${h.ln || 1} lane${(h.ln || 1) > 1 ? "s" : ""}${st.load != null ? " · load " + Number(st.load).toFixed(1) : ""}` : "offline"}</span></div>`; }).join("") : `<div class="hint">No machines yet.</div>`}<button type="button" id="fMgr">${ic("server")}Manage machines</button></div>`;

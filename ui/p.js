@@ -140,16 +140,11 @@
         <label>Status</label>${tg("on_", r.on_, "active")}
         <label>Work on</label><div class="acts" style="margin:0">${tg("iss", r.iss, "open issues")}${tg("hunt", r.hunt, "hunt for bugs itself")}${tg("feat", r.feat, "build requested features")}</div>
         <label>Skip labels</label><input type="text" name="skl" value="${esc(r.skl || "")}" placeholder="e.g. area:kernel, needs-design">
-        <div class="hint">Issues with one of these labels are never picked up. Labels like paused, blocked, on hold, epic or tracking are always skipped.</div>
         <label>Test command</label><input type="text" name="ci" value="${esc(r.ci)}" placeholder="e.g. cargo test, npm test, pytest">
-        <div class="hint">Runs from the repository root. A fix is only submitted when this passes.</div>
         <label>Setup command</label><input type="text" name="setup" value="${esc(r.setup)}" placeholder="optional, e.g. npm ci">
-        <div class="hint">Runs before every job, after checkout.</div>
         <label>Pull requests</label><select name="mode"><option value="ask" ${r.mode !== "auto" ? "selected" : ""}>wait for my approval</option><option value="auto" ${r.mode === "auto" ? "selected" : ""}>submit automatically</option></select>
         <label>Limits</label><div class="lm"><span>open</span><input type="number" name="maxo" min="0" max="10000" value="${r.maxo}"><span>new per day</span><input type="number" name="maxd" min="0" max="10000" value="${r.maxd}"><span>USD per day</span><input type="number" name="bud" min="0" step="0.01" value="${r.bud || 0}"></div>
-        <div class="hint">Most open PRs at once and new PRs per day. The daily budget counts API keys only, 0 = no limit.</div>
         <label>PR footer</label>${tg("nm", r.nm ?? 1, "mention ApolloOffice with a link")}
-        <div class="hint">The AI note and the Co-Authored-By trailers are always added.</div>
         <label>Your rules</label><textarea name="rules" placeholder="optional, e.g. never touch the plugin API">${esc(r.rules)}</textarea>
       </div>
       <div class="acts"><button class="pri" data-op="set" disabled>Saved</button><button type="button" data-op="detect">Detect test command</button><span class="sp"></span><button type="button" class="dng" data-op="del">Remove</button></div><div class="msg"></div></details></form>`).join("") || `<div class="empty">No repository yet.</div>`}</div>`;
@@ -218,10 +213,9 @@
         <div class="hint raw" ${h.dk === 0 ? "" : "hidden"}><span style="color:var(--bad)">Workers build and run code from the repositories you add, directly with your user account, which can reach your GitHub, Claude and SSH logins on this machine. Only do this for repositories you trust.</span><br>${tg("raw", h.dk === 0 && !nw, "I understand")}</div>
         <label>Parallel jobs</label><input type="number" name="ln" min="1" max="8" value="${h.ln || 1}">
         <label>Parallel test runs</label><input type="number" name="ci" min="1" max="8" value="${h.ci || 1}">
-        <label>CPU limit</label><input type="number" name="cpu" min="0" value="${h.cpu || 0}"><div class="hint">Cores for the Docker container. 0 = all but one.</div>
-        <label>Skip repos</label><input type="text" name="no" value="${esc(h.no || "")}" placeholder="optional, e.g. owner/big-repo, other-repo"><div class="hint">Repositories this machine never builds, for example because they are too large for it.</div>
+        <label>CPU limit</label><input type="number" name="cpu" min="0" value="${h.cpu || 0}"><div class="hint">0 = all but one.</div>
+        <label>Skip repos</label><input type="text" name="no" value="${esc(h.no || "")}" placeholder="optional, e.g. owner/big-repo, other-repo">
         <label>Disk limit (GB)</label><input type="number" name="gb" min="5" value="${h.gb || 50}">
-        <div class="hint">Old clones and build folders are deleted above this, or when less than 20 GB are free.</div>
       </div>
       <div class="acts"><button class="pri" data-op="set">${nw ? "Add" : "Save"}</button>${nw ? "" : `<span class="sp"></span><button type="button" class="dng" data-op="del">Remove</button>`}</div><div class="msg"></div></form>`;
     const S0 = A.S || {}, busyN = {};
@@ -234,7 +228,7 @@
         <div class="mst">${kv("Lanes", `${busyN[h.id] || 0}/${h.ln || 1}`)}${kv("Load", st.load != null ? Number(st.load).toFixed(1) : null)}${kv("CPU", st.cpu != null ? st.cpu + " cores" : null)}${kv("Memory", mem ? Math.round((mem[0] - mem[1]) / 1024 * 10) / 10 + " / " + Math.round(mem[0] / 1024) + " GB" : null)}${kv("Disk free", dk ? Math.round(dk[1]) + " GB" : null)}${kv("Temp", st.temp ? Math.round(st.temp) + " °C" : null)}${kv("Up", st.up ? esc(String(st.up).split(",")[0]) : null)}</div>
         <button type="button" class="mtg">Settings</button></div>`;
     };
-    B.innerHTML = `<div class="ph2"><div><p>Machines run the builds and tests. Each one works through as many jobs at once as it has lanes.</p></div><div class="pa2"><button type="button" class="go" id="hAdd">Add a machine</button></div></div>
+    B.innerHTML = `<div class="ph2"><div></div><div class="pa2"><button type="button" class="go" id="hAdd">Add a machine</button></div></div>
     <div class="mlist">${hs.map((h) => form(h, false)).join("") || `<div class="emp"><b>No machine yet</b><span>Add this computer or an SSH machine.</span></div>`}</div>
     <div class="sec madd" id="hNew" hidden><h4>Add a machine</h4>${hl ? "" : form({ id: "local", dk: 1 }, true)}${form({ id: "", dk: 1 }, true)}</div>`;
     for (const f of B.querySelectorAll("form[data-h]:not([data-new='1'])")) {
@@ -344,27 +338,23 @@
         ${keys.map((p) => `<label>${esc(p.nm)}</label><input type="password" autocomplete="off" data-key="${p.id}" placeholder="${p.has ? "saved · type to replace, clear with a single space" : "API key"}">`).join("")}
         <label>Claude Code token</label><input type="password" autocomplete="off" data-key="cc" placeholder="${cfg.prov.find((p) => p.id === "cc").tok ? "saved · type to replace, clear with a single space" : "optional, from claude setup-token"}">
         <label>or keychain item</label><input type="text" name="cckc" value="${esc(s.prov?.cc?.kc || "")}" placeholder="optional, macOS keychain service name">
-        <div class="hint">Without a token Claude Code uses its own login on this computer.</div>
         <label>Ollama address</label><input type="text" name="ollama" value="${esc(s.prov?.ollama?.base || "")}" placeholder="${esc(ol.dbase)}">
         <label>Ollama context</label><input type="number" name="octx" min="2048" step="1024" value="${s.prov?.ollama?.ctx || 32768}"><div class="hint">Tokens per request. Ollama's default of 4096 is too small for the workers.</div>
-        <div class="hint">Keys are stored encrypted on this computer. Claude Code and Codex use their own CLI logins. Pick a model per worker under Models below.</div>
       </div></div></div>
       <div data-tab="md" class="sec"><h4>Models</h4><div class="box"><div class="fm" style="margin:0">
         ${["scout", "guard", "vet", "hunter", "repro", "fixer", "reviewer", "watcher"].map((w) => `<label>${esc(A.NM?.[w] || w)}</label><div class="ck"><span style="flex:1">${RK[w].map(([k, l]) => esc((RK[w].length > 1 ? l + ": " : "") + (A.mdn ? A.mdn(s.md[k]) : s.md[k]))).join(" · ")}</span><button type="button" data-role="${w}">Change</button></div>`).join("")}
-        <div class="hint">Also reachable with the gear on each worker's card.</div>
       </div></div></div>
       <div data-tab="gen" class="sec"><h4>Sign in</h4><div class="box">${cfg.google ? `<div class="ck"><b class="ok2">Google</b> ${esc(cfg.google)} can sign in.</div><div class="acts"><button type="button" class="dng" id="gu">Disconnect Google</button></div>` : `<div class="ck">Sign in with a one-time link from <code>apollo-office login-link</code>, or connect a Google account.</div><div class="acts"><button type="button" id="gl">Connect Google account</button></div>`}</div></div>
       <div data-tab="gen" class="sec"><h4>Work</h4><div class="box"><div class="fm" style="margin:0">
-        <label>Hunters</label><input type="number" name="hunters" min="0" max="12" value="${s.hunters}"><div class="hint">How many bug hunts may run at once (only in repos with hunting on).</div>
-        <label>Daily token limit</label><input type="number" name="tokday" min="0" value="${s.tokday}"><div class="hint">0 = no limit. The office always pauses when a provider reports a usage limit.</div>
-        <label>Working hours</label><div class="acts" style="margin:0;align-items:center">${tg("whon", s.wh?.on, "only work from")}<input type="time" name="whf" value="${esc(s.wh?.from || "08:00")}" style="width:auto"> to <input type="time" name="wht" value="${esc(s.wh?.to || "22:00")}" style="width:auto"></div><div class="hint">Outside these hours the office pauses; running steps finish first. Times of this computer.</div>
+        <label>Hunters</label><input type="number" name="hunters" min="0" max="12" value="${s.hunters}">
+        <label>Daily token limit</label><input type="number" name="tokday" min="0" value="${s.tokday}"><div class="hint">0 = no limit.</div>
+        <label>Working hours</label><div class="acts" style="margin:0;align-items:center">${tg("whon", s.wh?.on, "only work from")}<input type="time" name="whf" value="${esc(s.wh?.from || "08:00")}" style="width:auto"> to <input type="time" name="wht" value="${esc(s.wh?.to || "22:00")}" style="width:auto"></div>
       </div></div></div>
       <div data-tab="app" class="sec"><h4>Appearance</h4><div class="box"><div class="fm" style="margin:0">
         <label>Theme</label><div class="seg" id="thm">${[["dark", "Dark"], ["light", "Light"], ["system", "Like the system"]].map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join("")}</div>
         <label>Accent</label><div class="sw2" id="acc">${window.TH.AC.map((k) => `<button type="button" data-v="${k}" title="${k}" aria-label="${k}" class="a-${k}"></button>`).join("")}</div>
         <label>Density</label><div class="seg" id="dns">${[["cozy", "Comfortable"], ["compact", "Compact"]].map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join("")}</div>
         <label>Motion</label><div class="seg" id="rmo">${[["0", "Full"], ["1", "Reduced"]].map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join("")}</div>
-        <div class="hint">Saved in this browser and applied right away.</div>
       </div></div></div>
       <div data-tab="ntf" class="sec"><h4>Notifications</h4><div class="box"><div class="fm" style="margin:0">
         <label>In this browser</label><label class="ck"><input type="checkbox" id="bnt"> show a desktop notification when a pull request waits for review</label>
@@ -378,21 +368,17 @@
         <pre class="df" style="margin-top:8px;white-space:pre-wrap">curl -X POST http://127.0.0.1:${cfg.api.port}/v1/report \\
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \\
   -d '{"repo":"owner/name","title":"Crash on empty input","body":"Steps and what happens","logs":"stack trace","src":"Sentry"}'</pre>
-        <div class="hint">Or send <code>{"repo":"owner/name","issue":42}</code> to have an existing issue picked up now. <code>GET /v1/report?id=…</code> returns the state and the PR link. Reports go through Guard and Vet like issues; only this computer can reach the API.</div>
         <div class="acts"><button type="button" id="an">${cfg.api.on ? "Replace token" : "Create token"}</button>${cfg.api.on ? `<button type="button" class="dng" id="ao">Revoke</button>` : ""}</div></div></div>
       <div data-tab="int" class="sec"><h4>API and MCP</h4><div class="box">
-        <div class="hint" style="margin:0 0 8px">Control everything from your own scripts or AI tools: jobs, repositories, workers, pipelines, team, settings and the office. Read tokens can only look, write tokens can change things.</div>
         <div id="tkl"></div>
         <div class="acts"><input type="text" id="tkn" placeholder="Name, e.g. Claude Code" maxlength="40" style="flex:1;min-width:160px"><select id="tks" style="width:auto"><option value="write">Can change things</option><option value="read">Read only</option></select><button type="button" class="go" id="tkc">Create token</button></div>
         <div id="tkv" hidden><input type="text" readonly id="tkt" style="margin-top:8px"><div class="hint" style="margin-top:6px">Copy it now, it is shown only once.</div></div>
         <pre class="df" style="margin-top:10px;white-space:pre-wrap">curl http://127.0.0.1:${cfg.api.port}/v2/status -H "Authorization: Bearer $TOKEN"</pre>
-        <div class="hint">All endpoints: <code>GET /v2/openapi.json</code>. MCP for Claude Code, Cursor and others:</div>
+        <div class="hint"><code>GET /v2/openapi.json</code> · MCP</div>
         <pre class="df" style="margin-top:6px;white-space:pre-wrap" id="tkm"></pre></div></div>
       <div data-tab="int" class="sec"><h4>Error trackers</h4><div class="box">
         <div class="ck">${cfg.hook.on ? `<b class="ok2">On</b> link created ${new Date(cfg.hook.t0).toLocaleDateString()}` : "Off. Create a link to let Sentry or GlitchTip send errors as reports."}</div>
         <div id="htk" hidden><input type="text" readonly id="htv" style="margin-top:8px"><div class="hint" style="margin-top:6px">Copy it now, the key is shown only once. Replace owner/name with the repository.</div></div>
-        <div class="hint" style="margin-top:6px">Sentry: add an internal integration with this webhook URL and alert rule actions. GlitchTip: add it as a webhook alert. The office has to be reachable from the internet for this, for example through a tunnel; use that address instead of 127.0.0.1. The same error goes into one report. Senders that can set headers can pass the key as <code>X-Hook-Key</code> instead of in the URL. The key can only create reports; replace the link if it leaks.</div>
-        <div class="hint">GitHub Actions: a failed run can report itself with <code>Silvertree2010/ApolloOffice/report</code>, see the README.</div>
         <div class="acts"><button type="button" id="hn">${cfg.hook.on ? "Replace link" : "Create link"}</button>${cfg.hook.on ? `<button type="button" class="dng" id="ho">Revoke</button>` : ""}</div></div></div>
       <div data-tab="sys" class="sec"><h4>Updates</h4><div class="box">${tg("updates", s.updates, "install updates automatically when the office is idle")}<div class="msg" id="um">${ust}</div><div class="acts"><button type="button" id="uc">Check now</button>${nu ? `<button type="button" class="pri" id="ua">Install and restart</button>` : ""}</div></div></div>
       <div data-tab="sys" class="sec"><h4>Export and import</h4><div class="box"><div class="ck">Settings, repositories, machines and models as a JSON file. API keys, tokens, logins and notification addresses are not included.</div>
@@ -523,12 +509,12 @@
     const tb = (h, rs) => `<div class="tw"><table class="tb"><tr>${h.map((x) => `<th class="${x[1] || ""}">${x[0]}</th>`).join("")}</tr>${rs.join("")}</table></div>`;
     const rate = (a, b) => b ? Math.round(100 * a / b) + "%" : "–";
     B.innerHTML = `<div class="sec"><h4>Today</h4><div class="box"><div class="ck"><b>${usd(t.usd || 0)}</b>&nbsp;API keys${t.val ? ` · ${usd(t.val)} value on Claude Code and Codex logins` : ""}${t.unk ? ` · ${t.unk} calls without a known price` : ""}</div>
-        <form id="fb" class="fm"><label>Daily budget</label><input type="number" name="budday" min="0" step="0.01" value="${c.budday || 0}"><div class="hint">USD for API keys, 0 = no limit. When it is used up the office pauses until midnight and notifies you. Logins with a subscription do not count. Per repository under Repos.</div></form>
+        <form id="fb" class="fm"><label>Daily budget</label><input type="number" name="budday" min="0" step="0.01" value="${c.budday || 0}"><div class="hint">USD for API keys, 0 = no limit.</div></form>
         <div class="acts"><button class="pri" id="bb">Save</button></div><div class="msg" id="bm"></div></div></div>
       ${c.hints.length ? `<div class="sec"><h4>Hints</h4>${c.hints.map((h) => `<div class="box"><div class="ck">${esc(h)}</div></div>`).join("")}</div>` : ""}
       <div class="sec"><h4>Last 14 days</h4>${c.days.length ? tb([["Day"], ["API", "n"], ["Login value", "n"]], c.days.map((d) => `<tr><td>${esc(d.day)}</td><td class="n">${usd(d.usd)}</td><td class="n">${usd(d.val)}</td></tr>`)) : `<div class="empty">Nothing yet.</div>`}</div>
       <div class="sec"><h4>Repositories, 30 days</h4>${c.repos.length ? tb([["Repository"], ["Jobs", "n"], ["API", "n"], ["Login value", "n"]], c.repos.map((r) => `<tr><td>${esc(r.repo)}</td><td class="n">${r.jobs}</td><td class="n">${usd(r.usd)}</td><td class="n">${usd(r.val)}</td></tr>`)) : `<div class="empty">Nothing yet.</div>`}</div>
-      <div class="sec"><h4>Models per worker, 90 days</h4>${c.stats.length ? tb([["Repository"], ["Worker"], ["Model"], ["Jobs", "n"], ["PRs", "n"], ["Merged", "n"], ["Rejected", "n"], ["Per job", "n"], ["Per merge", "n"]], c.stats.map((r) => `<tr><td>${esc(r.repo)}</td><td>${esc(A.NM?.[r.w] || r.w)}</td><td>${esc(r.nm)}${r.sub ? " (login)" : ""}</td><td class="n">${r.jobs}</td><td class="n">${r.prs}</td><td class="n">${r.mg} · ${rate(r.mg, r.prs)}</td><td class="n">${r.cl}</td><td class="n">${usd(r.usd == null ? null : r.usd / r.jobs)}</td><td class="n">${r.mg && r.usd != null ? usd(r.usd / r.mg) : "–"}</td></tr>`)) : `<div class="empty">Nothing yet.</div>`}<div class="hint" style="margin-top:6px">A job counts for every worker that worked on it. Hints show up once two models did at least 5 jobs each for the same worker. The office never switches models by itself.</div></div>
+      <div class="sec"><h4>Models per worker, 90 days</h4>${c.stats.length ? tb([["Repository"], ["Worker"], ["Model"], ["Jobs", "n"], ["PRs", "n"], ["Merged", "n"], ["Rejected", "n"], ["Per job", "n"], ["Per merge", "n"]], c.stats.map((r) => `<tr><td>${esc(r.repo)}</td><td>${esc(A.NM?.[r.w] || r.w)}</td><td>${esc(r.nm)}${r.sub ? " (login)" : ""}</td><td class="n">${r.jobs}</td><td class="n">${r.prs}</td><td class="n">${r.mg} · ${rate(r.mg, r.prs)}</td><td class="n">${r.cl}</td><td class="n">${usd(r.usd == null ? null : r.usd / r.jobs)}</td><td class="n">${r.mg && r.usd != null ? usd(r.usd / r.mg) : "–"}</td></tr>`)) : `<div class="empty">Nothing yet.</div>`}</div>
       <div class="sec"><h4>Prices</h4><div class="box"><textarea id="px" placeholder="model input output, e.g. gpt-5.5 5 30" style="min-height:70px">${esc(Object.entries(px).map(([k, v]) => k + " " + v.join(" ")).join("\n"))}</textarea><div class="hint" style="margin-top:6px">USD per million tokens, one model per line: <code>model input output</code> or <code>model input cache-write cache-read output</code>. Overrides the built-in prices. Claude Code reports its own cost.</div><div class="acts"><button id="pb">Save prices</button></div><div class="msg" id="pm"></div></div></div>`;
     $("fb").onsubmit = (e) => e.preventDefault();
     $("bb").onclick = async () => { const r = await post({ budday: Number($("fb").budday.value) }, "/api/set"); $("bm").className = r.error ? "msg bad2" : "msg"; $("bm").textContent = r.error || "Saved."; };
@@ -629,7 +615,6 @@
         <div class="cl rs"><label>Depth <input type="range" id="czH" min="16" max="40"></label></div>
         <h5><span>Furniture</span></h5>
         <div class="pg fu">${Object.entries(U.cat).map(([k, f]) => `<button type="button" data-f="${k}" class="${cu.tool === k ? "on" : ""}"><canvas width="96" height="60"></canvas>${f.n}</button>`).join("")}</div>
-        <div class="hint">${cu.tool ? `Click the floor to place ${U.cat[cu.tool].n.toLowerCase()}s. Esc or click the card again to stop.` : cu.sel ? `Drag to move, arrow keys to nudge. Drag it out of the room or right-click to remove.` : "Drag an item into the room, or click it to place several. Right-click removes."}</div>
         <div class="ac"><button type="button" id="czU" ${cu.undo ? "" : "disabled"} title="Ctrl+Z">Undo</button><button type="button" id="czRd" ${cu.redo ? "" : "disabled"} title="Ctrl+Shift+Z">Redo</button><span class="sp"></span><button type="button" id="czClr" ${cu.n ? "" : "disabled"}>Clear all</button></div>
         ${sec("wall")}${sec("floor")}
         <div class="ac"><button type="button" id="czR">Reset</button><button type="button" id="czD">Done</button></div>`;
