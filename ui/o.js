@@ -32,7 +32,7 @@
   window.AO.NM = NM;
   const ORD = ["scout", "guard", "vet", "watcher", "hunter", "repro", "fixer", "ci", "reviewer", "submit"];
 
-  const VW = 400, VH = 258;
+  let VW = 400, VH = 259;
   const AN = { scout: [34, 74], guard: [74, 74], vet: [150, 74], watcher: [226, 74], repro: [53, 164], fixer: [147, 164], ci: [327, 100], reviewer: [241, 164], submit: [343, 164] };
   const TEAM = [["hunter", "hunt", 0], ["repro", "repro", 8], ["fixer", "fix", 102], ["reviewer", "review", 196], ["submit", "submit", 290]];
   const FITC = ["#e8e6df", "#1b1a18", "#4fb3e0", "#e0675a", "#5cbf6a", "#9c7ae0", "#d0649f", "#8d9199"];
@@ -41,7 +41,7 @@
   const cx = cv.getContext("2d");
   const off = document.createElement("canvas");
   off.width = VW; off.height = VH;
-  const c = off.getContext("2d");
+  let c = off.getContext("2d");
   const fig = document.createElement("canvas");
   fig.width = K.W; fig.height = K.H;
   const fc = fig.getContext("2d");
@@ -78,40 +78,193 @@
     if (w > 40) px(x + (w >> 1), y, 1, h, "#c3ccd7");
     px(x - 3, y + h + 1, w + 6, 2, "#e4e9ef");
   };
-  const day = (t) => {
-    px(0, 0, VW, VH, "#e9eef3");
-    for (let k = 0, y = 35; y < VH; y += 8, k++) for (let x = k % 2 ? 0 : 8; x < VW; x += 16) px(x, y, 8, 8, "#e2e8ee");
-    c.globalAlpha = 0.55;
-    for (const [x0, w] of [[36, 110], [326, 66]]) for (let y = 35; y < 92; y++) px(x0 + (y - 35) * 0.7, y, w, 1, "#f7fafc");
-    c.globalAlpha = 1;
-    px(0, 0, VW, 34, "#f8f9fb");
-    px(0, 30, VW, 4, "#e6ebf0");
-    px(0, 34, VW, 1, "#c9d1db");
-    win(36, 5, 110, 22, t, 1);
-    win(326, 5, 66, 22, t, 2);
-    px(256, 38, 140, 84, "#f3f5f8");
-    px(256, 38, 140, 1, "#c9d1db");
-    px(256, 38, 1, 84, "#c9d1db");
-    px(395, 38, 1, 84, "#c9d1db");
-    px(256, 121, 140, 1, "#c9d1db");
-    tx("MACHINES", 262, 42, "#8a94a2");
-    px(158, 6, 84, 22, "#0a0b0d");
-    px(158, 6, 84, 1, "#24272d");
+  const SD = { floor: { d: ["#0d0e10", "#111215"], l: ["#e9eef3", "#e2e8ee"] }, wall: { d: ["#121317", "#1d1f24"], l: ["#f8f9fb", "#dde3ea"] } };
+  const SV = { floor: { d: ["#24272d", "#3a3e46"], l: ["#d5dce4", "#aeb8c4"] }, wall: { d: ["#24272d", "#3a3e46"], l: ["#d5dce4", "#aeb8c4"] } };
+  const PS = { floor: ["check", "plain", "planks", "tiles", "parquet", "carpet"], wall: ["plain", "stripes", "panels", "brick", "dots", "boards"] };
+  const HX = /^#[0-9a-f]{6}$/i;
+  let SU = { floor: { p: "check", a: "", b: "" }, wall: { p: "plain", a: "", b: "" } };
+  const scol = (k, pv) => { const f = SU[k], d = (pv ? SV : SD)[k][lt() ? "l" : "d"]; return pv && !f.a && !f.b ? d : [f.a || SD[k][lt() ? "l" : "d"][0], f.b || SD[k][lt() ? "l" : "d"][1]]; };
+  const pat = (g, p, ca, cb, x0, y0, w, h) => {
+    const r = (x, y, ww, hh, col) => { g.fillStyle = col; g.fillRect(x, y, ww, hh); };
+    g.save(); g.beginPath(); g.rect(x0, y0, w, h); g.clip();
+    r(x0, y0, w, h, ca);
+    if (p === "check") for (let k = 0, y = y0; y < y0 + h; y += 8, k++) for (let x = x0 + (k % 2 ? 0 : 8); x < x0 + w; x += 16) r(x, y, 8, 8, cb);
+    else if (p === "planks") for (let k = 0, y = y0; y < y0 + h; y += 8, k++) { r(x0, y + 7, w, 1, cb); for (let x = x0 - (k * 23) % 64; x < x0 + w; x += 64) r(x, y, 1, 7, cb); }
+    else if (p === "tiles") for (let y = y0; y < y0 + h; y += 16) { r(x0, y, w, 1, cb); for (let x = x0; x < x0 + w; x += 16) r(x, y, 1, 16, cb); }
+    else if (p === "parquet") for (let j = 0, y = y0; y < y0 + h; y += 16, j++) for (let i = 0, x = x0; x < x0 + w; x += 16, i++) for (let s = 0; s < 4; s++) (i + j) % 2 ? r(x, y + s * 4, 16, 1, cb) : r(x + s * 4, y, 1, 16, cb);
+    else if (p === "carpet") for (let k = 0, y = y0 + 1; y < y0 + h; y += 4, k++) for (let x = x0 + (k % 2 ? 1 : 3); x < x0 + w; x += 4) r(x, y, 1, 1, cb);
+    else if (p === "stripes") for (let x = x0; x < x0 + w; x += 8) r(x, y0, 3, h, cb);
+    else if (p === "panels") for (let x = x0 + 2; x < x0 + w; x += 24) { r(x, y0 + 4, 20, 1, cb); r(x, y0 + h - 5, 20, 1, cb); r(x, y0 + 4, 1, h - 8, cb); r(x + 19, y0 + 4, 1, h - 8, cb); }
+    else if (p === "brick") for (let k = 0, y = y0; y < y0 + h; y += 6, k++) { r(x0, y + 5, w, 1, cb); for (let x = x0 - (k % 2 ? 6 : 0); x < x0 + w; x += 12) r(x, y, 1, 5, cb); }
+    else if (p === "dots") for (let k = 0, y = y0 + 2; y < y0 + h; y += 6, k++) for (let x = x0 + (k % 2 ? 2 : 5); x < x0 + w; x += 6) r(x, y, 1, 1, cb);
+    else if (p === "boards") for (let k = 0, y = y0; y < y0 + h; y += 5, k++) { r(x0, y + 4, w, 1, cb); for (let x = x0 - (k * 17) % 48; x < x0 + w; x += 48) r(x, y, 1, 4, cb); }
+    g.restore();
   };
-  const floor = (t) => {
-    if (lt()) return day(t);
-    px(0, 0, VW, VH, "#0d0e10");
-    px(0, 0, VW, 34, "#121317");
-    px(0, 34, VW, 1, "#1d1f24");
-    for (let k = 0, y = 35; y < VH; y += 8, k++) for (let x = k % 2 ? 0 : 8; x < VW; x += 16) px(x, y, 8, 8, "#111215");
-    px(256, 38, 140, 84, "#0f1013");
-    px(256, 38, 140, 1, "#1d1f24");
-    px(256, 38, 1, 84, "#1d1f24");
-    px(395, 38, 1, 84, "#1d1f24");
-    px(256, 121, 140, 1, "#1d1f24");
-    tx("MACHINES", 262, 42, "#3d4045");
-    px(158, 6, 84, 22, "#0a0b0d");
-    px(158, 6, 84, 1, "#24272d");
+  const floor = () => {
+    const [fa, fb] = scol("floor"), [wa, wb] = scol("wall");
+    pat(c, SU.floor.p, fa, fb, 0, 35, VW, VH - 35);
+    pat(c, SU.wall.p, wa, wb, 0, 0, VW, 30);
+    c.fillStyle = wb; c.fillRect(0, 30, VW, 5);
+    c.globalAlpha = 0.35; c.fillStyle = "#000"; c.fillRect(0, 34, VW, 1); c.globalAlpha = 1;
+  };
+  const one = (k, f) => ({ p: PS[k].includes(f?.p) ? f.p : PS[k][0], a: HX.test(f?.a || "") ? f.a : "", b: HX.test(f?.b || "") ? f.b : "" });
+  let GX = 50, GY = 28;
+  const GO = 35;
+  const room = (w, h) => { GX = w; GY = h; VW = w * 8; VH = GO + h * 8; off.width = VW; off.height = VH; c.imageSmoothingEnabled = false; };
+  const FC = {
+    desk: { n: "Desk", w: 4, h: 2, d: (X, Y) => { px(X + 10, Y - 5, 12, 8, "#2a2c32"); px(X + 11, Y - 4, 10, 6, "#141518"); px(X + 12, Y - 3, 5, 1, "#4fb3e0"); px(X + 15, Y + 3, 2, 2, "#2a2c32"); px(X, Y + 5, 32, 3, "#2a2c32"); px(X, Y + 8, 32, 5, "#1c1e22"); px(X + 2, Y + 13, 2, 3, "#2a2c32"); px(X + 28, Y + 13, 2, 3, "#2a2c32"); } },
+    chair: { n: "Chair", w: 2, h: 2, d: (X, Y) => { px(X + 3, Y, 10, 7, "#30333a"); px(X + 2, Y + 7, 12, 4, "#3a3e46"); px(X + 7, Y + 11, 2, 3, "#2a2c32"); px(X + 3, Y + 14, 10, 1, "#2a2c32"); } },
+    plant: { n: "Plant", w: 1, h: 1, d: (X, Y) => { px(X + 1, Y + 3, 6, 5, "#2a2c32"); K.draw(c, ["..e.e..", ".eEe.e.", "e.eEee.", ".eeEe.e", "..eEe.."], X, Y - 3, {}); } },
+    rack: { n: "Server", w: 2, h: 2, d: (X, Y, t) => { px(X + 1, Y - 16, 14, 31, "#1c1e22"); px(X + 1, Y - 16, 14, 1, "#2a2c32"); for (let i = 0; i < 5; i++) { px(X + 3, Y - 13 + i * 5, 10, 4, "#141518"); px(X + 9, Y - 12 + i * 5, 1, 1, Math.floor(t * 2 + i + X) % 3 ? "#3d4045" : "#5cbf6a"); px(X + 11, Y - 12 + i * 5, 1, 1, "#3d4045"); } } },
+    sofa: { n: "Sofa", w: 5, h: 2, d: (X, Y) => { px(X + 1, Y - 2, 38, 8, "#3f5fae"); px(X + 1, Y + 6, 38, 6, "#5c7fd6"); px(X, Y + 2, 4, 11, "#3f5fae"); px(X + 36, Y + 2, 4, 11, "#3f5fae"); px(X + 19, Y + 6, 1, 6, "#3f5fae"); px(X + 2, Y + 13, 2, 2, "#1c1e22"); px(X + 36, Y + 13, 2, 2, "#1c1e22"); } },
+    table: { n: "Table", w: 3, h: 2, d: (X, Y) => { px(X + 1, Y + 2, 22, 7, "#4a3a2c"); px(X + 1, Y + 2, 22, 1, "#6b5440"); px(X + 1, Y + 9, 22, 2, "#3a2d22"); px(X + 3, Y + 11, 2, 4, "#3a2d22"); px(X + 19, Y + 11, 2, 4, "#3a2d22"); } },
+    shelf: { n: "Shelf", w: 4, h: 1, d: (X, Y) => { px(X, Y - 16, 32, 24, "#2a2c32"); for (let i = 0; i < 3; i++) { px(X + 2, Y - 14 + i * 7, 28, 5, "#141518"); for (let k = 0; k < 7; k++) px(X + 3 + k * 4, Y - 13 + i * 7 + ((k + i) % 3 ? 0 : 1), 3, 4 - ((k + i) % 3 ? 0 : 1), ["#e0675a", "#5c7fd6", "#5cbf6a", "#9c7ae0", "#d0649f", "#4fb3e0"][(k * 3 + i) % 6]); } } },
+    coffee: { n: "Coffee", w: 2, h: 1, d: (X, Y, t) => { px(X, Y - 2, 16, 10, "#2a2c32"); px(X + 3, Y - 12, 10, 10, "#62666d"); px(X + 4, Y - 11, 8, 3, "#1c1e22"); px(X + 6, Y - 6, 4, 4, "#e9eef3"); if (Math.floor(t * 1.5) % 3 === 0) px(X + 7, Y - 15, 1, 2, "#8d9199"); } },
+    cooler: { n: "Water", w: 1, h: 1, d: (X, Y) => { px(X + 1, Y - 2, 6, 10, "#b9bcc2"); px(X + 2, Y - 10, 4, 8, "#4fb3e0"); px(X + 2, Y - 10, 4, 1, "#8fd2f0"); } },
+    lamp: { n: "Lamp", w: 1, h: 1, d: (X, Y) => { px(X + 3, Y - 10, 2, 17, "#3d4045"); px(X + 1, Y - 14, 6, 4, "#e4e9ef"); px(X + 1, Y + 6, 6, 2, "#2a2c32"); } },
+    rug: { n: "Rug", w: 6, h: 4, l: 0, d: (X, Y) => { px(X, Y, 48, 32, "#5a2f3a"); px(X + 2, Y + 2, 44, 28, "#7a3f4f"); px(X + 6, Y + 6, 36, 20, "#5a2f3a"); px(X + 8, Y + 8, 32, 16, "#8a4a5c"); } },
+  };
+  let FU = [], ftool = null, fsel = -1, fedit = false, fhov = null, fdrag = null, fsave = 0, fhis = [], ffut = [], fbad = false;
+  const fl = (i) => FC[i].l ?? 1;
+  const free = (it, x, y, skip) => {
+    const f = FC[it];
+    if (x < 0 || y < 0 || x + f.w > GX || y + f.h > GY) return false;
+    return !FU.some((u, k) => k !== skip && fl(u.i) === fl(it) && x < u.x + FC[u.i].w && u.x < x + f.w && y < u.y + FC[u.i].h && u.y < y + f.h);
+  };
+  const fput = () => { fsave = 0; return fetch("/api/set", { method: "POST", keepalive: true, headers: { "content-type": "application/json", "x-ao": "1" }, body: JSON.stringify({ office: { items: FU } }) }).catch(() => {}); };
+  const fstore = () => { clearTimeout(fsave); fsave = setTimeout(fput, 400); };
+  const fflush = () => { if (fsave) { clearTimeout(fsave); fput(); } };
+  window.addEventListener("pagehide", fflush);
+  let rsave = 0;
+  const ext = () => FU.reduce((m, u) => [Math.max(m[0], u.x + FC[u.i].w), Math.max(m[1], u.y + FC[u.i].h)], [0, 0]);
+  let fcb = () => {};
+  const fch = () => { fcb(); };
+  const snap = () => { fhis.push(JSON.stringify(FU)); if (fhis.length > 100) fhis.shift(); ffut = []; };
+  const commit = () => { fstore(); fch(); };
+  const near = (it, x0, y0) => {
+    for (let d = 0; d < Math.max(GX, GY); d++) for (let dy = -d; dy <= d; dy++) for (let dx = -d; dx <= d; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== d) continue;
+      if (free(it, x0 + dx, y0 + dy, -1)) return [x0 + dx, y0 + dy];
+    }
+    return null;
+  };
+  const ghost = () => {
+    if (!fhov) return null;
+    if (fdrag?.n) return { i: fdrag.n, x: fhov.x - fdrag.dx, y: fhov.y - fdrag.dy, sk: -1 };
+    if (fdrag) return { i: FU[fdrag.k].i, x: fhov.x - fdrag.dx, y: fhov.y - fdrag.dy, sk: fdrag.k };
+    if (ftool) { const f = FC[ftool]; return { i: ftool, x: fhov.x - (f.w >> 1), y: fhov.y - (f.h >> 1), sk: -1 }; }
+    return null;
+  };
+  const box = (u, cl, a) => { const f = FC[u.i], X = u.x * 8, Y = GO + u.y * 8; c.globalAlpha = a; px(X, Y, f.w * 8, 1, cl); px(X, Y + f.h * 8 - 1, f.w * 8, 1, cl); px(X, Y, 1, f.h * 8, cl); px(X + f.w * 8 - 1, Y, 1, f.h * 8, cl); c.globalAlpha = 1; };
+  const pick = (p) => { if (!p) return -1; for (let k = FU.length - 1; k >= 0; k--) { const u = FU[k], f = FC[u.i]; if (fl(u.i) && p.x >= u.x && p.x < u.x + f.w && p.y >= u.y && p.y < u.y + f.h) return k; } return FU.findIndex((u) => p.x >= u.x && p.x < u.x + FC[u.i].w && p.y >= u.y && p.y < u.y + FC[u.i].h); };
+  const fdraw = (t) => {
+    const ord = FU.map((u, k) => [u, k]).sort((a, b) => fl(a[0].i) - fl(b[0].i) || a[0].y + FC[a[0].i].h - (b[0].y + FC[b[0].i].h));
+    const hk = fedit && !fdrag && !ftool ? pick(fhov) : -1;
+    for (const [u, k] of ord) {
+      if (fdrag && fdrag.k === k) continue;
+      FU[k] && FC[u.i].d(u.x * 8, GO + u.y * 8, t);
+      if (fedit && k === fsel) box(u, "#4fb3e0", 0.95);
+      else if (k === hk) box(u, lt() ? "#000" : "#fff", 0.35);
+    }
+    const g = ghost();
+    fbad = false;
+    if (g) {
+      const f = FC[g.i], ok = free(g.i, g.x, g.y, g.sk);
+      fbad = !ok;
+      c.globalAlpha = 0.22; px(g.x * 8, GO + g.y * 8, f.w * 8, f.h * 8, ok ? "#5cbf6a" : "#e0675a");
+      c.globalAlpha = ok ? 0.85 : 0.5; f.d(g.x * 8, GO + g.y * 8, t); c.globalAlpha = 1;
+    } else if (fdrag && !fhov) fbad = true;
+  };
+  const cell = (e) => {
+    const r = cv.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return null;
+    const x = (e.clientX - r.left) * VW / r.width, y = (e.clientY - r.top) * VH / r.height;
+    return { x: Math.floor(x / 8), y: Math.max(0, Math.floor((y - GO) / 8)) };
+  };
+  const fab = document.createElement("div");
+  fab.className = "fab"; fab.hidden = true;
+  fab.innerHTML = `<button type="button" data-a="dup" title="Duplicate (Ctrl+D)">Duplicate</button><button type="button" data-a="del" class="dng" title="Remove (Delete)">Remove</button>`;
+  $("stage").appendChild(fab);
+  const fabpos = () => {
+    const u = FU[fsel];
+    if (!fedit || !u || fdrag) { fab.hidden = true; return; }
+    const r = cv.getBoundingClientRect(), sr = $("stage").getBoundingClientRect(), k = r.width / VW, f = FC[u.i];
+    fab.hidden = false;
+    const x = r.left - sr.left + (u.x * 8 + f.w * 4) * k, yt = r.top - sr.top + (GO + u.y * 8 - 6) * k - 6;
+    fab.style.left = Math.round(Math.min(sr.width - fab.offsetWidth / 2 - 6, Math.max(fab.offsetWidth / 2 + 6, x))) + "px";
+    fab.style.top = Math.round(yt < 40 ? r.top - sr.top + (GO + (u.y + f.h) * 8) * k + 8 : yt - fab.offsetHeight) + "px";
+  };
+  const del = (k) => { if (k < 0 || !FU[k]) return; snap(); FU.splice(k, 1); fsel = -1; commit(); };
+  const dup = () => { const u = FU[fsel]; if (!u) return; const p = near(u.i, u.x + FC[u.i].w, u.y); if (!p) return; snap(); FU.push({ i: u.i, x: p[0], y: p[1] }); fsel = FU.length - 1; commit(); };
+  fab.addEventListener("pointerdown", (e) => e.stopPropagation());
+  fab.addEventListener("click", (e) => { const a = e.target.closest("[data-a]")?.dataset.a; if (a === "del") del(fsel); if (a === "dup") dup(); });
+  cv.addEventListener("pointerdown", (e) => {
+    if (!fedit || e.button) return;
+    const p = cell(e);
+    if (!p) return;
+    if (ftool) {
+      const g = ghost();
+      if (g && free(g.i, g.x, g.y, -1)) { snap(); FU.push({ i: g.i, x: g.x, y: g.y }); commit(); }
+      return;
+    }
+    const k = pick(p);
+    fsel = k; fch();
+    if (k >= 0) { fdrag = { k, dx: p.x - FU[k].x, dy: p.y - FU[k].y }; cv.setPointerCapture?.(e.pointerId); }
+  });
+  window.addEventListener("pointermove", (e) => {
+    if (!fedit) return;
+    fhov = cell(e);
+    cv.style.cursor = fdrag ? (fbad ? "no-drop" : "grabbing") : ftool ? (fbad ? "not-allowed" : "copy") : pick(fhov) >= 0 ? "grab" : "";
+  });
+  window.addEventListener("pointerup", (e) => {
+    if (!fdrag) return;
+    const d = fdrag; fdrag = null;
+    fhov = cell(e);
+    if (d.n) {
+      const g = fhov && { x: fhov.x - d.dx, y: fhov.y - d.dy };
+      if (g && free(d.n, g.x, g.y, -1)) { snap(); FU.push({ i: d.n, x: g.x, y: g.y }); fsel = FU.length - 1; commit(); }
+      document.body.classList.remove("fdg");
+      return;
+    }
+    const u = FU[d.k];
+    if (!u) return;
+    if (!fhov) { del(d.k); return; }
+    const x = fhov.x - d.dx, y = fhov.y - d.dy;
+    if ((x !== u.x || y !== u.y) && free(u.i, x, y, d.k)) { snap(); u.x = x; u.y = y; commit(); }
+  });
+  cv.addEventListener("contextmenu", (e) => { if (!fedit) return; e.preventDefault(); del(pick(cell(e))); });
+  document.addEventListener("keydown", (e) => {
+    if (!fedit || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "")) return;
+    const m = e.metaKey || e.ctrlKey;
+    if (m && e.key.toLowerCase() === "z") { e.preventDefault(); const [a, b] = e.shiftKey ? [ffut, fhis] : [fhis, ffut]; if (a.length) { b.push(JSON.stringify(FU)); FU = JSON.parse(a.pop()); fsel = -1; commit(); } return; }
+    if (m && e.key.toLowerCase() === "d") { e.preventDefault(); dup(); return; }
+    if ((e.key === "Delete" || e.key === "Backspace") && fsel >= 0) { e.preventDefault(); del(fsel); return; }
+    const ar = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (ar && fsel >= 0) { e.preventDefault(); const u = FU[fsel]; if (free(u.i, u.x + ar[0], u.y + ar[1], fsel)) { snap(); u.x += ar[0]; u.y += ar[1]; commit(); } return; }
+    if (e.key === "Escape" && (ftool || fsel >= 0)) { ftool = null; fsel = -1; fch(); e.stopPropagation(); }
+  }, true);
+  window.AO.furn = {
+    cat: FC,
+    prev: (g, i, w, h) => { const f = FC[i], s0 = c, sc = Math.min(w / (f.w * 8 + 4), h / (f.h * 8 + 20)); c = g; g.save(); g.clearRect(0, 0, w, h); g.translate(Math.round((w - f.w * 8 * sc) / 2), Math.round(h - 2 - f.h * 8 * sc)); g.scale(sc, sc); f.d(0, 0, 0); g.restore(); c = s0; },
+    edit: (on) => { fedit = on; if (!on) { fflush(); ftool = null; fsel = -1; fdrag = null; fab.hidden = true; cv.style.cursor = ""; } },
+    tool: (i) => { ftool = ftool === i ? null : i; fsel = -1; fch(); },
+    grab: (i) => { const f = FC[i]; ftool = null; fsel = -1; fdrag = { n: i, dx: f.w >> 1, dy: f.h >> 1 }; document.body.classList.add("fdg"); fch(); },
+    cur: () => ({ tool: ftool, sel: fsel >= 0 ? FU[fsel]?.i : null, n: FU.length, undo: fhis.length, redo: ffut.length }),
+    undo: () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true })),
+    redo: () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, shiftKey: true })),
+    del: () => del(fsel),
+    clear: () => { snap(); FU = []; fsel = -1; commit(); },
+    room: () => ({ w: GX, h: GY, min: ext() }),
+    size: (w, h) => { const [mw, mh] = ext(); w = Math.max(30, mw, Math.min(80, w | 0)); h = Math.max(16, mh, Math.min(40, h | 0)); room(w, h); clearTimeout(rsave); rsave = setTimeout(() => post({ office: { size: { w, h } } }, "/api/set").catch(() => {}), 400); return { w, h }; },
+    loadRoom: (z) => { const w = z?.w | 0, h = z?.h | 0; room(w >= 30 && w <= 80 ? w : 50, h >= 16 && h <= 40 ? h : 28); },
+    load: (a) => { FU = Array.isArray(a) ? a.filter((u) => FC[u?.i] && Number.isInteger(u.x) && Number.isInteger(u.y)).map((u) => ({ i: u.i, x: u.x, y: u.y })) : []; },
+    on: (f) => { fcb = f; },
+    tick: fabpos,
+  };
+  window.AO.surf = {
+    get: (k) => ({ ...SU[k] }), pats: PS, eff: scol, pat,
+    set: (k, f) => { SU = { ...SU, [k]: one(k, f) }; },
+    load: (o) => { SU = { floor: one("floor", o?.floor), wall: one("wall", o?.wall) }; },
   };
 
   const board = (t) => {
@@ -380,33 +533,31 @@
   };
 
   let last = performance.now();
-  const frame = () => {
+  let sgw = 0, sgh = 0, lf = 0;
+  new ResizeObserver(([e]) => { sgw = e.contentRect.width; sgh = e.contentRect.height; }).observe($("stage"));
+  const frame = (now) => {
+    requestAnimationFrame(frame);
+    if (document.hidden || document.body.classList.contains("fed") || !sgw || now - lf < (fedit ? 15 : 45)) return;
+    lf = now;
     const t = (performance.now() - t0) / 1000;
     c.imageSmoothingEnabled = false;
     fc.imageSmoothingEnabled = false;
     hits = [];
     floor(t);
-    board(t);
-    radio(292, 9, t);
-    plant(248, 112);
-    plant(392, 210);
-    paths(t);
-    intake(t);
-    const rk = RK(), rs = rk.length > 5 ? 19 : 24, r0 = 326 - ((rk.length - 1) * rs) / 2;
-    rk.forEach(([h, lb], i) => rack(Math.round(r0 + i * rs), 100, t, h, lb));
-    teams(t);
-    confetti(t);
+    fdraw(t);
+    window.AO.furn.tick();
     const hh = hov && hits.find((h) => h.k === hov);
     if (hh) {
       const [x0, y0, x1, y1] = hh.b, cl = "#75746f";
       for (const [x, y, dx, dy] of [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]]) { px(dx > 0 ? x : x - 3, y, 4, 1, cl); px(x - (dx > 0 ? 0 : 1), dy > 0 ? y : y - 3, 1, 4, cl); }
     }
     if (S?.o?.off) { c.globalAlpha = 0.25; px(0, 35, VW, VH - 35, "#000"); c.globalAlpha = 1; }
-    const dp = window.devicePixelRatio || 1, sg = $("stage");
-    const sc = Math.max(1, Math.floor(Math.min((sg.clientWidth - 2) * dp / VW, (sg.clientHeight - 2) * dp / VH)));
-    if (cv.width !== VW * sc) { cv.width = VW * sc; cv.height = VH * sc; cv.style.width = VW * sc / dp + "px"; cv.style.height = VH * sc / dp + "px"; }
+    const dp = window.devicePixelRatio || 1;
+    const sc = Math.max(1, Math.floor(Math.min((sgw - 2) * dp / VW, (sgh - 2) * dp / VH)));
+    if (cv.width !== VW * sc || cv.height !== VH * sc) { cv.width = VW * sc; cv.height = VH * sc; cv.style.width = VW * sc / dp + "px"; cv.style.height = VH * sc / dp + "px"; }
     cx.imageSmoothingEnabled = false;
     cx.drawImage(off, 0, 0, VW * sc, VH * sc);
+    if (fedit) { cx.globalAlpha = lt() ? 0.06 : 0.05; cx.fillStyle = lt() ? "#000" : "#fff"; for (let x = 0; x <= GX; x++) cx.fillRect(x * 8 * sc, GO * sc, 1, GY * 8 * sc); for (let y = 0; y <= GY; y++) cx.fillRect(0, (GO + y * 8) * sc, VW * sc, 1); cx.globalAlpha = 1; }
     const mg = $("mg");
     if (party()) {
       if (mg.hidden || mg.dataset.k !== S.lm.repo + S.lm.num) {
@@ -415,7 +566,6 @@
         mg.hidden = false;
       }
     } else if (!mg.hidden) mg.hidden = true;
-    requestAnimationFrame(frame);
   };
 
   const ago = (t) => {
@@ -435,10 +585,16 @@
     return p === "ollama" ? c + " · local" : p === "codex" ? c + " · ChatGPT" : p === "anthropic" ? c + " · API" : c;
   };
   window.AO.mdn = mdn;
+  const XP = ["#c77dba", "#6fa8dc", "#e39b6b", "#7fc8a9", "#b5a3e0", "#e0848f", "#8fb3c9", "#c9b37f"];
+  let tkeys = "";
   const tiles = () => {
     const el = $("tiles");
+    const po = window.AO.pord || [], xk = Object.keys(S.w).filter((k) => k.startsWith("x:")).sort((a, b) => (po.indexOf(a.slice(2)) + 99) % 99 - (po.indexOf(b.slice(2)) + 99) % 99);
+    xk.forEach((k, i) => { const c = XP[i % XP.length]; SK[k] = { body: c, dark: c, light: c }; NM[k] = S.w[k].nm || k.slice(2); });
+    const all = [...ORD, ...xk];
+    if (all.join() !== tkeys) { tkeys = all.join(); el.innerHTML = ""; el.style.gridTemplateColumns = all.length > 10 ? "repeat(auto-fill, minmax(124px, 1fr))" : `repeat(${all.length}, minmax(0, 1fr))`; }
     if (!el.children.length) {
-      el.innerHTML = ORD.map((n) => `<div class="tile" data-w="${n}"><div class="hd"><span class="dot" style="background:${SK[n].body}"></span>${NM[n]}<span class="md"></span>${n === "ci" || n === "submit" ? "" : `<button class="gear" title="Model and provider" aria-label="${NM[n]} settings">${GEAR}</button>`}</div><div class="sy"></div><div class="stt"></div><div class="ft"></div></div>`).join("");
+      el.innerHTML = all.map((n) => `<div class="tile" data-w="${n}"><div class="hd"><span class="dot" style="background:${SK[n].body}"></span>${esc(NM[n])}<span class="md"></span>${n === "ci" || n === "submit" || n.startsWith("x:") ? "" : `<button class="gear" title="Model and provider" aria-label="${esc(NM[n])} settings">${GEAR}</button>`}</div><div class="sy"></div><div class="stt"></div><div class="ft"></div></div>`).join("");
       el.onclick = (e) => {
         const g = e.target.closest(".gear");
         if (g) { e.stopPropagation(); window.AO.role && window.AO.role(g.closest(".tile").dataset.w); return; }
@@ -471,7 +627,7 @@
     const sw = $("logW"), sq = $("logQ"), wb = $("logWrap"), lg = $("log");
     if (!sw || !sq || !wb || !lg || sw.dataset.inited) return;
     sw.dataset.inited = "1";
-    sw.innerHTML = `<option value="">All workers</option>` + ORD.map((w) => `<option value="${w}">${esc(NM[w])}</option>`).join("");
+    sw.innerHTML = `<option value="">All workers</option>` + [...ORD, ...Object.keys(S?.w || {}).filter((k) => k.startsWith("x:"))].map((w) => `<option value="${w}">${esc(NM[w])}</option>`).join("");
     wb.classList.toggle("on", lWrap);
     lg.classList.toggle("wrap", lWrap);
     sw.onchange = () => { lW = sw.value; rlog(); };
@@ -540,7 +696,7 @@
     }
     seen = ids;
   };
-  const apply = (s) => { if (!s || s.error) return; nt(s); S = s; last = performance.now(); err = 0; tiles(); lists(); chips(); tip(); window.AO.S = s; window.AO.onState && window.AO.onState(s); };
+  const apply = (s) => { if (!s || s.error) return; nt(s); S = s; last = performance.now(); err = 0; const fe = document.body.classList.contains("fed"); if (!fe) { tiles(); lists(); } chips(); tip(); window.AO.S = s; window.AO.onState && window.AO.onState(s); };
   window.AO.apply = apply;
 
   document.addEventListener("change", (e) => {
@@ -601,7 +757,7 @@
     const w = S.w[h.n] || {}, q = h.q || (w.job && S.q.find((x) => x.id === w.job));
     const st = w.hold ? "held" : S.o.man || S.o.pause ? "paused" : h.q ? "work" : w.st || "idle";
     const cs = (w.cmds || []).length ? w.cmds.slice(-4).reverse() : S.ev.filter((e) => e.w === h.n).slice(0, 3).map((e) => [e.t, e.m]);
-    return `<div class="th"><b>${NM[h.n]}</b><span>${esc(mdn(w.md))}</span></div>`
+    return `<div class="th"><b>${esc(NM[h.n])}</b><span>${esc(mdn(w.md))}</span></div>`
       + tr("status", esc(st) + (w.tk ? ` · ${kt(w.tk)} tok today` : ""))
       + (w.cs && (w.cs[0] || w.cs[1]) ? tr("cost", [w.cs[0] ? AO.usd(w.cs[0]) + " API" : "", w.cs[1] ? AO.usd(w.cs[1]) + " login value" : ""].filter(Boolean).join(" · ") + " today") : "")
       + (q ? tr("job", `${esc(rn(q))} · ${esc(q.title)} <span class="k">${esc(q.st)}</span>`) : "")
@@ -664,6 +820,7 @@
     }
     setTimeout(poll, 1000);
   };
+  get("/api/cfg").then((c) => (window.AO.pord = (c?.set?.pipe?.steps || []).map((x) => x.id), window.AO.surf.load(c?.set?.office), window.AO.furn.loadRoom(c?.set?.office?.size), window.AO.furn.load(c?.set?.office?.items))).catch(() => {});
   poll();
   live();
   requestAnimationFrame(frame);

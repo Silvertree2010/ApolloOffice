@@ -932,7 +932,12 @@ async fn fix(a: &Ax, j: &mut Job, fb0: String, k0: u64) -> R<Value> {
         }
         j.d["verification_feedback"] = json!("Executed regression proof and repository CI passed.");
         let mut f = js.clone();
-        fb = review(a, j, &mut f).await?;
+        fb = if crate::xs::rev(a) || crate::routing::enabled(a) { review(a, j, &mut f).await? } else { String::new() };
+        if fb.is_empty() && !crate::xs::steps(a).is_empty() {
+            let df = x(a, j, &format!("git diff {}..HEAD | head -c 60000", j.s("base")), 120).await.o;
+            let ci = rp(a, &j.repo)["ci"].as_str().unwrap_or("").to_string();
+            fb = crate::xs::run(a, j, &f, &df, &body(j, &f, &ci, "")).await?;
+        }
         if !fb.is_empty() {
             a.flow("reviewer", "fixer", "back");
             continue;

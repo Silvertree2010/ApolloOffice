@@ -71,6 +71,30 @@ fn page(b: &str) -> Response<Body> {
     rs(StatusCode::OK, "text/html; charset=utf-8", format!("{LP}{b}</div>"))
 }
 
+pub(crate) fn state_v(a: &Ax) -> Value {
+    state(a)
+}
+
+pub(crate) fn cfg_v(a: &Ax) -> Value {
+    cfg(a)
+}
+
+pub(crate) fn costs_v(a: &Ax) -> Value {
+    costs(a)
+}
+
+pub(crate) fn rep_v(a: &Ax, b: &Value) -> Result<Value, (u16, String)> {
+    rep(a, b).map_err(|(c, e)| (c.as_u16(), e))
+}
+
+pub(crate) async fn ij(a: &Ax, m: &str, p: &str, q: &str, b: Value) -> (u16, Value) {
+    let m = Method::from_bytes(m.as_bytes()).unwrap_or(Method::GET);
+    let r = api(a, &m, p, q, b).await;
+    let c = r.status().as_u16();
+    let by = to_bytes(r.into_body(), 64 << 20).await.unwrap_or_default();
+    (c, serde_json::from_slice(&by).unwrap_or_else(|_| json!({"error": String::from_utf8_lossy(&by).to_string()})))
+}
+
 fn state(a: &Ax) -> Value {
     let d = crate::db::day();
     let mut tk = json!({});
@@ -91,6 +115,14 @@ fn state(a: &Ax) -> Value {
         wv[*x]["cs"] = cs[*x].clone();
         if wv[*x]["md"].as_str().map(|s| s.is_empty()).unwrap_or(true) && *x != "ci" && *x != "submit" {
             wv[*x]["md"] = json!(a.md(x));
+        }
+    }
+    for st in crate::xs::steps(a) {
+        let k = crate::xs::key(st["id"].as_str().unwrap_or(""));
+        wv[k]["tk"] = tk[k].clone();
+        wv[k]["cs"] = cs[k].clone();
+        if wv[k]["md"].as_str().map(|s| s.is_empty()).unwrap_or(true) {
+            wv[k]["md"] = json!(st["md"].as_str().filter(|m| !m.is_empty()).map(String::from).unwrap_or_else(|| a.md("reviewer")));
         }
     }
     for x in a.db.all("select st, count(*) n, max(id) j from jobs where st in ('hunt','repro','fix','ci','review','gate','submit') group by st", pa![]) {
@@ -146,7 +178,7 @@ async fn checks(a: &Ax) -> Value {
 
 fn cfg(a: &Ax) -> Value {
     let rs: Vec<Value> = a.db.all("select * from rp order by full", pa![]).into_iter().map(|mut r| { let f = r["full"].as_str().unwrap_or("").to_string(); r["st"] = rst(a, &f); r }).collect();
-    json!({"repos": rs, "hosts": a.db.all("select * from hs order by id='local' desc, id", pa![]), "set": a.set(), "data": a.dd.display().to_string(), "auto": crate::sys::autostart_on(&a.dd), "prov": crate::prov::status(a), "google": crate::goog::linked(a)["email"], "upd": a.db.kg("upd"), "asset": crate::upd::asset(), "api": {"on": a.db.kg("api")["h"].is_string(), "t0": a.db.kg("api")["t0"], "last": a.db.kg("api")["last"], "port": a.port}, "hook": {"on": a.db.kg("hook")["h"].is_string(), "t0": a.db.kg("hook")["t0"]}})
+    json!({"xc": crate::xs::XC.iter().map(|x| json!({"t": x.0, "n": x.1, "p": x.2})).collect::<Vec<_>>(), "repos": rs, "hosts": a.db.all("select * from hs order by id='local' desc, id", pa![]), "set": a.set(), "data": a.dd.display().to_string(), "auto": crate::sys::autostart_on(&a.dd), "prov": crate::prov::status(a), "google": crate::goog::linked(a)["email"], "upd": a.db.kg("upd"), "asset": crate::upd::asset(), "api": {"on": a.db.kg("api")["h"].is_string(), "t0": a.db.kg("api")["t0"], "last": a.db.kg("api")["last"], "port": a.port}, "hook": {"on": a.db.kg("hook")["h"].is_string(), "t0": a.db.kg("hook")["t0"]}})
 }
 
 fn rst(a: &Ax, r: &str) -> Value {
@@ -219,6 +251,59 @@ fn sets(a: &Ax, b: &Value) {
     if let Some(x) = b["big"].as_bool() {
         s["big"] = json!(x);
     }
+    for (k, ps) in [("floor", ["check", "plain", "planks", "tiles", "parquet", "carpet"]), ("wall", ["plain", "stripes", "panels", "brick", "dots", "boards"])] {
+        if let Some(f) = b["office"].get(k) {
+            let hx = regex::Regex::new(r"^(#[0-9a-fA-F]{6})?$").unwrap();
+            let p = f["p"].as_str().unwrap_or(ps[0]);
+            let (ca, cb) = (f["a"].as_str().unwrap_or(""), f["b"].as_str().unwrap_or(""));
+            if ps.contains(&p) && hx.is_match(ca) && hx.is_match(cb) {
+                s["office"][k] = json!({"p": p, "a": ca, "b": cb});
+            }
+        }
+    }
+    if let (Some(w), Some(h)) = (b["office"]["size"]["w"].as_i64(), b["office"]["size"]["h"].as_i64()) {
+        s["office"]["size"] = json!({"w": w.clamp(30, 80), "h": h.clamp(16, 40)});
+    }
+    if let Some(it) = b["office"]["items"].as_array() {
+        let ok = ["desk", "chair", "plant", "rack", "sofa", "table", "shelf", "coffee", "cooler", "lamp", "rug"];
+        let v: Vec<Value> = it.iter().filter(|u| ok.contains(&u["i"].as_str().unwrap_or("")) && (0..80).contains(&u["x"].as_i64().unwrap_or(-1)) && (0..40).contains(&u["y"].as_i64().unwrap_or(-1))).take(400).map(|u| json!({"i": u["i"], "x": u["x"], "y": u["y"]})).collect();
+        s["office"]["items"] = json!(v);
+    }
+    if b["pipe"].is_object() {
+        if let Some(x) = b["pipe"]["rev"].as_bool() {
+            s["pipe"]["rev"] = json!(x);
+        }
+        if let Some(st) = b["pipe"]["steps"].as_array() {
+            let idr = regex::Regex::new(r"^[a-z0-9-]{1,24}$").unwrap();
+            let mdr = regex::Regex::new(r"^[A-Za-z0-9._:/\[\]-]{0,120}$").unwrap();
+            let mut seen = std::collections::HashSet::new();
+            let v: Vec<Value> = st.iter().filter_map(|x| {
+                let id = x["id"].as_str()?;
+                let t = x["t"].as_str()?;
+                let n: String = x["n"].as_str().unwrap_or("").trim().chars().take(40).collect();
+                let p: String = x["p"].as_str().unwrap_or("").trim().chars().take(4000).collect();
+                let md = x["md"].as_str().unwrap_or("").trim();
+                let ok = idr.is_match(id) && seen.insert(id.to_string()) && !n.is_empty() && mdr.is_match(md) && (crate::xs::XC.iter().any(|c| c.0 == t) || (t == "custom" && !p.is_empty()));
+                ok.then(|| json!({"id": id, "t": t, "n": n, "p": p, "md": md}))
+            }).take(8).collect();
+            s["pipe"]["steps"] = json!(v);
+        }
+    }
+    if b["layout"].is_object() {
+        let idr = regex::Regex::new(r"^[a-z0-9-]{1,24}$").unwrap();
+        let ks = ["tiles", "stage", "queue", "prs", "log"];
+        let sc: Vec<Value> = b["layout"]["scenes"].as_array().cloned().unwrap_or_default().iter().filter(|x| idr.is_match(x["id"].as_str().unwrap_or(""))).take(12).map(|x| {
+            let mut it = json!({});
+            for k in ks {
+                let v = &x["items"][k];
+                let f = |n: &str, d: f64| v[n].as_f64().unwrap_or(d).clamp(0.0, 100.0);
+                it[k] = json!({"x": f("x", 0.0), "y": f("y", 0.0), "w": f("w", 20.0).max(5.0), "h": f("h", 20.0).max(5.0), "v": v["v"].as_bool().unwrap_or(true), "z": v["z"].as_i64().unwrap_or(1).clamp(0, 99), "lk": v["lk"].as_bool().unwrap_or(false)});
+            }
+            json!({"id": x["id"], "n": x["n"].as_str().unwrap_or("Scene").chars().take(40).collect::<String>(), "items": it})
+        }).collect();
+        let cur = b["layout"]["cur"].as_str().filter(|c| *c == "classic" || sc.iter().any(|x| x["id"] == *c)).unwrap_or("classic");
+        s["layout"] = json!({"cur": cur, "scenes": sc});
+    }
     if let Some(x) = b["hunters"].as_i64() {
         s["hunters"] = json!(x.clamp(0, 12));
     }
@@ -265,6 +350,7 @@ fn sets(a: &Ax, b: &Value) {
         }
     }
     a.db.ks("set", &s);
+    crate::xs::sync(a);
     a.tick();
     if let Some(w) = b["wh"].as_object() {
         let re = regex::Regex::new(r"^([01]\d|2[0-3]):[0-5]\d$").unwrap();
@@ -861,6 +947,8 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
                 Err(e) => js(json!({"ok": false, "m": crate::wk::errm(&e)})),
             }
         }
+        ("GET", "/api/flows") => js(crate::flows::get(a)),
+        ("POST", "/api/flows") => js(crate::flows::put(a, &b)),
         ("GET", "/api/cost") => js(costs(a)),
         ("GET", "/api/health") => js(health(a, qv("f") == "1").await),
         ("GET", "/api/export") => js(export(a)),
@@ -925,6 +1013,8 @@ async fn api(a: &Ax, m: &Method, p: &str, q: &str, b: Value) -> Response<Body> {
             }
             _ => er(StatusCode::BAD_REQUEST, "op"),
         },
+        ("GET", "/api/toks") => js(json!({"toks": crate::api2::list(a), "mcp": format!("{} mcp-server --port {} --token <token>", a.me.display(), a.port)})),
+        ("POST", "/api/toks") => js(crate::api2::tok_op(a, &b)),
         ("POST", "/api/apitok") => match b["op"].as_str().unwrap_or("") {
             "new" => {
                 let t = format!("ao_{}", hex::encode(rand::random::<[u8; 24]>()));
@@ -991,6 +1081,27 @@ pub async fn h(State(a): State<Ax>, req: Request<Body>) -> Response<Body> {
                 u.on_upgrade(move |s| ws(a2, s)).into_response()
             }
             Err(e) => e.into_response(),
+        };
+    }
+    if pt.uri.path().starts_with("/v2/") || pt.uri.path() == "/mcp" {
+        if !host_ok(&a, &pt.headers) {
+            return er(StatusCode::FORBIDDEN, "forbidden");
+        }
+        let bt = pt.headers.get("authorization").and_then(|v| v.to_str().ok()).and_then(|s| s.strip_prefix("Bearer ")).unwrap_or("").to_string();
+        let Some(wr) = crate::api2::auth(&a, &bt) else { return er(StatusCode::UNAUTHORIZED, "missing or wrong API token (Settings → API)") };
+        let by = match to_bytes(b, 8 << 20).await { Ok(x) => x, Err(_) => return er(StatusCode::PAYLOAD_TOO_LARGE, "body larger than 8 MB") };
+        let bv: Value = if by.is_empty() { json!({}) } else { match serde_json::from_slice(&by) { Ok(v) => v, Err(_) => return er(StatusCode::BAD_REQUEST, "body must be JSON") } };
+        if pt.uri.path() == "/mcp" {
+            if pt.method != Method::POST {
+                return er(StatusCode::METHOD_NOT_ALLOWED, "POST JSON-RPC to /mcp");
+            }
+            let r = crate::api2::mcp(&a, &bv, wr).await;
+            return if r.is_null() { StatusCode::ACCEPTED.into_response() } else { js(r) };
+        }
+        let q: serde_json::Map<String, Value> = pt.uri.query().unwrap_or("").split('&').filter_map(|kv| { let (k, v) = kv.split_once('=')?; Some((k.to_string(), json!(urlencoding_decode(v)))) }).collect();
+        return match crate::api2::run(&a, pt.method.as_str(), pt.uri.path().trim_start_matches("/v2"), &q, bv, wr).await {
+            Ok(v) => js(v),
+            Err((c, e)) => er(StatusCode::from_u16(c).unwrap_or(StatusCode::BAD_REQUEST), &e),
         };
     }
     if pt.uri.path().starts_with("/v1/") {
@@ -1158,4 +1269,23 @@ mod t {
         let a = std::sync::Arc::new(crate::app::App::new(db, std::env::temp_dir(), 1, "x".into()));
         assert_eq!(state(&a)["ev"].as_array().unwrap().len(), 75);
     }
+}
+
+fn urlencoding_decode(s: &str) -> String {
+    let b = s.replace('+', " ");
+    let by = b.as_bytes();
+    let mut o = Vec::with_capacity(by.len());
+    let mut i = 0;
+    while i < by.len() {
+        if by[i] == b'%' && i + 2 < by.len() {
+            if let Ok(v) = u8::from_str_radix(&b[i + 1..i + 3], 16) {
+                o.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        o.push(by[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&o).into_owned()
 }

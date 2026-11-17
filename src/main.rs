@@ -1,4 +1,7 @@
 mod ai;
+mod xs;
+mod api2;
+mod flows;
 mod app;
 mod db;
 mod gh;
@@ -46,6 +49,11 @@ enum C {
     Status,
     #[command(hide = true)]
     Mcp { port: u16, token: String },
+    #[command(name = "mcp-server", about = "MCP server over stdio for other AI tools (token from --token or APOLLO_OFFICE_TOKEN)")]
+    McpServer {
+        #[arg(long)]
+        token: Option<String>,
+    },
 }
 
 fn open(dd: &std::path::Path) -> anyhow::Result<db::Db> {
@@ -67,6 +75,15 @@ async fn main() -> anyhow::Result<()> {
     let a = A::parse();
     if let Some(C::Mcp { port, token }) = &a.c {
         mcp::bridge(*port, token.clone()).await;
+        return Ok(());
+    }
+    if let Some(C::McpServer { token }) = &a.c {
+        let t = token.clone().or_else(|| std::env::var("APOLLO_OFFICE_TOKEN").ok()).unwrap_or_default();
+        if t.is_empty() {
+            eprintln!("missing token: pass --token or set APOLLO_OFFICE_TOKEN (create one in Settings → API)");
+            std::process::exit(2);
+        }
+        api2::stdio(a.port, t).await;
         return Ok(());
     }
     let dd = app::ddir(a.data.clone());
@@ -103,6 +120,7 @@ async fn main() -> anyhow::Result<()> {
         }
     };
     let ax: Ax = Arc::new(App::new(d, dd.clone(), a.port, me));
+    crate::xs::sync(&ax);
     pipe::recover(&ax);
     tokio::spawn(net::watch(ax.clone()));
     tokio::spawn(pipe::lanes(ax.clone()));

@@ -3,8 +3,15 @@
   const dr = $("dr"), T = $("drT"), B = $("drB");
   let cur = "", cfg = null, ck = null, jid = 0;
 
-  const show = (t, k) => { cur = k; T.textContent = t; dr.hidden = false; };
-  const hide = () => { dr.hidden = true; cur = ""; jid = 0; };
+  const show = (t, k) => { cur = k; T.textContent = t; clearTimeout(dto); dr.classList.remove("out"); dr.hidden = false; };
+  let dto = 0;
+  const hide = () => {
+    cur = ""; jid = 0;
+    if (dr.hidden || matchMedia("(prefers-reduced-motion: reduce)").matches) { dr.hidden = true; return; }
+    dr.classList.add("out");
+    clearTimeout(dto);
+    dto = setTimeout(() => { dr.hidden = true; dr.classList.remove("out"); }, 170);
+  };
   $("drX").onclick = hide;
   dr.onclick = (e) => { if (e.target === dr) hide(); };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !dr.hidden) hide(); });
@@ -343,6 +350,14 @@
   -d '{"repo":"owner/name","title":"Crash on empty input","body":"Steps and what happens","logs":"stack trace","src":"Sentry"}'</pre>
         <div class="hint">Or send <code>{"repo":"owner/name","issue":42}</code> to have an existing issue picked up now. <code>GET /v1/report?id=…</code> returns the state and the PR link. Reports go through Guard and Vet like issues; only this computer can reach the API.</div>
         <div class="acts"><button type="button" id="an">${cfg.api.on ? "Replace token" : "Create token"}</button>${cfg.api.on ? `<button type="button" class="dng" id="ao">Revoke</button>` : ""}</div></div></div>
+      <div data-tab="int" class="sec"><h4>API and MCP</h4><div class="box">
+        <div class="hint" style="margin:0 0 8px">Control everything from your own scripts or AI tools: jobs, repositories, workers, pipelines, team, settings and the office. Read tokens can only look, write tokens can change things.</div>
+        <div id="tkl"></div>
+        <div class="acts"><input type="text" id="tkn" placeholder="Name, e.g. Claude Code" maxlength="40" style="flex:1;min-width:160px"><select id="tks" style="width:auto"><option value="write">Can change things</option><option value="read">Read only</option></select><button type="button" class="go" id="tkc">Create token</button></div>
+        <div id="tkv" hidden><input type="text" readonly id="tkt" style="margin-top:8px"><div class="hint" style="margin-top:6px">Copy it now, it is shown only once.</div></div>
+        <pre class="df" style="margin-top:10px;white-space:pre-wrap">curl http://127.0.0.1:${cfg.api.port}/v2/status -H "Authorization: Bearer $TOKEN"</pre>
+        <div class="hint">All endpoints: <code>GET /v2/openapi.json</code>. MCP for Claude Code, Cursor and others:</div>
+        <pre class="df" style="margin-top:6px;white-space:pre-wrap" id="tkm"></pre></div></div>
       <div data-tab="int" class="sec"><h4>Error trackers</h4><div class="box">
         <div class="ck">${cfg.hook.on ? `<b class="ok2">On</b> link created ${new Date(cfg.hook.t0).toLocaleDateString()}` : "Off. Create a link to let Sentry or GlitchTip send errors as reports."}</div>
         <div id="htk" hidden><input type="text" readonly id="htv" style="margin-top:8px"><div class="hint" style="margin-top:6px">Copy it now, the key is shown only once. Replace owner/name with the repository.</div></div>
@@ -446,6 +461,14 @@
       await settings();
       $("atk").hidden = false; $("atv").value = r.tok; $("atv").select();
     };
+    const tk = async (r) => {
+      const d = r || await get("/api/toks");
+      $("tkl").innerHTML = (d.toks || []).length ? `<div class="tw"><table class="tb"><tr><th>Name</th><th>Access</th><th>Created</th><th>Last used</th><th></th></tr>${d.toks.map((t) => `<tr><td>${esc(t.n)}</td><td>${t.sc === "read" ? "read only" : "can change"}</td><td>${new Date(t.t0).toLocaleDateString()}</td><td>${t.last ? new Date(t.last).toLocaleString() : "never"}</td><td class="n"><button type="button" class="dng" data-tkd="${esc(t.id)}">Revoke</button></td></tr>`).join("")}</table></div>` : `<div class="hint" style="margin:0">No tokens yet.</div>`;
+      if (d.mcp) $("tkm").textContent = `claude mcp add apollo-office -e APOLLO_OFFICE_TOKEN=$TOKEN -- ${d.mcp.replace(" --token <token>", "")}\n\nor over HTTP: http://127.0.0.1:${cfg.api.port}/mcp with header Authorization: Bearer $TOKEN`;
+      for (const b of $("tkl").querySelectorAll("[data-tkd]")) b.onclick = async (e) => { if (e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again"; return; } tk(await post({ op: "del", id: b.dataset.tkd }, "/api/toks")); };
+    };
+    tk();
+    $("tkc").onclick = async () => { const r = await post({ op: "new", n: $("tkn").value, sc: $("tks").value }, "/api/toks"); if (!r.token) return; $("tkn").value = ""; $("tkv").hidden = false; $("tkt").value = r.token; $("tkt").select(); tk(r); };
     $("hn").onclick = async (e) => {
       if (cfg.hook.on && e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again, the old link stops working"; return; }
       const r = await post({ op: "new" }, "/api/hooktok");
@@ -551,7 +574,74 @@
 
   $("bRepos").onclick = repos;
   $("bCost").onclick = costs;
+  const cz = () => {
+    const P = $("cz"), F = window.AO.surf, U = window.AO.furn;
+    const close = () => { P.hidden = true; document.body.classList.remove("ed"); U.edit(false); U.on(() => {}); document.removeEventListener("keydown", esc0); };
+    const esc0 = (e) => { if (e.key === "Escape" && !U.cur().tool && $("dr").hidden) close(); };
+    if (!P.hidden) return close();
+    const NMS = { check: "Checker", plain: "Plain", planks: "Planks", tiles: "Tiles", parquet: "Parquet", carpet: "Carpet", stripes: "Stripes", panels: "Panels", brick: "Brick", dots: "Dots", boards: "Boards" };
+    const TT = { floor: "Floor", wall: "Wall" };
+    let tm;
+    const save = () => { clearTimeout(tm); tm = setTimeout(() => post({ office: { floor: F.get("floor"), wall: F.get("wall") } }, "/api/set").catch(() => {}), 400); };
+    const prev = () => { for (const b of P.querySelectorAll("[data-p]")) { const [x, y] = F.eff(b.dataset.k, true); F.pat(b.querySelector("canvas").getContext("2d"), b.dataset.p, x, y, 0, 0, 48, 24); } };
+    const sec = (k) => {
+      const f = F.get(k), [ca, cb] = F.eff(k);
+      return `<h5><span>${TT[k]}</span></h5>
+        <div class="pg">${F.pats[k].map((p) => `<button type="button" data-k="${k}" data-p="${p}" class="${f.p === p ? "on" : ""}"><canvas width="48" height="24"></canvas>${NMS[p]}</button>`).join("")}</div>
+        <div class="cl"><label><input type="color" data-k="${k}" data-c="a" value="${ca}"> Base</label><label><input type="color" data-k="${k}" data-c="b" value="${cb}"> ${k === "wall" ? "Trim" : "Pattern"}</label></div>`;
+    };
+    const draw = () => {
+      const cu = U.cur();
+      P.innerHTML = `<h5><span>Customize office</span></h5>
+        <h5><span>Room</span><b id="czSz" class="k"></b></h5>
+        <div class="cl rs"><label>Width <input type="range" id="czW" min="30" max="80"></label></div>
+        <div class="cl rs"><label>Depth <input type="range" id="czH" min="16" max="40"></label></div>
+        <h5><span>Furniture</span></h5>
+        <div class="pg fu">${Object.entries(U.cat).map(([k, f]) => `<button type="button" data-f="${k}" class="${cu.tool === k ? "on" : ""}"><canvas width="96" height="60"></canvas>${f.n}</button>`).join("")}</div>
+        <div class="hint">${cu.tool ? `Click the floor to place ${U.cat[cu.tool].n.toLowerCase()}s. Esc or click the card again to stop.` : cu.sel ? `Drag to move, arrow keys to nudge. Drag it out of the room or right-click to remove.` : "Drag an item into the room, or click it to place several. Right-click removes."}</div>
+        <div class="ac"><button type="button" id="czU" ${cu.undo ? "" : "disabled"} title="Ctrl+Z">Undo</button><button type="button" id="czRd" ${cu.redo ? "" : "disabled"} title="Ctrl+Shift+Z">Redo</button><span class="sp"></span><button type="button" id="czClr" ${cu.n ? "" : "disabled"}>Clear all</button></div>
+        ${sec("wall")}${sec("floor")}
+        <div class="ac"><button type="button" id="czR">Reset</button><button type="button" id="czD">Done</button></div>`;
+      prev();
+      for (const b of P.querySelectorAll("[data-f]")) {
+        U.prev(b.querySelector("canvas").getContext("2d"), b.dataset.f, 96, 60);
+        let dg = false;
+        b.onpointerdown = (e) => {
+          if (e.button) return;
+          dg = false;
+          const sx = e.clientX, sy = e.clientY;
+          const mv = (ev) => { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 5) { dg = true; off(); U.grab(b.dataset.f); } };
+          const off = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", off); };
+          window.addEventListener("pointermove", mv);
+          window.addEventListener("pointerup", off);
+        };
+        b.onclick = () => { if (!dg) U.tool(b.dataset.f); dg = false; };
+        b.ondragstart = (e) => e.preventDefault();
+      }
+      const rm = U.room(), sz = () => { const r = U.room(); $("czSz").textContent = `${r.w} × ${r.h}`; $("czW").value = r.w; $("czH").value = r.h; };
+      $("czW").min = Math.max(30, rm.min[0]); $("czH").min = Math.max(16, rm.min[1]);
+      sz();
+      $("czW").oninput = () => { U.size(+$("czW").value, U.room().h); sz(); };
+      $("czH").oninput = () => { U.size(U.room().w, +$("czH").value); sz(); };
+      $("czU").onclick = () => U.undo();
+      $("czRd").onclick = () => U.redo();
+      $("czClr").onclick = () => { if (confirm("Remove all furniture?")) U.clear(); };
+      for (const b of P.querySelectorAll("[data-p]")) b.onclick = () => { F.set(b.dataset.k, { ...F.get(b.dataset.k), p: b.dataset.p }); save(); draw(); };
+      for (const i of P.querySelectorAll("[data-c]")) i.oninput = () => { F.set(i.dataset.k, { ...F.get(i.dataset.k), [i.dataset.c]: i.value }); save(); prev(); };
+      $("czR").onclick = () => { F.load({}); save(); draw(); };
+      $("czD").onclick = close;
+    };
+    U.on(draw);
+    U.edit(true);
+    document.body.classList.add("ed");
+    document.addEventListener("keydown", esc0);
+    draw();
+    P.hidden = false;
+  };
+  $("bCz").onclick = cz;
+  $("bHire").onclick = () => A.flows();
   $("bHosts").onclick = hosts;
+  A.hosts = hosts;
   A.hosts = hosts;
   $("bSet").innerHTML = A.GEAR;
   $("bSet").onclick = settings;

@@ -19,6 +19,7 @@ pub struct Wk {
     pub t: i64,
     pub mood: String,
     pub cmds: Vec<(i64, String)>,
+    pub nm: String,
 }
 
 #[derive(Clone, Serialize, Default)]
