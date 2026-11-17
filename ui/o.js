@@ -135,12 +135,27 @@
   };
   const box = (u, cl, a) => { const f = FC[u.i], X = u.x * 8, Y = GO + u.y * 8; c.globalAlpha = a; px(X, Y, f.w * 8, 1, cl); px(X, Y + f.h * 8 - 1, f.w * 8, 1, cl); px(X, Y, 1, f.h * 8, cl); px(X + f.w * 8 - 1, Y, 1, f.h * 8, cl); c.globalAlpha = 1; };
   const pick = (p) => { if (!p) return -1; for (let k = FU.length - 1; k >= 0; k--) { const u = FU[k], f = FC[u.i]; if (fl(u.i) && p.x >= u.x && p.x < u.x + f.w && p.y >= u.y && p.y < u.y + f.h) return k; } return FU.findIndex((u) => p.x >= u.x && p.x < u.x + FC[u.i].w && p.y >= u.y && p.y < u.y + FC[u.i].h); };
-  const seats = () => {
-    const st = (S?.staff || []).filter((id) => (S?.crew || []).some((w) => w.id === id));
+  const places = () => {
     const ds = FU.map((u, k) => [u, k]).filter(([u]) => u.i === "desk").sort((a, b) => a[0].y - b[0].y || a[0].x - b[0].x);
+    const ch = FU.map((u, k) => [u, k]).filter(([u]) => u.i === "chair"), used = new Set(), ps = [];
+    for (const [d] of ds) {
+      let best = null, bd = 99;
+      for (const [c, k] of ch) {
+        if (used.has(k) || c.x + 2 <= d.x || c.x >= d.x + 4) continue;
+        const dy = c.y >= d.y + 1 && c.y <= d.y + 3 ? c.y - d.y - 1 : c.y <= d.y - 1 && c.y >= d.y - 3 ? d.y - 1 - c.y : 99;
+        const dd = dy * 4 + Math.abs(c.x + 1 - (d.x + 2));
+        if (dy < 99 && dd < bd) { bd = dd; best = [c, k]; }
+      }
+      if (best) { used.add(best[1]); ps.push({ k: best[1], back: best[0].y > d.y }); }
+    }
+    return ps;
+  };
+  window.AO.places = places;
+  const seats = () => {
+    const st = (S?.staff || []).filter((id) => (S?.crew || []).some((w) => w.id === id)), ps = places();
     const m = new Map();
-    st.forEach((id, i) => { if (ds[i]) m.set(ds[i][1], id); });
-    return { m, wait: st.slice(ds.length) };
+    st.forEach((id, i) => { if (ps[i]) m.set(ps[i].k, { id, back: ps[i].back }); });
+    return { m, wait: st.slice(ps.length), ids: new Set(st.slice(0, ps.length)) };
   };
   const pst = (id) => {
     const rs = (S?.rn || []).filter((r) => r.w === id);
@@ -148,8 +163,8 @@
     if (S?.o?.man) return "sleep";
     return "idle";
   };
-  const person = (id, x, y, t, sit) => {
-    const k = "c:" + id, sk = SK[k] || { body: "#8d9199", dark: "#62666d", light: "#b9bcc2" };
+  const person = (id, x, y, t, sit, back) => {
+    const k = "c:" + id, s0 = SK[k] || { body: "#8d9199", dark: "#62666d", light: "#b9bcc2" }, sk = back ? { ...s0, eye: s0.body } : s0;
     const st = sit ? pst(id) : "wait", sd = id.length * 1.7 + id.charCodeAt(0) * 0.13;
     const p = K.pose();
     p.legs = sit ? "sit" : "stand";
@@ -182,13 +197,13 @@
     const sm = fedit ? { m: new Map(), wait: [] } : seats();
     for (const [u, k] of ord) {
       if (fdrag && fdrag.k === k) continue;
-      if (sm.m.has(k)) person(sm.m.get(k), u.x * 8 + 28, GO + u.y * 8 + 9, t, true);
       FU[k] && FC[u.i].d(u.x * 8, GO + u.y * 8, t);
+      if (sm.m.has(k)) person(sm.m.get(k).id, u.x * 8 + 8, GO + u.y * 8 + 14, t, true, sm.m.get(k).back);
 
       if (fedit && k === fsel) box(u, "#4fb3e0", 0.95);
       else if (k === hk) box(u, lt() ? "#000" : "#fff", 0.35);
     }
-    for (const [k, id] of sm.m) { const u = FU[k]; if (!u || (fdrag && fdrag.k === k)) continue; const nm = pname(id), on = pst(id) === "work"; tx(nm, u.x * 8 + 28 - (K.textWidth(nm) >> 1), GO + u.y * 8 - 12, on ? hl("c:" + id) : "#6b6f76"); }
+    for (const [k, { id, back }] of sm.m) { const u = FU[k]; if (!u || (fdrag && fdrag.k === k)) continue; const nm = pname(id), on = pst(id) === "work"; tx(nm, u.x * 8 + 8 - (K.textWidth(nm) >> 1), GO + u.y * 8 + (back ? 18 : -6), on ? hl("c:" + id) : "#6b6f76"); }
     sm.wait.forEach((id, i) => { const x = 20 + i * 24, y = VH - 8; person(id, x, y, t, false); const nm = pname(id); tx(nm, x - (K.textWidth(nm) >> 1), y - 26, "#e0675a"); });
     const g = ghost();
     fbad = false;
@@ -429,7 +444,7 @@
         const id = n.slice(2), cw = (S.crew || []).find((x) => x.id === id) || {}, rs = (S.rn || []).filter((r) => r.st === "run" && r.w === id);
         const ev = (S.ev || []).find((e) => e.w === n);
         const nd = seats().wait.includes(id);
-        if (nd) { t.className = "tile nodesk"; t.style.order = 0; t.querySelector(".md").textContent = ""; t.querySelector(".sy").textContent = "Place a desk in Edit office"; t.querySelector(".stt").textContent = "No desk"; t.querySelector(".ft").textContent = ""; t.title = "Needs a desk to work"; continue; }
+        if (nd) { t.className = "tile nodesk"; t.style.order = 0; t.querySelector(".md").textContent = ""; t.querySelector(".sy").textContent = "Place a desk with a chair in Edit office"; t.querySelector(".stt").textContent = "No desk"; t.querySelector(".ft").textContent = ""; t.title = "Needs a desk to work"; continue; }
         t.className = "tile " + (rs.length ? "work" : "");
         t.style.order = rs.length ? 0 : 1;
         t.querySelector(".md").textContent = mdn(cw.md || "");
@@ -614,14 +629,14 @@
   };
   const ptip = (h) => {
     const w = (S.crew || []).find((x) => x.id === h.p) || {}, rs = (S.rn || []).filter((r) => r.w === h.p), k = "c:" + h.p;
-    const sit = seats().m.size && [...seats().m.values()].includes(h.p);
+    const sit = seats().ids.has(h.p);
     const cs = S.ev.filter((e) => e.w === k).slice(0, 3);
     return `<div class="th"><b>${esc(w.n || h.p)}</b><span>${esc(w.r || "")}</span></div>`
       + tr("model", esc(mdn(w.md || "")))
-      + tr("status", !sit ? `<span class="bad2">needs a desk</span>` : rs.some((r) => r.st === "run" && !r.blk) ? "working" : S.o.man ? "paused" : "idle")
+      + tr("status", !sit ? `<span class="bad2">needs a desk with a chair</span>` : rs.some((r) => r.st === "run" && !r.blk) ? "working" : S.o.man ? "paused" : "idle")
       + rs.map((r) => tr("run", `${esc(r.n || r.flow)} <span class="k">run ${r.id}</span>`)).join("")
       + (cs.length ? `<div class="tc">${cs.map((e) => `<div><span class="k">${ago(e.t)}</span><span>${esc(e.m)}</span></div>`).join("")}</div>` : "")
-      + `<div class="tf">${!sit ? "place a desk in Edit office" : rs.length ? "click to open the run" : "click to open Team"}</div>`;
+      + `<div class="tf">${!sit ? "place a desk and a chair in Edit office" : rs.length ? "click to open the run" : "click to open Team"}</div>`;
   };
   const htip = (h) => {
     const x = (S.hs || []).find((y) => y.id === h.h) || {}, m = S.hst?.[h.h], down = S.o.net?.[h.h] === false;

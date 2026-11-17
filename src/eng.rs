@@ -283,7 +283,7 @@ async fn exec(a: Ax, id: i64) {
                 d["vis"][&nid] = json!(v - 1);
                 q.push_front(nid.clone());
                 d["q"] = json!(q.iter().collect::<Vec<_>>());
-                let msg = format!("{wn} needs a desk. Place one in Edit office.");
+                let msg = format!("{wn} needs a desk with a chair. Place them in Edit office.");
                 if d["blk"] != msg {
                     a.say("pipe", &format!("{}: {msg} (run {id})", d["flow"]["n"].as_str().unwrap_or("")), None);
                 }
@@ -524,8 +524,35 @@ pub fn staff(a: &Ax) -> Vec<String> {
     a.db.kg("crew").as_array().map(|c| c.iter().filter_map(|w| w["id"].as_str().map(String::from)).filter(|id| used.contains(id)).collect()).unwrap_or_default()
 }
 
+pub fn places(it: &[Value]) -> usize {
+    let xy = |v: &Value| (v["x"].as_i64().unwrap_or(0), v["y"].as_i64().unwrap_or(0));
+    let mut ds: Vec<(i64, i64)> = it.iter().filter(|x| x["i"] == "desk").map(xy).collect();
+    ds.sort_by_key(|&(x, y)| (y, x));
+    let ch: Vec<(i64, i64)> = it.iter().filter(|x| x["i"] == "chair").map(xy).collect();
+    let mut used = vec![false; ch.len()];
+    let mut n = 0;
+    for (dx, dy) in ds {
+        let mut best: Option<(usize, i64)> = None;
+        for (k, &(cx, cy)) in ch.iter().enumerate() {
+            if used[k] || cx + 2 <= dx || cx >= dx + 4 {
+                continue;
+            }
+            let d = if (dy + 1..=dy + 3).contains(&cy) { cy - dy - 1 } else if (dy - 3..=dy - 1).contains(&cy) { dy - 1 - cy } else { continue };
+            let s = d * 4 + (cx + 1 - (dx + 2)).abs();
+            if best.is_none_or(|(_, b)| s < b) {
+                best = Some((k, s));
+            }
+        }
+        if let Some((k, _)) = best {
+            used[k] = true;
+            n += 1;
+        }
+    }
+    n
+}
+
 pub fn desks(a: &Ax) -> usize {
-    a.set()["office"]["items"].as_array().map(|it| it.iter().filter(|x| x["i"] == "desk").count()).unwrap_or(0)
+    a.set()["office"]["items"].as_array().map(|it| places(it)).unwrap_or(0)
 }
 
 pub fn seated(a: &Ax, wid: &str) -> bool {
@@ -694,6 +721,12 @@ pub async fn triggers(a: Ax) {
 
 #[cfg(test)]
 mod t {
+    #[test]
+    fn places_pair_desks_with_chairs() {
+        let it: Vec<serde_json::Value> = serde_json::from_str(r#"[{"i":"desk","x":6,"y":4},{"i":"chair","x":7,"y":6},{"i":"desk","x":16,"y":4},{"i":"chair","x":17,"y":1},{"i":"desk","x":30,"y":4},{"i":"chair","x":40,"y":6}]"#).unwrap();
+        assert_eq!(super::places(&it), 2);
+    }
+
     use super::*;
 
     #[test]
