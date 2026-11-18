@@ -1225,3 +1225,6 @@ button.pri:disabled, button.go:disabled { background: transparent; border-color:
 .deskbar { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 12px; padding: 6px 6px 6px 14px; max-width: calc(100% - 20px); background: var(--f2); border: 1px solid color-mix(in oklch, var(--bad) 45%, transparent); border-radius: var(--ri); box-shadow: var(--hl); font-size: var(--fs3); }
 .deskbar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .deskbar button { height: var(--chs); padding: 0 10px; font-size: var(--fs4); flex: none; }
+.ext { color: var(--t2); font-weight: 400; }
+[data-ty=dense] .tile:not(.work):not(.nodesk) { min-width: 64px; }
+.tile.nodesk .sy { display: none; }

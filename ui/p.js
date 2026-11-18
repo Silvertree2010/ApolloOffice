@@ -145,8 +145,10 @@
       <div class="sec"><h4>Your rules</h4><textarea name="rules" placeholder="optional, e.g. never touch the plugin API">${esc(r.rules)}</textarea></div>
       <div class="sbar"><button class="pri" data-op="set" disabled>All changes saved</button><button type="button" data-op="detect">Detect test command</button><span class="msg"></span><span class="sp"></span><button type="button" class="dng" data-op="del">Remove</button></div></form>`;
     const f = D.querySelector("form"), sb = f.querySelector('[data-op="set"]'), m = f.querySelector(".msg");
-    const dirty = () => { f.dataset.dirty = "1"; sb.disabled = false; sb.textContent = "Save changes"; m.className = "msg"; m.textContent = "Unsaved changes, press Enter or Save changes"; const w = f.querySelector(".warn"); if (w) w.hidden = !!f.ci.value.trim(); };
+    const dirty = () => { f.dataset.dirty = "1"; sb.disabled = false; sb.textContent = "Save changes"; m.className = "msg"; m.textContent = "Saving when you leave the field"; const w = f.querySelector(".warn"); if (w) w.hidden = !!f.ci.value.trim(); };
     f.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.tagName === "INPUT" && !sb.disabled) { e.preventDefault(); sb.click(); } });
+    let at = 0;
+    f.addEventListener("change", () => { clearTimeout(at); at = setTimeout(() => { if (!sb.disabled && f.isConnected) sb.click(); }, 500); });
     f.addEventListener("input", dirty);
     f.addEventListener("change", dirty);
     f.onsubmit = (e) => e.preventDefault();
@@ -356,7 +358,7 @@
       </div></div></div>
       <div data-tab="gen" class="sec"><h4>Sign in</h4><div class="box">${cfg.google ? `<div class="ck"><b class="ok2">Google</b> ${esc(cfg.google)} can sign in.</div><div class="acts"><button type="button" class="dng" id="gu">Disconnect Google</button></div>` : `<div class="ck">Sign in with a one-time link from <code>apollo-office login-link</code>, or connect a Google account.</div><div class="acts"><button type="button" id="gl">Connect Google account</button></div>`}</div></div>
       <div data-tab="gen" class="sec"><h4>Bug-fix team</h4><div class="box"><div class="fm">
-        <label>Hunters</label><input type="number" name="hunters" min="0" max="12" value="${s.hunters}"><div class="hint">How many Hunters of the <a href="#/team">bug-fix team</a> look for bugs at the same time.</div>
+        <label>Hunters at once</label><input type="number" name="hunters" min="0" max="12" value="${s.hunters}"><div class="hint">How many Hunters of the <a href="#/team">bug-fix team</a> look for bugs at the same time.</div>
         <label>Daily token limit</label><input type="number" name="tokday" min="0" value="${s.tokday}"><div class="hint">0 = no limit.</div>
         <label>Working hours</label><div class="acts" style="margin:0;align-items:center">${tg("whon", s.wh?.on, "only work from")}<input type="time" name="whf" aria-label="Start time" value="${esc(s.wh?.from || "08:00")}"> to <input type="time" name="wht" aria-label="End time" value="${esc(s.wh?.to || "22:00")}"></div>
       </div></div></div>

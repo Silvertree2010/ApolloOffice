@@ -225,7 +225,7 @@
         if (u.i !== "desk" && u.i !== "chair") return;
         const ok = u.i === "desk" ? pd.has(k) : pc.has(k), w = FC[u.i].w * 8;
         px(u.x * 8 + w - 5, GO + u.y * 8 - 2, 4, 4, ok ? "#5cbf6a" : "#e0675a");
-        if (u.i === "chair") { const sid = u.w || (S?.seat?.seats || []).find((s) => s.c === k)?.w; if (sid) { const nm = pname(sid); tx(nm, u.x * 8 + 8 - (K.textWidth(nm) >> 1), GO + u.y * 8 + 17, u.w ? "#b9bcc2" : "#6b6f76"); } }
+        if (u.i === "chair") { const sid = u.w || (S?.seat?.seats || []).find((s) => s.c === k)?.w; if (sid) { const nm = pname(sid), wx = K.textWidth(nm); px(u.x * 8 + 7 - (wx >> 1), GO + u.y * 8 + 16, wx + 2, 7, "#0b0c0e"); tx(nm, u.x * 8 + 8 - (wx >> 1), GO + u.y * 8 + 17, u.w ? "#ecebe6" : "#b9bcc2"); } }
       });
     }
     sm.wait.forEach((id, i) => { const x = 20 + i * 24, y = VH - 8; person(id, x, y, t, false); const nm = pname(id); tx(nm, x - (K.textWidth(nm) >> 1), y - 26, "#e0675a"); });
@@ -491,7 +491,7 @@
         const id = n.slice(2), cw = (S.crew || []).find((x) => x.id === id) || {}, rs = (S.rn || []).filter((r) => r.st === "run" && r.w === id);
         const ev = (S.ev || []).find((e) => e.w === n);
         const nd = seats().wait.includes(id);
-        if (nd) { t.className = "tile nodesk"; t.style.order = 0; t.querySelector(".md").textContent = ""; t.querySelector(".sy").textContent = "Place a desk with a chair in Edit office"; t.querySelector(".stt").textContent = "No desk"; t.querySelector(".ft").textContent = ""; t.title = "Needs a desk to work"; continue; }
+        if (nd) { t.className = "tile nodesk"; t.style.order = 0; t.querySelector(".md").textContent = ""; t.querySelector(".sy").textContent = ""; t.querySelector(".stt").textContent = "No desk"; t.querySelector(".ft").textContent = ""; t.title = "Needs a desk to work"; continue; }
         t.className = "tile " + (rs.length ? "work" : "");
         t.style.order = rs.length ? 0 : 1;
         t.querySelector(".md").textContent = mdn(cw.md || "");
@@ -583,6 +583,7 @@
     else if (o.pause) { n.className = "chip bad"; n.textContent = o.pause; }
     else if (o.warn) { n.className = "chip bad"; n.textContent = "Claude usage near its limit"; }
     else { n.className = "chip ok"; n.textContent = "online"; }
+    $("cHo").title = "Machines: white is online, red is offline";
     $("cHo").innerHTML = (S.hs || []).filter((h) => h.on_).map((h) => `<b style="color:${o.net[h.id] === false ? "var(--bad)" : "var(--t1)"}">${esc(h.id)}</b>`).join(" ") || "no machine";
     const a = S.n, rx = S.rn || [], cn = (st) => rx.filter((r) => r.st === st).length;
     const wk = ["hunt", "repro", "fix", "ci", "review", "gate", "submit"].reduce((s, k) => s + (a[k] || 0), 0);
