@@ -196,6 +196,9 @@ pub async fn run(a: &Ax, m: &str, path: &str, q: &Map<String, Value>, b: Value, 
         ("GET", ["roles"]) => Ok(json!(crate::flows::roles(a))),
         ("POST", ["crew"]) => {
             let r = b["role"].as_str().and_then(|t| crate::flows::roles(a).into_iter().find(|x| x["t"] == t));
+            if r.as_ref().is_some_and(|x| x["g"] == "team") {
+                return Err((400, "this role is already in your team as part of the bug-fix team".into()));
+            }
             let n = b["n"].as_str().map(String::from).or_else(|| r.as_ref().and_then(|x| x["n"].as_str().map(String::from))).ok_or((400u16, "need a name (n) or a role".to_string()))?;
             let mut cw = crate::flows::get(a)["crew"].as_array().cloned().unwrap_or_default();
             let base: String = n.to_lowercase().chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect::<String>().trim_matches('-').chars().take(20).collect();
@@ -211,6 +214,9 @@ pub async fn run(a: &Ax, m: &str, path: &str, q: &Map<String, Value>, b: Value, 
             out["crew"].as_array().and_then(|c| c.iter().find(|x| x["id"] == w["id"]).cloned()).ok_or((400, "invalid team member".into()))
         }
         ("DELETE", ["crew", cid]) => {
+            if crate::flows::is_core(cid) {
+                return Err((400, "the bug-fix team is part of every office and cannot be removed".into()));
+            }
             let mut cw = crate::flows::get(a)["crew"].as_array().cloned().unwrap_or_default();
             let n = cw.len();
             cw.retain(|x| x["id"] != *cid);

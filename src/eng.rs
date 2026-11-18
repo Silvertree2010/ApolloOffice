@@ -653,7 +653,9 @@ pub fn staff(a: &Ax) -> Vec<String> {
         .as_array()
         .map(|fs| fs.iter().filter(|f| f["on"].as_bool().unwrap_or(false) || f["id"].as_str().is_some_and(|i| busy.contains(i))).flat_map(|f| f["nodes"].as_array().cloned().unwrap_or_default()).filter_map(|n| n["c"]["w"].as_str().map(String::from)).collect())
         .unwrap_or_default();
-    a.db.kg("crew").as_array().map(|c| c.iter().filter_map(|w| w["id"].as_str().map(String::from)).filter(|id| used.contains(id)).collect()).unwrap_or_default()
+    let mut v: Vec<String> = a.db.kg("crew").as_array().map(|c| c.iter().filter_map(|w| w["id"].as_str().map(String::from)).filter(|id| used.contains(id)).collect()).unwrap_or_default();
+    v.extend(crate::flows::ROLES.iter().filter(|r| r.g == "team").map(|r| r.t.to_string()));
+    v
 }
 
 pub fn places_at(it: &[Value]) -> Vec<(usize, Option<String>)> {
@@ -733,7 +735,7 @@ pub fn seat_view(a: &Ax) -> Value {
             json!({"c": ix, "w": who})
         })
         .collect();
-    json!({"seats": seats, "wait": st.iter().filter(|w| !sat.contains(w)).collect::<Vec<_>>()})
+    json!({"seats": seats, "wait": st.iter().filter(|w| !sat.contains(w) && !crate::flows::is_core(w)).collect::<Vec<_>>()})
 }
 
 pub fn active(a: &Ax) -> Vec<Value> {

@@ -353,7 +353,7 @@
         <label>Ollama address</label><input type="text" name="ollama" value="${esc(s.prov?.ollama?.base || "")}" placeholder="${esc(ol.dbase)}">
         <label>Ollama context</label><input type="number" name="octx" min="2048" step="1024" value="${s.prov?.ollama?.ctx || 32768}"><div class="hint">Tokens per request. Ollama's default of 4096 is too small for the workers.</div>
       </div></div></div>
-      <div data-tab="md" class="sec"><h4>Bug-fix team</h4><p class="mut sdesc">Models of the built-in team. People you hired for pipelines get their model on the <a href="#/team">Team</a> page.</p><div class="box"><div class="fm">
+      <div data-tab="md" class="sec"><h4>Bug-fix team</h4><p class="mut sdesc">Models of the bug-fix team. People you hired get their model on the <a href="#/team">Team</a> page.</p><div class="box"><div class="fm">
         ${["scout", "guard", "vet", "hunter", "repro", "fixer", "reviewer", "watcher"].map((w) => `<label>${esc(A.NM?.[w] || w)}</label><div class="ck"><span style="flex:1">${RK[w].map(([k, l]) => esc((RK[w].length > 1 ? l + ": " : "") + (A.mdn ? A.mdn(s.md[k]) : s.md[k]))).join(" · ")}</span><button type="button" data-role="${w}">Change</button></div>`).join("")}
       </div></div></div>
       <div data-tab="gen" class="sec"><h4>Sign in</h4><div class="box">${cfg.google ? `<div class="ck"><b class="ok2">Google</b> ${esc(cfg.google)} can sign in.</div><div class="acts"><button type="button" class="dng" id="gu">Disconnect Google</button></div>` : `<div class="ck">Sign in with a one-time link from <code>apollo-office login-link</code>, or connect a Google account.</div><div class="acts"><button type="button" id="gl">Connect Google account</button></div>`}</div></div>
