@@ -138,7 +138,7 @@
         <label>USD per day</label><input type="number" name="bud" min="0" step="0.01" value="${r.bud || 0}">
       </div></div></div>
       <div class="sec"><h4>Your rules</h4><textarea name="rules" placeholder="optional, e.g. never touch the plugin API">${esc(r.rules)}</textarea></div>
-      <div class="sbar"><button class="pri" data-op="set" disabled>Saved</button><button type="button" data-op="detect">Detect test command</button><span class="msg"></span><span class="sp"></span><button type="button" class="dng" data-op="del">Remove</button></div></form>`;
+      <div class="sbar"><button class="pri" data-op="set" disabled>All changes saved</button><button type="button" data-op="detect">Detect test command</button><span class="msg"></span><span class="sp"></span><button type="button" class="dng" data-op="del">Remove</button></div></form>`;
     const f = D.querySelector("form"), sb = f.querySelector('[data-op="set"]'), m = f.querySelector(".msg");
     const dirty = () => { sb.disabled = false; sb.textContent = "Save changes"; m.textContent = ""; };
     f.addEventListener("input", dirty);
@@ -166,9 +166,10 @@
       busy(b, true, "Saving…");
       const r2 = await post({ op: "set", full, ...fv(f) }, "/api/repo");
       if (r2.error) { busy(b, false, "Save changes"); m.className = "msg bad2"; m.textContent = r2.error; return; }
-      busy(b, true, "Saved");
+      busy(b, true, "All changes saved");
       m.className = "msg"; m.textContent = "";
-      repos();
+      await repos();
+      rdet(full);
     };
   };
   const repos = async () => {
@@ -208,7 +209,7 @@
         ${nw && h.id !== "local" ? `<label>SSH host</label><input type="text" name="ssh" placeholder="alias from ~/.ssh/config or user@host"><div class="hint">Key login must work without a password prompt.</div>` : ""}
         <label>Isolation</label><select name="dk"><option value="1" ${h.dk !== 0 ? "selected" : ""}>Docker container (recommended)</option><option value="0" ${h.dk === 0 ? "selected" : ""}>directly on the machine</option></select>
         <div class="hint raw" ${h.dk === 0 ? "" : "hidden"}><span style="color:var(--bad)">Workers build and run code from the repositories you add, directly with your user account, which can reach your GitHub, Claude and SSH logins on this machine. Only do this for repositories you trust.</span><br>${tg("raw", h.dk === 0 && !nw, "I understand")}</div>
-        <label>Parallel jobs</label><input type="number" name="ln" min="1" max="8" value="${h.ln || 1}">
+        <label>Lanes</label><input type="number" name="ln" min="1" max="8" value="${h.ln || 1}"><div class="hint">Jobs and pipeline steps that can work on this machine at the same time.</div>
         <label>Parallel test runs</label><input type="number" name="ci" min="1" max="8" value="${h.ci || 1}">
         <label>CPU limit</label><input type="number" name="cpu" min="0" value="${h.cpu || 0}"><div class="hint">0 = all but one.</div>
         <label>Skip repos</label><input type="text" name="no" value="${esc(h.no || "")}" placeholder="optional, e.g. owner/big-repo, other-repo">
@@ -348,7 +349,7 @@
       </div></div></div>
       <div data-tab="gen" class="sec"><h4>Sign in</h4><div class="box">${cfg.google ? `<div class="ck"><b class="ok2">Google</b> ${esc(cfg.google)} can sign in.</div><div class="acts"><button type="button" class="dng" id="gu">Disconnect Google</button></div>` : `<div class="ck">Sign in with a one-time link from <code>apollo-office login-link</code>, or connect a Google account.</div><div class="acts"><button type="button" id="gl">Connect Google account</button></div>`}</div></div>
       <div data-tab="gen" class="sec"><h4>Work</h4><div class="box"><div class="fm">
-        <label>Hunters</label><input type="number" name="hunters" min="0" max="12" value="${s.hunters}"><div class="hint">How many Hunters of the bug-fix team look for bugs at the same time.</div>
+        <label>Hunters</label><input type="number" name="hunters" min="0" max="12" value="${s.hunters}"><div class="hint">How many Hunters of the <a href="#/team">bug-fix team</a> look for bugs at the same time.</div>
         <label>Daily token limit</label><input type="number" name="tokday" min="0" value="${s.tokday}"><div class="hint">0 = no limit.</div>
         <label>Working hours</label><div class="acts" style="margin:0;align-items:center">${tg("whon", s.wh?.on, "only work from")}<input type="time" name="whf" aria-label="Start time" value="${esc(s.wh?.from || "08:00")}"> to <input type="time" name="wht" aria-label="End time" value="${esc(s.wh?.to || "22:00")}"></div>
       </div></div></div>
@@ -515,8 +516,8 @@
     const d14 = c.days.reduce((s, d) => s + (d.usd || 0), 0), v14 = c.days.reduce((s, d) => s + (d.val || 0), 0), d7 = c.days.slice(0, 7).reduce((s, d) => s + (d.usd || 0), 0);
     const dm = new Map(c.days.map((d) => [d.day, d])), d0 = [new Date().toISOString().slice(0, 10), c.days[0]?.day || ""].sort().pop(), dd = c.days.length ? Array.from({ length: 14 }, (_, i) => { const k = new Date(Date.parse(d0 + "T00:00:00Z") - (13 - i) * 864e5).toISOString().slice(0, 10); return dm.get(k) || { day: k, usd: 0, val: 0 }; }) : [], mx = Math.max(0.01, ...dd.map((d) => (d.usd || 0) + (d.val || 0)));
     const nil = `<div class="emp"><b>Nothing yet</b><span>Costs show up after the first jobs ran.</span></div>`;
-    B.innerHTML = ph(`API keys are billed per token. Claude Code and Codex logins cost nothing extra, their value is shown for comparison.${t.unk ? ` ${t.unk} calls today had no known price.` : ""}`)
-      + kpi([[usd(t.usd || 0), "API today"], [usd(t.val || 0), "login value today"], [usd(d7), "API, 7 days"], [usd(d14), "API, 14 days"], [c.budday ? usd(c.budday) : "none", "daily budget"]])
+    B.innerHTML = ph(`API keys are billed per token, that is what you pay. Login value is what the same work would have cost with API keys while it ran on your Claude Code or Codex login, which costs nothing extra.${t.unk ? ` ${t.unk} calls today had no known price.` : ""}`)
+      + kpi([[usd(t.usd || 0), "API today"], [usd(d7), "API, 7 days"], [usd(d14), "API, 14 days"], [usd(c.days.slice(0, 7).reduce((s, d) => s + (d.val || 0), 0)), "login value, 7 days"], [c.budday ? usd(c.budday) : "none", "daily budget"]])
       + (c.hints.length ? `<section class="sec2"><h3>Cheaper models <span class="mut">${c.hints.length} ${c.hints.length === 1 ? "hint" : "hints"}</span></h3><div class="lst">${c.hints.slice(0, 3).map((h) => `<div class="hr2"><div><span class="t1">${esc(h)}</span></div></div>`).join("")}${c.hints.length > 3 ? `<details class="more"><summary>Show ${c.hints.length - 3} more</summary>${c.hints.slice(3).map((h) => `<div class="hr2"><div><span class="t1">${esc(h)}</span></div></div>`).join("")}</details>` : ""}</div></section>` : "")
       + `<section class="sec2"><h3>Last 14 days <span class="mut">${usd(d14)} API · ${usd(v14)} login value</span></h3>${dd.length ? `<div class="cch" role="img" aria-label="Daily cost, last 14 days: ${esc(dd.map((d) => `${d.day.slice(5)} ${usd(d.usd)} API, ${usd(d.val)} login`).join("; "))}">${dd.map((d) => `<div title="${esc(d.day)}: ${usd(d.usd)} API, ${usd(d.val)} login value"><i class="v" style="height:${((d.val || 0) / mx) * 100}%"></i><i class="u" style="height:${((d.usd || 0) / mx) * 100}%"></i><span>${esc(d.day.slice(8))}</span></div>`).join("")}</div><div class="lgd"><span><i class="u"></i>API</span><span><i class="v"></i>Login value</span></div>` : nil}</section>`
       + `<section class="sec2"><h3>Pipelines <span class="mut">30 days</span></h3>${(c.flows || []).length ? tb([["Pipeline"], ["Runs", "n"], ["API", "n"], ["Login value", "n"], ["Per run", "n"]], c.flows.map((f) => `<tr><td>${esc(f.n || f.flow)}</td><td class="n">${f.runs}</td><td class="n">${usd(f.usd)}</td><td class="n">${usd(f.val)}</td><td class="n">${f.runs ? usd(((f.usd || 0) + (f.val || 0)) / f.runs) : "–"}</td></tr>`)) : `<div class="emp"><b>No pipeline costs yet</b><span>Costs of pipeline steps show up here after their first runs.</span></div>`}</section>`

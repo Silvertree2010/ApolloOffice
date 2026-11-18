@@ -335,17 +335,6 @@ async fn exec(a: Ax, id: i64) {
                 rec(&mut d, &n, "", inp, true, t0, None);
                 next = targets(&d, &nid, "out");
             }
-            "worker" | "check" if gate(&d, &n) => {
-                d["vis"][&nid] = json!(v - 1);
-                d["wait"] = json!(nid);
-                d["gate"] = json!(true);
-                q.push_front(nid.clone());
-                d["q"] = json!(q.iter().collect::<Vec<_>>());
-                let src = if d["input"]["kind"] == "webhook" { "a webhook call from outside".to_string() } else { format!("{} #{}{} on GitHub", d["input"]["repo"].as_str().unwrap_or(""), d["input"]["number"], d["input"]["author"].as_str().map(|x| format!(" by {x}")).unwrap_or_default()) };
-                rec(&mut d, &n, "", json!({"ask": format!("This run was started by {src}. Let a worker with shell, file or GitHub access act on it?")}), true, t0, None);
-                store(&a, id, "wait", &d);
-                return;
-            }
             "worker" | "check" if !seated(&a, n["c"]["w"].as_str().unwrap_or("")) => {
                 let wn = d["crew"].as_array().and_then(|c| c.iter().find(|x| x["id"] == n["c"]["w"]).and_then(|x| x["n"].as_str().map(String::from))).unwrap_or_else(|| "This worker".into());
                 d["vis"][&nid] = json!(v - 1);
@@ -368,6 +357,17 @@ async fn exec(a: Ax, id: i64) {
                 d["blk"] = json!(msg);
                 d["blkw"] = n["c"]["w"].clone();
                 store(&a, id, "queued", &d);
+                return;
+            }
+            "worker" | "check" if gate(&d, &n) => {
+                d["vis"][&nid] = json!(v - 1);
+                d["wait"] = json!(nid);
+                d["gate"] = json!(true);
+                q.push_front(nid.clone());
+                d["q"] = json!(q.iter().collect::<Vec<_>>());
+                let src = if d["input"]["kind"] == "webhook" { "a webhook call from outside".to_string() } else { format!("{} #{}{} on GitHub", d["input"]["repo"].as_str().unwrap_or(""), d["input"]["number"], d["input"]["author"].as_str().map(|x| format!(" by {x}")).unwrap_or_default()) };
+                rec(&mut d, &n, "", json!({"ask": format!("This run was started by {src}. Let a worker with shell, file or GitHub access act on it?")}), true, t0, None);
+                store(&a, id, "wait", &d);
                 return;
             }
             "worker" | "check" => {
@@ -607,16 +607,16 @@ pub fn staff(a: &Ax) -> Vec<String> {
     a.db.kg("crew").as_array().map(|c| c.iter().filter_map(|w| w["id"].as_str().map(String::from)).filter(|id| used.contains(id)).collect()).unwrap_or_default()
 }
 
-pub fn places(it: &[Value]) -> Vec<Option<String>> {
+pub fn places_at(it: &[Value]) -> Vec<(usize, Option<String>)> {
     let xy = |v: &Value| (v["x"].as_i64().unwrap_or(0), v["y"].as_i64().unwrap_or(0));
     let mut ds: Vec<(i64, i64)> = it.iter().filter(|x| x["i"] == "desk").map(xy).collect();
     ds.sort_by_key(|&(x, y)| (y, x));
-    let ch: Vec<&Value> = it.iter().filter(|x| x["i"] == "chair").collect();
+    let ch: Vec<(usize, &Value)> = it.iter().enumerate().filter(|(_, x)| x["i"] == "chair").collect();
     let mut used = vec![false; ch.len()];
     let mut o = vec![];
     for (dx, dy) in ds {
         let mut best: Option<(usize, i64)> = None;
-        for (k, c) in ch.iter().enumerate() {
+        for (k, (_, c)) in ch.iter().enumerate() {
             let (cx, cy) = xy(c);
             if used[k] || cx + 3 <= dx || cx >= dx + 5 {
                 continue;
@@ -629,7 +629,7 @@ pub fn places(it: &[Value]) -> Vec<Option<String>> {
         }
         if let Some((k, _)) = best {
             used[k] = true;
-            o.push(ch[k]["w"].as_str().map(String::from));
+            o.push((ch[k].0, ch[k].1["w"].as_str().map(String::from)));
         }
     }
     o
@@ -644,7 +644,24 @@ pub fn seat_map(st: &[String], ps: &[Option<String>]) -> Vec<String> {
 
 pub fn seated(a: &Ax, wid: &str) -> bool {
     let it = a.set()["office"]["items"].as_array().cloned().unwrap_or_default();
-    seat_map(&staff(a), &places(&it)).iter().any(|w| w == wid)
+    let st = staff(a);
+    let pa = places_at(&it);
+    let ps: Vec<Option<String>> = pa.iter().map(|x| x.1.clone()).collect();
+    if !seat_map(&st, &ps).iter().any(|w| w == wid) {
+        return false;
+    }
+    if !pa.iter().any(|(_, w)| w.as_deref() == Some(wid)) {
+        let fixed: Vec<&String> = ps.iter().flatten().filter(|w| st.contains(w)).collect();
+        let j = st.iter().filter(|w| !fixed.contains(w)).position(|w| w == wid).unwrap_or(0);
+        if let Some(&(ix, _)) = pa.iter().filter(|(_, w)| w.as_ref().is_none_or(|w| !st.contains(w))).nth(j) {
+            let mut s = a.db.kg("set");
+            if let Some(c) = s["office"]["items"].get_mut(ix) {
+                c["w"] = json!(wid);
+                a.db.ks("set", &s);
+            }
+        }
+    }
+    true
 }
 
 pub fn active(a: &Ax) -> Vec<Value> {
@@ -812,7 +829,7 @@ mod t {
     #[test]
     fn places_pair_desks_with_chairs() {
         let it: Vec<serde_json::Value> = serde_json::from_str(r#"[{"i":"desk","x":6,"y":4},{"i":"chair","x":7,"y":6},{"i":"desk","x":16,"y":4},{"i":"chair","x":17,"y":1},{"i":"desk","x":30,"y":4},{"i":"chair","x":40,"y":6}]"#).unwrap();
-        assert_eq!(super::places(&it).len(), 2);
+        assert_eq!(super::places_at(&it).len(), 2);
         let st = vec!["a".to_string(), "b".to_string(), "c".to_string()];
         assert_eq!(super::seat_map(&st, &[Some("c".into()), None]), vec!["c".to_string(), "a".to_string()]);
         assert_eq!(super::seat_map(&st, &[Some("gone".into()), None]), vec!["a".to_string(), "b".to_string()]);

@@ -246,10 +246,10 @@
   const fabpos = () => {
     const u = FU[fsel];
     if (!fedit || !u || fdrag) { fab.hidden = true; return; }
-    const fk = fsel + ":" + u.i + ":" + (u.w || "") + ":" + (S?.staff || []).join(",");
+    const fk = fsel + ":" + u.i + ":" + (u.w || "") + ":" + (S?.crew || []).map((w) => w.id).join(",");
     if (fab.dataset.k !== fk) {
       fab.dataset.k = fk;
-      const st = (S?.crew || []).filter((w) => (S?.staff || []).includes(w.id));
+      const st = S?.crew || [];
       fab.innerHTML = (u.i === "chair" && st.length ? `<select data-a="seat" aria-label="Who sits here"><option value="">Seat: anyone free</option>${st.map((w) => `<option value="${esc(w.id)}" ${u.w === w.id ? "selected" : ""}>Seat: ${esc(w.n)}</option>`).join("")}</select>` : "") + BTN;
       const se = fab.querySelector("[data-a=seat]");
       if (se) se.onchange = () => { const v = se.value; snap(); for (const x of FU) if (x.i === "chair" && v && x.w === v) delete x.w; if (v) FU[fsel].w = v; else delete FU[fsel].w; commit(); };
@@ -507,9 +507,14 @@
   try { lWrap = localStorage.getItem("ao.lw") === "1"; } catch {}
   const initLog = () => {
     const sw = $("logW"), sq = $("logQ"), wb = $("logWrap"), lg = $("log");
-    if (!sw || !sq || !wb || !lg || sw.dataset.inited) return;
-    sw.dataset.inited = "1";
+    const lk = (S?.crew || []).map((w) => w.id + w.n).join();
+    if (!sw || !sq || !wb || !lg || sw.dataset.inited === lk + "|") return;
+    const first = !sw.dataset.inited;
+    sw.dataset.inited = lk + "|";
+    (S?.crew || []).forEach((w) => { NM["c:" + w.id] = w.n || w.id; });
     sw.innerHTML = `<option value="">All workers</option>` + [...(S?.crew || []).map((w) => "c:" + w.id), "pipe", ...ORD, ...Object.keys(S?.w || {}).filter((k) => k.startsWith("x:"))].map((w) => `<option value="${w}">${esc(NM[w] || w)}</option>`).join("");
+    sw.value = lW;
+    if (!first) return;
     wb.classList.toggle("on", lWrap);
     lg.classList.toggle("wrap", lWrap);
     sw.onchange = () => { lW = sw.value; rlog(); };
@@ -530,7 +535,7 @@
   };
 
   const RQN = { queued: "Queued", run: "Running", wait: "Waiting for you" };
-  const rrow = (r) => { const w = (S.crew || []).find((x) => x.id === r.w); if (r.blk && r.w && seats().ids.has(r.w)) r = { ...r, blk: null, st: "queued" }; return `<div class="row jr${r.st === "wait" ? " apr" : ""}"><div class="ti"><a class="a" href="#" data-run="${r.id}">${esc(r.st === "wait" && r.ask ? r.ask : r.n || r.flow)}</a><div class="w"><span class="stt rs-${esc(r.blk ? "fail" : r.st)}">${esc(r.blk ? "Needs a desk" : RQN[r.st] || r.st)}</span><span>${esc(r.blk ? r.blk : r.st === "wait" && r.ask ? r.n || r.flow : w ? (r.nt === "check" ? w.n + " checks" : w.n + " works") : "Pipeline")}</span><span>run ${r.id}</span></div></div><span class="rp">${r.st === "wait" ? `<button class="go" data-ry="${r.id}">Yes</button><button data-rn="${r.id}">No</button>` : r.blk ? `<button data-desk="1">Edit office</button>` : ""}</span></div>`; };
+  const rrow = (r) => { const w = (S.crew || []).find((x) => x.id === r.w); return `<div class="row jr${r.st === "wait" ? " apr" : ""}"><div class="ti"><a class="a" href="#" data-run="${r.id}">${esc(r.st === "wait" && r.ask ? r.ask : r.n || r.flow)}</a><div class="w"><span class="stt rs-${esc(r.blk ? "fail" : r.st)}">${esc(r.blk ? "Needs a desk" : RQN[r.st] || r.st)}</span><span>${esc(r.blk ? r.blk : r.st === "wait" && r.ask ? r.n || r.flow : w ? (r.nt === "check" ? w.n + " checks" : w.n + " works") : "Pipeline")}</span><span>run ${r.id}</span></div></div><span class="rp">${r.st === "wait" ? `<button class="go" data-ry="${r.id}">Yes</button><button data-rn="${r.id}">No</button>` : r.blk ? `<button data-desk="1">Edit office</button>` : ""}</span></div>`; };
   const lists = () => {
     const q = S.q, rx = S.rn || [];
     $("qn").textContent = [q.length ? q.length + (q.length === 1 ? " job" : " jobs") : "", rx.length ? rx.length + (rx.length === 1 ? " run" : " runs") : ""].filter(Boolean).join(" · ");
