@@ -654,7 +654,7 @@ pub fn staff(a: &Ax) -> Vec<String> {
         .map(|fs| fs.iter().filter(|f| f["on"].as_bool().unwrap_or(false) || f["id"].as_str().is_some_and(|i| busy.contains(i))).flat_map(|f| f["nodes"].as_array().cloned().unwrap_or_default()).filter_map(|n| n["c"]["w"].as_str().map(String::from)).collect())
         .unwrap_or_default();
     let mut v: Vec<String> = a.db.kg("crew").as_array().map(|c| c.iter().filter_map(|w| w["id"].as_str().map(String::from)).filter(|id| used.contains(id)).collect()).unwrap_or_default();
-    v.extend(crate::flows::ROLES.iter().filter(|r| r.g == "team").map(|r| r.t.to_string()));
+    v.extend(crate::flows::ROLES.iter().filter(|r| r.g == "team" && r.t != "ci").map(|r| r.t.to_string()));
     v
 }
 

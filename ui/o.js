@@ -302,6 +302,7 @@
         else if (st === "sleep") px(X + 11, Y - 4, 10, 6, "#0b0c0e");
         else { px(X + 11, Y - 4, 10, 6, "#141518"); px(X + 12, Y - 3, 3, 1, sk.dark); if (Math.floor(t * 1.2 + id.length) % 2) px(X + 16, Y - 3, 1, 1, sk.light); }
       }
+      { const rs = [...RH.entries()].sort((a, b) => ((S?.q || []).some((q) => q.st === "ci" && q.h === b[1][0]) ? 1 : 0) - ((S?.q || []).some((q) => q.st === "ci" && q.h === a[1][0]) ? 1 : 0)); const ru = rs[0]?.[0] || FU.find((u) => u.i === "rack"); if (ru) SP.ci = [ru.x * 8 + 8, GO + ru.y * 8 - 20]; }
       const nw = nowS(), PL = ["w....", "www..", "wwwww", ".gww.", "..g.."];
       for (let i = LF.length - 1; i >= 0; i--) if (nw - LF[i].t > 4000) LF.splice(i, 1);
       for (const f of [...(S?.fl || []), ...LF]) {

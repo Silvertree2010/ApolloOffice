@@ -130,8 +130,8 @@ pub fn is_core(id: &str) -> bool {
 }
 
 pub fn core_crew(a: &Ax) -> Vec<Value> {
-    ROLES.iter().filter(|r| r.g == "team").map(|r| {
-        let md = if r.t != "ci" && r.t != "submit" { a.md(r.t) } else { String::new() };
+    ROLES.iter().filter(|r| r.g == "team" && r.t != "ci").map(|r| {
+        let md = if r.t != "submit" { a.md(r.t) } else { String::new() };
         json!({"id": r.t, "n": r.n, "r": r.n, "md": md, "p": "", "tl": r.tl, "d": r.d, "core": true})
     }).collect()
 }
@@ -145,7 +145,7 @@ pub fn core_flow(a: &Ax) -> Value {
         json!({"id": "n4", "t": "worker", "x": w * 3.0, "y": 0.0, "c": {"w": "repro", "task": "Write a test that fails because of the bug."}}),
         json!({"id": "nh", "t": "worker", "x": w * 2.0, "y": -h * 0.75, "c": {"w": "hunter", "task": "Hunt bugs in the code before users find them."}}),
         json!({"id": "n5", "t": "worker", "x": 0.0, "y": h, "c": {"w": "fixer", "task": "Fix the bug so the failing test passes."}}),
-        json!({"id": "n6", "t": "worker", "x": w, "y": h, "c": {"w": "ci", "task": "Run the repository's tests and checks on your machines."}}),
+        json!({"id": "n6", "t": "worker", "x": w, "y": h, "c": {"x": "CI", "m": true, "task": "Your machines run the repository's tests and checks."}}),
         json!({"id": "n7", "t": "check", "x": w * 2.0, "y": h, "c": {"w": "reviewer", "task": "Review the fix and the pull request text."}}),
     ];
     let mut es = vec![("n1", "out", "n2"), ("n2", "ok", "n3"), ("n3", "ok", "n4"), ("nh", "out", "n4"), ("n4", "out", "n5"), ("n5", "out", "n6"), ("n6", "out", "n7"), ("n7", "back", "n5")].into_iter().map(|(a, p, b)| (a.to_string(), p.to_string(), b.to_string())).collect::<Vec<_>>();
