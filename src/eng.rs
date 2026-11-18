@@ -42,6 +42,14 @@ pub fn start(a: &Ax, fid: &str, node: Option<&str>, input: Value) -> Result<i64,
         None => ns.iter().find(|x| x["t"] == "t.manual").or_else(|| ns.iter().find(|x| x["t"].as_str().is_some_and(|t| t.starts_with("t.")))).cloned(),
     }
     .ok_or("this pipeline has no start block")?;
+    if tr["t"] != "t.manual" && node.is_some() {
+        if let Some(b) = a.db.one("select id, d from runs where flow=? and st='queued' and json_extract(d,'$.blk') is not null order by id limit 1", pa![fid.to_string()]) {
+            let mut d = b["d"].clone();
+            d["skip"] = json!(d["skip"].as_i64().unwrap_or(0) + 1);
+            a.db.run("update runs set d=? where id=?", pa![d.to_string(), b["id"].as_i64().unwrap_or(0)]);
+            return Err("this pipeline waits for a desk, the trigger was skipped".into());
+        }
+    }
     let d = json!({"flow": f, "crew": a.db.kg("crew"), "trig": tr["id"], "input": input, "steps": [], "q": [tr["id"]], "vis": {}, "arr": {}, "fb": "", "wait": null, "err": null});
     a.db.run("insert into runs(flow, st, t0, t1, d) values(?, 'queued', ?, 0, ?)", pa![fid.to_string(), now(), d.to_string()]);
     let id = a.db.n("select max(id) from runs", pa![]);
@@ -730,7 +738,7 @@ pub fn active(a: &Ax) -> Vec<Value> {
             let nid = d["cur"].as_str().or(d["wait"].as_str()).unwrap_or("");
             let n = d["flow"]["nodes"].as_array().and_then(|ns| ns.iter().find(|x| x["id"] == nid).cloned()).unwrap_or(Value::Null);
             let ask = d["steps"].as_array().and_then(|s| s.last()).map(|s| s["out"]["ask"].clone()).unwrap_or(Value::Null);
-            json!({"id": r["id"], "flow": r["flow"], "n": d["flow"]["n"], "st": r["st"], "t0": r["t0"], "w": if n.is_null() { d["blkw"].clone() } else { n["c"]["w"].clone() }, "nt": n["t"], "blk": d["blk"], "ask": if r["st"] == "wait" { ask } else { Value::Null }})
+            json!({"id": r["id"], "flow": r["flow"], "n": d["flow"]["n"], "st": r["st"], "t0": r["t0"], "w": if n.is_null() { d["blkw"].clone() } else { n["c"]["w"].clone() }, "nt": n["t"], "blk": d["blk"], "skip": d["skip"], "ask": if r["st"] == "wait" { ask } else { Value::Null }})
         })
         .collect()
 }

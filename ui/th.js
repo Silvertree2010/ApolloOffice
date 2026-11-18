@@ -17,6 +17,8 @@
     D.dataset.rm = lsg("ao.rm", "0");
   };
   ui();
+  window.addEventListener("storage", ui);
+  window.addEventListener("hashchange", ui);
   const G = `<svg viewBox="0 0 14 26" width="56" height="104" shape-rendering="crispEdges" aria-hidden="true">
 <rect x="5" y="0" width="4" height="1" fill="#d6d8dc"/><rect x="4" y="1" width="1" height="3" fill="#d6d8dc"/><rect x="9" y="1" width="1" height="3" fill="#d6d8dc"/><rect x="5" y="4" width="4" height="1" fill="#d6d8dc"/>
 <rect x="4" y="5" width="6" height="3" fill="#3a3d42"/><rect x="5" y="5" width="4" height="1" fill="#55595f"/>

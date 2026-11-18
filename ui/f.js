@@ -206,8 +206,11 @@
       const na = f.nodes.find((n) => n.id === e.a), nb = f.nodes.find((n) => n.id === e.b), oa = PO[e.a]?.[e.p], ib = PO[e.b]?.["@in"];
       if (!na || !nb || !oa || !ib) return "";
       const x0 = na.x + oa[0], y0 = na.y + oa[1], x1 = nb.x + ib[0], y1 = nb.y + ib[1], back = e.p === "back" || e.p === "no";
-      return `<path class="${back ? "bk" : ""} ${i === esel ? "on" : ""}" d="${cv(x0, y0, x1, y1)}"/><path class="hit" data-e="${i}" d="${cv(x0, y0, x1, y1)}"/>`;
+      return `<path class="${back ? "bk" : ""} ${i === esel ? "on" : ""}" data-l="${back ? esc(PN[e.p] || e.p) : ""}" d="${cv(x0, y0, x1, y1)}"/><path class="hit" data-e="${i}" d="${cv(x0, y0, x1, y1)}"/>`;
     }).join("");
+    for (const pth of E.querySelectorAll("path[data-l]:not([data-l=''])")) {
+      try { const L = pth.getTotalLength(), pt = pth.getPointAtLength(L / 2), tx = document.createElementNS("http://www.w3.org/2000/svg", "text"); tx.setAttribute("x", pt.x); tx.setAttribute("y", pt.y - 6); tx.setAttribute("class", "el"); tx.textContent = pth.dataset.l; E.appendChild(tx); } catch {}
+    }
     for (const h of E.querySelectorAll(".hit")) {
       h.addEventListener("pointerdown", (ev) => { ev.stopPropagation(); hideMenu(); esel = +h.dataset.e; sel = null; for (const x of N.querySelectorAll(".nd2")) x.classList.remove("on"); side(); lines(); });
       h.addEventListener("contextmenu", (ev) => { ev.preventDefault(); snap(); f.edges.splice(+h.dataset.e, 1); esel = null; save(); paint(); side(); });
@@ -295,7 +298,7 @@
     else if (n || esel != null) tab = "set";
     const hs = (cfg?.hosts || []).filter((h) => h.on_), upn = hs.filter((h) => up(h.id)).length;
     const team = hireFor !== null ? mid : `<div class="fsec">${D.crew.length ? `<div class="fcl">${D.crew.map((w) => `<div class="cw"><span class="mic" style="--g:${GR.w}">${ic("person")}</span><b>${esc(w.n)}</b><span>${esc(w.r && w.r !== w.n ? w.r : "")}</span><button type="button" class="dng" data-fire="${w.id}">Remove</button></div>`).join("")}</div>` : `<p class="hint">Nobody here yet. Steps need someone who does the work.</p>`}<button type="button" id="fHire">${ic("plus")}Hire someone</button></div>`;
-    const set = f ? (mid || `<div class="fsec"><p class="hint">Click a step to change it. The + on a step adds the next one.</p></div>`) + `<div class="fsec fbot">${(() => { const used = new Set(D.flows.filter((x) => x.on).flatMap((x) => x.nodes.map((m) => m.c?.w).filter(Boolean))), st = D.crew.filter((w) => used.has(w.id)).length, dk = A.places ? A.places().length : 0; return st ? `<div class="fmh"><span><i class="dot2 ${dk >= st ? "up" : "dn"}"></i>${dk >= st ? `${st} of ${st} workers have a desk and chair` : `${st - dk} of ${st} workers need a desk and chair`}</span><button type="button" class="lnk" id="fDesk">Edit office</button></div>` : ""; })()}<div class="fmh"><span><i class="dot2 ${upn ? "up" : "dn"}"></i>${upn} of ${hs.length} machines online</span><button type="button" class="lnk" id="fMgr">Manage</button></div><div class="ac"><button type="button" id="fUndo" ${hist.length ? "" : "disabled"}>Undo</button><span class="sp"></span><button type="button" class="dng" id="fRm">Delete pipeline</button></div></div>` : "";
+    const set = f ? (mid || `<div class="fsec"><p class="hint">Click a step to change it. A + on a free dot adds the next step, dragging from a dot connects two steps.</p></div>`) + `<div class="fsec fbot">${(() => { const used = new Set(D.flows.filter((x) => x.on || x.id === cur).flatMap((x) => x.nodes.map((m) => m.c?.w).filter(Boolean))), st = D.crew.filter((w) => used.has(w.id)).length, dk = A.places ? A.places().length : 0, hasF = !!fl()?.on; return st ? `<div class="fmh"><span><i class="dot2 ${dk >= st ? "up" : "dn"}"></i>${dk >= st ? `${st} of ${st} workers have a desk and chair` : `${st - dk} of ${st} workers need a desk and chair`}${hasF ? "" : " (counting this pipeline)"}</span><button type="button" class="lnk" id="fDesk">Edit office</button></div>` : ""; })()}<div class="fmh"><span><i class="dot2 ${upn ? "up" : "dn"}"></i>${upn} of ${hs.length} machines online</span><button type="button" class="lnk" id="fMgr">Manage</button></div><div class="ac"><button type="button" id="fUndo" ${hist.length ? "" : "disabled"}>Undo</button><span class="sp"></span><button type="button" class="dng" id="fRm">Delete pipeline</button></div></div>` : "";
     $("fB").innerHTML = `<select id="fSel" aria-label="Pipeline">${D.flows.map((x) => `<option value="${x.id}" ${x.id === cur ? "selected" : ""}>${esc(x.n)}</option>`).join("")}</select><button type="button" id="fNew">${ic("plus")}New</button>
       ${f ? `${ren ? `<input type="text" id="fName" value="${esc(f.n)}" maxlength="60" aria-label="Pipeline name">` : `<button type="button" id="fRen" title="Rename this pipeline">Rename</button>`}<span class="sp"></span><button type="button" class="sw ${f.on ? "on" : ""}" id="fOn" role="switch" aria-checked="${f.on}" title="Active: schedules, GitHub and webhooks start this pipeline by themselves, and its workers take a desk. Run now works either way."><i></i>${f.on ? "Active" : "Inactive"}</button><button type="button" class="go fRun" id="fRun" ${f.nodes.some((n) => n.t.startsWith("t.")) ? "" : "disabled"}>${ic("play")}Run now</button>` : ""}`;
     S.innerHTML = `<div class="seg ftb" role="tablist">${[["set", n ? "Step" : esel != null ? "Line" : "Settings"], ["runs", "Runs"], ["team", `Team${D.crew.length ? ` <span>${D.crew.length}</span>` : ""}`]].map(([k, l]) => `<button type="button" role="tab" data-ft="${k}" class="${tab === k ? "on" : ""}" aria-selected="${tab === k}">${l}</button>`).join("")}</div>
@@ -319,7 +322,11 @@
     const n = f && sel ? f.nodes.find((m) => m.id === sel) : null;
     on("fRun", "onclick", async () => {
       const ws = [...new Set(f.nodes.map((m) => m.c?.w).filter(Boolean))], miss = A.unseated ? A.unseated(ws) : [];
-      if (miss.length && !(await A.confirm(`${miss.map((id) => (who(id) || {}).n || id).join(", ")} ${miss.length === 1 ? "has" : "have"} no desk with a chair yet. Start anyway? The run waits until everyone has one.`, "Start anyway"))) return;
+      if (miss.length) {
+        const ans = await A.confirm(`${miss.map((id) => (who(id) || {}).n || id).join(", ")} ${miss.length === 1 ? "has" : "have"} no desk with a chair yet. Start anyway? The run waits until everyone has one.`, "Start anyway", "Edit office");
+        if (ans === "alt") { A.go("office"); setTimeout(() => $("bCz").click(), 250); return; }
+        if (!ans) return;
+      }
       clearTimeout(tmo); await put();
       const r = await fetch(`/api/v2/flows/${encodeURIComponent(f.id)}/run`, { method: "POST", headers: { "content-type": "application/json", "x-ao": "1" }, body: "{}" }).then((x) => x.json());
       if (r.run) { tab = "runs"; sel = null; esel = null; side(); paint(); A.runView && A.runView(r.run); } else if (r.error) alert(r.error);

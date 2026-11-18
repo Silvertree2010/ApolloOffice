@@ -1217,3 +1217,8 @@ button.pri:disabled, button.go:disabled { background: transparent; border-color:
 .jlog[open] summary::before { content: "▾ "; }
 .row.jr.apr, .row.jr.apr:has(input.bk) { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }
 .row.jr.apr .rp { justify-content: flex-start; }
+.fe2 text.el { fill: var(--bad); font: 600 12px var(--s); paint-order: stroke; stroke: var(--p); stroke-width: 4px; text-anchor: middle; pointer-events: none; }
+.rvask.col { flex-direction: column; align-items: stretch; }
+.rvq { display: flex; align-items: center; gap: 8px; }
+.rvsum { display: flex; flex-direction: column; gap: 6px; }
+.rvsum pre { margin: 0; max-height: 260px; overflow: auto; font: 12.5px/1.5 var(--m); white-space: pre-wrap; word-break: break-word; background: var(--f); border: 1px solid var(--l); border-radius: var(--ri); padding: 10px 12px; }

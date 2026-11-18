@@ -41,14 +41,15 @@
     M.onclick = (e) => { if (e.target === M) done(null); };
     M.onkeydown = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(null); } };
   });
-  A.confirm = (title, ok = "Continue") => new Promise((res) => {
+  A.confirm = (title, ok = "Continue", alt = "") => new Promise((res) => {
     const M = document.createElement("div");
     M.className = "cmdk askd";
-    M.innerHTML = `<div class="kb ak" role="alertdialog" aria-label="${A.esc(title)}"><p>${A.esc(title)}</p><div class="acts"><span class="sp"></span><button type="button" data-x>Cancel</button><button type="button" class="go" data-ok>${A.esc(ok)}</button></div></div>`;
+    M.innerHTML = `<div class="kb ak" role="alertdialog" aria-label="${A.esc(title)}"><p>${A.esc(title)}</p><div class="acts">${alt ? `<button type="button" data-alt>${A.esc(alt)}</button>` : ""}<span class="sp"></span><button type="button" data-x>Cancel</button><button type="button" class="go" data-ok>${A.esc(ok)}</button></div></div>`;
     B.appendChild(M);
     const done = (v) => { M.remove(); res(v); };
     M.querySelector("[data-ok]").onclick = () => done(true);
     M.querySelector("[data-x]").onclick = () => done(false);
+    const al = M.querySelector("[data-alt]"); if (al) al.onclick = () => done("alt");
     M.onclick = (e) => { if (e.target === M) done(false); };
     M.onkeydown = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(false); } if (e.key === "Enter") { e.preventDefault(); done(true); } };
     M.querySelector("[data-ok]").focus();
@@ -62,7 +63,7 @@
   A.onState = (s) => {
     prev && prev(s);
     const act = s.q.filter((q) => !["park", "vet"].includes(q.st)).length + (s.rn || []).filter((r) => r.st !== "wait").length, ap = s.q.filter((q) => q.st === "approve").length + (s.rw || 0);
-    const nj = $("nJobs"); nj.textContent = ap ? ap : act || ""; nj.classList.toggle("hot", ap > 0); nj.title = ap ? `${ap} waiting for your approval` : `${act} active jobs and runs`;
+    const nj = $("nJobs"); nj.textContent = ap || ""; nj.classList.toggle("hot", ap > 0); nj.title = ap ? `${ap} waiting for your answer` : "";
     const op = s.pr.filter((p) => p.st === "open").length; $("nPr").textContent = op || "";
     A.wdg && A.wdg(s);
   };
