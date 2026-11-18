@@ -618,10 +618,10 @@ pub fn places(it: &[Value]) -> Vec<Option<String>> {
         let mut best: Option<(usize, i64)> = None;
         for (k, c) in ch.iter().enumerate() {
             let (cx, cy) = xy(c);
-            if used[k] || cx + 2 <= dx || cx >= dx + 4 {
+            if used[k] || cx + 3 <= dx || cx >= dx + 5 {
                 continue;
             }
-            let d = if (dy + 1..=dy + 3).contains(&cy) { cy - dy - 1 } else if (dy - 3..=dy - 1).contains(&cy) { dy - 1 - cy } else { continue };
+            let d = if (dy + 1..=dy + 4).contains(&cy) { cy - dy - 1 } else if (dy - 4..=dy - 1).contains(&cy) { dy - 1 - cy } else { continue };
             let s = d * 4 + (cx + 1 - (dx + 2)).abs();
             if best.is_none_or(|(_, b)| s < b) {
                 best = Some((k, s));

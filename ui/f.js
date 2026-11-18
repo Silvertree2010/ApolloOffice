@@ -315,6 +315,8 @@
     const f = fl(), on = (id, ev, fn) => { const e = $(id); if (e) e[ev] = fn; };
     const n = f && sel ? f.nodes.find((m) => m.id === sel) : null;
     on("fRun", "onclick", async () => {
+      const ws = [...new Set(f.nodes.map((m) => m.c?.w).filter(Boolean))], miss = A.unseated ? A.unseated(ws) : [];
+      if (miss.length && !confirm(`${miss.map((id) => (who(id) || {}).n || id).join(", ")} ${miss.length === 1 ? "has" : "have"} no desk with a chair yet. Start anyway? The run waits until there is one.`)) return;
       clearTimeout(tmo); await put();
       const r = await fetch(`/api/v2/flows/${encodeURIComponent(f.id)}/run`, { method: "POST", headers: { "content-type": "application/json", "x-ao": "1" }, body: "{}" }).then((x) => x.json());
       if (r.run) { tab = "runs"; sel = null; esel = null; side(); paint(); A.runView && A.runView(r.run); } else if (r.error) alert(r.error);

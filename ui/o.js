@@ -140,19 +140,25 @@
   const places = () => {
     const ds = FU.map((u, k) => [u, k]).filter(([u]) => u.i === "desk").sort((a, b) => a[0].y - b[0].y || a[0].x - b[0].x);
     const ch = FU.map((u, k) => [u, k]).filter(([u]) => u.i === "chair"), used = new Set(), ps = [];
-    for (const [d] of ds) {
+    for (const [d, dkk] of ds) {
       let best = null, bd = 99;
       for (const [c, k] of ch) {
-        if (used.has(k) || c.x + 2 <= d.x || c.x >= d.x + 4) continue;
-        const dy = c.y >= d.y + 1 && c.y <= d.y + 3 ? c.y - d.y - 1 : c.y <= d.y - 1 && c.y >= d.y - 3 ? d.y - 1 - c.y : 99;
+        if (used.has(k) || c.x + 3 <= d.x || c.x >= d.x + 5) continue;
+        const dy = c.y >= d.y + 1 && c.y <= d.y + 4 ? c.y - d.y - 1 : c.y <= d.y - 1 && c.y >= d.y - 4 ? d.y - 1 - c.y : 99;
         const dd = dy * 4 + Math.abs(c.x + 1 - (d.x + 2));
         if (dy < 99 && dd < bd) { bd = dd; best = [c, k]; }
       }
-      if (best) { used.add(best[1]); ps.push({ k: best[1], back: best[0].y > d.y, w: best[0].w || null }); }
+      if (best) { used.add(best[1]); ps.push({ k: best[1], dk: dkk, back: best[0].y > d.y, w: best[0].w || null }); }
     }
     return ps;
   };
   window.AO.places = places;
+  window.AO.unseated = (ids) => {
+    const cr = (S?.crew || []).map((w) => w.id), st = cr.filter((id) => (S?.staff || []).includes(id) || ids.includes(id)), ps = places();
+    const taken = new Set(ps.filter((p) => p.w && st.includes(p.w)).map((p) => p.w)), free = ps.filter((p) => !p.w || !st.includes(p.w)).length;
+    const auto = st.filter((id) => !taken.has(id)).slice(0, free);
+    return ids.filter((id) => !taken.has(id) && !auto.includes(id));
+  };
   const seats = () => {
     const st = (S?.staff || []).filter((id) => (S?.crew || []).some((w) => w.id === id)), ps = places();
     const m = new Map(), ids = new Set();
@@ -208,6 +214,14 @@
       else if (k === hk) box(u, lt() ? "#000" : "#fff", 0.35);
     }
     for (const [k, { id, back }] of sm.m) { const u = FU[k]; if (!u || (fdrag && fdrag.k === k)) continue; const nm = pname(id), on = pst(id) === "work"; tx(nm, u.x * 8 + 8 - (K.textWidth(nm) >> 1), GO + u.y * 8 + (back ? 18 : -6), on ? hl("c:" + id) : "#6b6f76"); }
+    if (fedit) {
+      const ps = places(), pd = new Set(ps.map((p) => p.dk)), pc = new Set(ps.map((p) => p.k));
+      FU.forEach((u, k) => {
+        if (u.i !== "desk" && u.i !== "chair") return;
+        const ok = u.i === "desk" ? pd.has(k) : pc.has(k), w = FC[u.i].w * 8;
+        px(u.x * 8 + w - 5, GO + u.y * 8 - 2, 4, 4, ok ? "#5cbf6a" : "#e0675a");
+      });
+    }
     sm.wait.forEach((id, i) => { const x = 20 + i * 24, y = VH - 8; person(id, x, y, t, false); const nm = pname(id); tx(nm, x - (K.textWidth(nm) >> 1), y - 26, "#e0675a"); });
     const g = ghost();
     fbad = false;
