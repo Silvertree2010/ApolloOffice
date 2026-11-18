@@ -160,6 +160,11 @@
     return ids.filter((id) => !taken.has(id) && !auto.includes(id));
   };
   const seats = () => {
+    if (S?.seat && !fedit && !fsave) {
+      const ps = places(), m = new Map(), ids = new Set();
+      for (const s of S.seat.seats || []) if (s.w && FU[s.c]?.i === "chair") { m.set(s.c, { id: s.w, back: !!ps.find((p) => p.k === s.c)?.back }); ids.add(s.w); }
+      return { m, wait: (S.seat.wait || []).filter((id) => (S?.crew || []).some((w) => w.id === id)), ids };
+    }
     const st = (S?.staff || []).filter((id) => (S?.crew || []).some((w) => w.id === id)), ps = places();
     const m = new Map(), ids = new Set();
     for (const p of ps) if (p.w && st.includes(p.w) && !ids.has(p.w)) { m.set(p.k, { id: p.w, back: p.back }); ids.add(p.w); }
@@ -270,7 +275,7 @@
     if (!p) return;
     if (ftool) {
       const g = ghost();
-      if (g && free(g.i, g.x, g.y, -1)) { snap(); FU.push({ i: g.i, x: g.x, y: g.y }); commit(); }
+      if (g && free(g.i, g.x, g.y, -1)) { snap(); FU.push({ i: g.i, x: g.x, y: g.y }); ftool = null; fsel = FU.length - 1; commit(); }
       return;
     }
     const k = pick(p);
@@ -535,14 +540,15 @@
   };
 
   const RQN = { queued: "Queued", run: "Running", wait: "Waiting for you" };
-  const rrow = (r) => { const w = (S.crew || []).find((x) => x.id === r.w); return `<div class="row jr${r.st === "wait" ? " apr" : ""}"><div class="ti"><a class="a" href="#" data-run="${r.id}">${esc(r.st === "wait" && r.ask ? r.ask : r.n || r.flow)}</a><div class="w"><span class="stt rs-${esc(r.blk ? "fail" : r.st)}">${esc(r.blk ? "Needs a desk" : RQN[r.st] || r.st)}</span><span>${esc(r.blk ? r.blk : r.st === "wait" && r.ask ? r.n || r.flow : w ? (r.nt === "check" ? w.n + " checks" : w.n + " works") : "Pipeline")}</span><span>run ${r.id}</span></div></div><span class="rp">${r.st === "wait" ? `<button class="go" data-ry="${r.id}">Yes</button><button data-rn="${r.id}">No</button>` : r.blk ? `<button data-desk="1">Edit office</button>` : ""}</span></div>`; };
+  const rrow = (r) => { const w = (S.crew || []).find((x) => x.id === r.w); return `<div class="row jr${r.st === "wait" ? " apr" : ""}"><div class="ti"><a class="a" href="#" data-run="${r.id}">${esc(r.st === "wait" && r.ask ? r.ask : r.n || r.flow)}</a><div class="w"><span class="stt rs-${esc(r.blk ? "fail" : r.st)}">${esc(r.blk ? "Needs a desk" : RQN[r.st] || r.st)}</span><span>${esc(r.blk ? r.blk : r.st === "wait" && r.ask ? r.n || r.flow : w ? (r.nt === "check" ? w.n + " checks" : w.n + " works") : "Pipeline")}</span><span>${r.more ? `run ${r.id} and ${r.more} more` : `run ${r.id}`}</span></div></div><span class="rp">${r.st === "wait" ? `<button class="go" data-ry="${r.id}">Yes</button><button data-rn="${r.id}">No</button>` : r.blk ? `<button data-desk="1">Edit office</button>` : ""}</span></div>`; };
   const lists = () => {
     const q = S.q, rx = S.rn || [];
     $("qn").textContent = [q.length ? q.length + (q.length === 1 ? " job" : " jobs") : "", rx.length ? rx.length + (rx.length === 1 ? " run" : " runs") : ""].filter(Boolean).join(" · ");
     const aps = q.filter((j) => j.st === "approve").map((j) => j.id);
     for (const k of [...sel]) if (!aps.includes(k)) sel.delete(k);
     const bk = aps.length > 1 ? `<div class="bkb"><label class="ck"><input type="checkbox" id="bkA" ${sel.size === aps.length ? "checked" : ""}> all ${aps.length}</label><span class="sp"></span>${sel.size ? `<button class="go" id="bkS">submit ${sel.size}</button><button class="dng" id="bkD">drop ${sel.size}</button>` : `<span class="k">select pull requests to submit together</span>`}</div>` : "";
-    const rs = [...rx].sort((a, b) => (a.st === "wait" ? 0 : a.st === "run" ? 1 : 2) - (b.st === "wait" ? 0 : b.st === "run" ? 1 : 2));
+    const bw = new Set();
+    const rs = [...rx].filter((r) => { if (!r.blk || !r.w) return true; if (bw.has(r.w)) return false; bw.add(r.w); return true; }).map((r) => r.blk && r.w ? { ...r, more: rx.filter((x) => x.blk && x.w === r.w).length - 1 } : r).sort((a, b) => (a.st === "wait" ? 0 : a.st === "run" ? 1 : 2) - (b.st === "wait" ? 0 : b.st === "run" ? 1 : 2));
     $("queue").innerHTML = bk + rs.map(rrow).join("") + (q.length ? q.slice(0, 16).map((j) => jrow(j, true)).join("") : rs.length ? "" : `<div class="empty">Nothing waiting.</div>`) + (S.dn.length ? `<div class="sub">Recent</div>` + S.dn.slice(0, 12).map((j) => jrow(j, false)).join("") : "");
     const op = S.pr.filter((p) => p.st === "open").length, mg = S.pr.filter((p) => p.st === "merged").length;
     $("prn").textContent = `${op} open · ${mg} merged`;
@@ -565,7 +571,7 @@
     $("cHo").innerHTML = (S.hs || []).filter((h) => h.on_).map((h) => `<b style="color:${o.net[h.id] === false ? "var(--bad)" : "var(--t1)"}">${esc(h.id)}</b>`).join(" ") || "no machine";
     const a = S.n, rx = S.rn || [], cn = (st) => rx.filter((r) => r.st === st).length;
     const wk = ["hunt", "repro", "fix", "ci", "review", "gate", "submit"].reduce((s, k) => s + (a[k] || 0), 0);
-    $("cQ").innerHTML = `running <b>${wk + cn("run")}</b> · waiting for you <b>${(a.approve || 0) + cn("wait")}</b> · queued <b>${(a.vet || 0) + (a.ready || 0) + cn("queued")}</b> · done <b>${a.done || 0}</b>`;
+    $("cQ").innerHTML = `running <b>${wk + cn("run")}</b> · <a href="#/jobs" class="wfy" title="Open what waits for your answer">waiting for you <b>${(a.approve || 0) + cn("wait")}</b></a> · queued <b>${(a.vet || 0) + (a.ready || 0) + cn("queued")}</b> · done <b>${a.done || 0}</b>`;
     $("bPause").textContent = o.man ? "Resume office" : "Pause office";
     $("ban").hidden = !S.star;
     document.body.classList.toggle("sb", !!S.star);
@@ -612,6 +618,8 @@
     if (d) { post({ a: "drop", id: Number(d.dataset.d) }).then(apply); return; }
     const rq = e.target.closest("[data-rq]");
     if (rq) { post({ a: "requeue", id: Number(rq.dataset.rq) }).then(apply); return; }
+    const wf = e.target.closest(".wfy");
+    if (wf) { e.preventDefault(); const rw = (S.rn || []).some((r) => r.st === "wait"); try { localStorage.setItem("ao.wt", rw ? "runs" : "jobs"); } catch {} window.AO.runFilter = rw ? "wait" : ""; window.AO.go("jobs"); return; }
     const ry = e.target.closest("[data-ry],[data-rn]");
     if (ry && ry.closest("#queue")) { const id = ry.dataset.ry || ry.dataset.rn; fetch(`/api/v2/runs/${id}/answer`, { method: "POST", headers: { "content-type": "application/json", "x-ao": "1" }, body: JSON.stringify({ yes: !!ry.dataset.ry }) }).then(() => get("/api/state")).then(apply); return; }
     const dk = e.target.closest("[data-desk]");

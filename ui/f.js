@@ -310,7 +310,7 @@
     for (const b of el.querySelectorAll("[data-run]")) b.onclick = () => A.runView && A.runView(+b.dataset.run);
     if (rs.some((r) => ["queued", "run"].includes(r.st))) rT = setTimeout(runs, 3000);
   };
-  const newFlow = (ask) => { const nm = ask === true ? prompt("Name of the new pipeline", "My pipeline " + (D.flows.length + 1)) : "My pipeline " + (D.flows.length + 1); if (nm === null) return; snap(); const id = uid("p", D.flows); D.flows.push({ id, n: (nm || "").trim().slice(0, 60) || "My pipeline " + (D.flows.length + 1), on: false, nodes: [], edges: [] }); cur = id; sel = null; save(); side(); paint(); };
+  const newFlow = async (ask) => { const nm = ask === true && A.ask ? await A.ask("Name of the new pipeline", "My pipeline " + (D.flows.length + 1)) : "My pipeline " + (D.flows.length + 1); if (nm === null) return; snap(); const id = uid("p", D.flows); D.flows.push({ id, n: (nm || "").trim().slice(0, 60) || "My pipeline " + (D.flows.length + 1), on: false, nodes: [], edges: [] }); cur = id; sel = null; save(); side(); paint(); };
   const bind = () => {
     const f = fl(), on = (id, ev, fn) => { const e = $(id); if (e) e[ev] = fn; };
     const n = f && sel ? f.nodes.find((m) => m.id === sel) : null;

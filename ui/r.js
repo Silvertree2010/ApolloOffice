@@ -1,6 +1,6 @@
 (() => {
   const A = window.AO, { $ } = A;
-  const T = { office: "Office", pipelines: "Pipelines", team: "Team", jobs: "Work", prs: "Pull requests", repos: "Repositories", machines: "Machines", costs: "Costs", settings: "Settings", health: "Health" };
+  const T = { office: "Office", pipelines: "Pipelines", team: "Team", jobs: "Jobs & runs", prs: "Pull requests", repos: "Repositories", machines: "Machines", costs: "Costs", settings: "Settings", health: "Health" };
   const RUN = { repos: () => A.repos(), machines: () => A.hosts(), costs: () => A.costs(), settings: () => A.settings(), health: () => A.health(), team: () => A.team(), jobs: () => A.jobs(), prs: () => A.prs() };
   const B = document.body;
   let busy = false;
@@ -29,6 +29,18 @@
       window.dispatchEvent(new Event("resize"));
     } finally { busy = false; }
   };
+  A.ask = (title, val, ok = "Create") => new Promise((res) => {
+    const M = document.createElement("div");
+    M.className = "cmdk askd";
+    M.innerHTML = `<form class="kb ak" role="dialog" aria-label="${A.esc(title)}"><b>${A.esc(title)}</b><input type="text" maxlength="60" value="${A.esc(val || "")}"><div class="acts"><span class="sp"></span><button type="button" data-x>Cancel</button><button class="go">${A.esc(ok)}</button></div></form>`;
+    B.appendChild(M);
+    const i = M.querySelector("input"), done = (v) => { M.remove(); res(v); };
+    i.focus(); i.select();
+    M.querySelector("form").onsubmit = (e) => { e.preventDefault(); done(i.value.trim()); };
+    M.querySelector("[data-x]").onclick = () => done(null);
+    M.onclick = (e) => { if (e.target === M) done(null); };
+    M.onkeydown = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(null); } };
+  });
   A.go = (r) => { if (location.hash === "#/" + r) go(); else location.hash = "#/" + r; };
   A.route = () => ((location.hash.match(/^#\/([a-z]+)/) || [])[1] || "office");
   window.addEventListener("hashchange", go);

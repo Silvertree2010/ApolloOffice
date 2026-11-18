@@ -1201,3 +1201,9 @@ button.pri:disabled, button.go:disabled { background: transparent; border-color:
 .hint a { color: var(--t1); text-decoration: underline; text-underline-offset: .2em; }
 .tile:not(.work):not(.nodesk) { min-width: 58px; }
 .tile.work { flex: 1 1 120px; }
+.ak { display: flex; flex-direction: column; gap: 12px; padding: 18px; width: min(420px, 92vw); }
+.ak b { font: 600 var(--fs2)/1.2 var(--hf); }
+.ak input { border: 1px solid var(--l) !important; border-radius: var(--ri) !important; padding: 0 11px !important; height: var(--ch); font: var(--fs3) var(--s) !important; background: var(--f) !important; }
+.ak .acts { margin: 0; }
+.wfy { color: inherit; text-decoration: underline; text-decoration-color: var(--l); text-underline-offset: .25em; }
+.wfy:hover { text-decoration-color: var(--t1); }

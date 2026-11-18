@@ -153,6 +153,7 @@ fn state(a: &Ax) -> Value {
         "rn": crate::eng::active(a),
         "crew": a.db.kg("crew").as_array().map(|c| c.iter().map(|w| json!({"id": w["id"], "n": w["n"], "r": w["r"], "md": w["md"]})).collect::<Vec<_>>()).unwrap_or_default(),
         "staff": crate::eng::staff(a),
+        "seat": crate::eng::seat_view(a),
         "mg": a.db.all("select substr(merged,1,10) day, count(*) n from prs where merged is not null and merged >= date('now','-30 day') group by 1 order by 1", pa![]),
         "ev": a.db.all("select t,w,m,j from ev order by id desc limit 120", pa![]),
         "n": Value::Object(a.db.all("select st, count(*) n from jobs group by st", pa![]).into_iter().map(|x| (x["st"].as_str().unwrap_or("").to_string(), x["n"].clone())).collect()),

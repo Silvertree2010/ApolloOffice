@@ -309,6 +309,32 @@ async fn exec(a: Ax, id: i64) {
     if st != "queued" {
         return;
     }
+    let need: Vec<String> = d["flow"]["nodes"].as_array().map(|ns| ns.iter().filter(|n| n["t"] == "worker" || n["t"] == "check").filter_map(|n| n["c"]["w"].as_str().map(String::from)).collect()).unwrap_or_default();
+    if d["steps"].as_array().is_none_or(|s| s.is_empty()) {
+        if let Some(w) = need.iter().find(|w| !seated(&a, w)) {
+            let wn = d["crew"].as_array().and_then(|c| c.iter().find(|x| x["id"] == w.as_str()).and_then(|x| x["n"].as_str().map(String::from))).unwrap_or_else(|| "A worker".into());
+            let msg = format!("{wn} needs a desk with a chair. Place them in Edit office.");
+            let bt = d["blkt"].as_i64().unwrap_or_else(now);
+            if now() - bt > 24 * 3_600_000 {
+                d["err"] = json!(format!("{wn} waited 24 hours for a desk with a chair."));
+                d["blk"] = Value::Null;
+                store(&a, id, "fail", &d);
+                a.say("pipe", &format!("{} stopped: {wn} had no desk for 24 hours (run {id})", d["flow"]["n"].as_str().unwrap_or("")), None);
+                return;
+            }
+            if d["blk"] != msg {
+                a.say("pipe", &format!("{}: {msg} The run starts once everyone has a place. (run {id})", d["flow"]["n"].as_str().unwrap_or("")), None);
+            }
+            d["blk"] = json!(msg);
+            d["blkw"] = json!(w);
+            d["blkt"] = json!(bt);
+            store(&a, id, "queued", &d);
+            return;
+        }
+        d["blk"] = Value::Null;
+        d["blkw"] = Value::Null;
+        d["blkt"] = Value::Null;
+    }
     store(&a, id, "run", &d);
     let mut q: VecDeque<String> = d["q"].as_array().map(|x| x.iter().filter_map(|v| v.as_str().map(String::from)).collect()).unwrap_or_default();
     let mut n_steps = d["steps"].as_array().map(|x| x.len()).unwrap_or(0);
@@ -371,6 +397,7 @@ async fn exec(a: Ax, id: i64) {
                 return;
             }
             "worker" | "check" => {
+                pin(&a, n["c"]["w"].as_str().unwrap_or(""));
                 d["blk"] = Value::Null;
                 d["blkw"] = Value::Null;
                 d["blkt"] = Value::Null;
@@ -644,24 +671,47 @@ pub fn seat_map(st: &[String], ps: &[Option<String>]) -> Vec<String> {
 
 pub fn seated(a: &Ax, wid: &str) -> bool {
     let it = a.set()["office"]["items"].as_array().cloned().unwrap_or_default();
+    let ps: Vec<Option<String>> = places_at(&it).into_iter().map(|x| x.1).collect();
+    seat_map(&staff(a), &ps).iter().any(|w| w == wid)
+}
+
+fn pin(a: &Ax, wid: &str) {
+    let it = a.set()["office"]["items"].as_array().cloned().unwrap_or_default();
+    let st = staff(a);
+    let pa = places_at(&it);
+    if pa.iter().any(|(_, w)| w.as_deref() == Some(wid)) {
+        return;
+    }
+    let fixed: Vec<String> = pa.iter().filter_map(|x| x.1.clone()).filter(|w| st.contains(w)).collect();
+    let Some(j) = st.iter().filter(|w| !fixed.contains(w)).position(|w| w == wid) else { return };
+    if let Some(&(ix, _)) = pa.iter().filter(|(_, w)| w.as_ref().is_none_or(|w| !st.contains(w))).nth(j) {
+        let mut s = a.db.kg("set");
+        if let Some(c) = s["office"]["items"].get_mut(ix) {
+            c["w"] = json!(wid);
+            a.db.ks("set", &s);
+        }
+    }
+}
+
+pub fn seat_view(a: &Ax) -> Value {
+    let it = a.set()["office"]["items"].as_array().cloned().unwrap_or_default();
     let st = staff(a);
     let pa = places_at(&it);
     let ps: Vec<Option<String>> = pa.iter().map(|x| x.1.clone()).collect();
-    if !seat_map(&st, &ps).iter().any(|w| w == wid) {
-        return false;
-    }
-    if !pa.iter().any(|(_, w)| w.as_deref() == Some(wid)) {
-        let fixed: Vec<&String> = ps.iter().flatten().filter(|w| st.contains(w)).collect();
-        let j = st.iter().filter(|w| !fixed.contains(w)).position(|w| w == wid).unwrap_or(0);
-        if let Some(&(ix, _)) = pa.iter().filter(|(_, w)| w.as_ref().is_none_or(|w| !st.contains(w))).nth(j) {
-            let mut s = a.db.kg("set");
-            if let Some(c) = s["office"]["items"].get_mut(ix) {
-                c["w"] = json!(wid);
-                a.db.ks("set", &s);
-            }
-        }
-    }
-    true
+    let sat = seat_map(&st, &ps);
+    let fixed: Vec<String> = ps.iter().flatten().filter(|w| st.contains(w)).cloned().collect();
+    let mut auto = sat.iter().filter(|w| !fixed.contains(w)).cloned();
+    let seats: Vec<Value> = pa
+        .iter()
+        .map(|(ix, w)| {
+            let who = match w {
+                Some(w) if st.contains(w) => Some(w.clone()),
+                _ => auto.next(),
+            };
+            json!({"c": ix, "w": who})
+        })
+        .collect();
+    json!({"seats": seats, "wait": st.iter().filter(|w| !sat.contains(w)).collect::<Vec<_>>()})
 }
 
 pub fn active(a: &Ax) -> Vec<Value> {
