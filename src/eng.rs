@@ -42,7 +42,7 @@ pub fn start(a: &Ax, fid: &str, node: Option<&str>, input: Value) -> Result<i64,
         None => ns.iter().find(|x| x["t"] == "t.manual").or_else(|| ns.iter().find(|x| x["t"].as_str().is_some_and(|t| t.starts_with("t.")))).cloned(),
     }
     .ok_or("this pipeline has no start block")?;
-    if tr["t"] != "t.manual" && node.is_some() {
+    if (tr["t"] == "t.cron" || tr["t"] == "t.hook") && node.is_some() {
         if let Some(b) = a.db.one("select id, d from runs where flow=? and st='queued' and json_extract(d,'$.blk') is not null order by id limit 1", pa![fid.to_string()]) {
             let mut d = b["d"].clone();
             d["skip"] = json!(d["skip"].as_i64().unwrap_or(0) + 1);
@@ -842,6 +842,9 @@ async fn poll(a: &Ax, fid: &str, n: &Value, pr: bool) {
                 continue;
             }
             if !pr && a.db.n("select count(*) from jobs where repo=? and num=? and st<>'drop'", pa![r.clone(), num]) > 0 {
+                continue;
+            }
+            if pr && a.db.n("select count(*) from jobs where repo=? and pr=? and st<>'drop'", pa![r.clone(), num]) > 0 {
                 continue;
             }
             if !pr && it["assignees"].as_array().is_some_and(|x| x.iter().any(|y| y["login"].as_str() != Some(&me))) {

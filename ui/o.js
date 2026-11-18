@@ -225,6 +225,7 @@
         if (u.i !== "desk" && u.i !== "chair") return;
         const ok = u.i === "desk" ? pd.has(k) : pc.has(k), w = FC[u.i].w * 8;
         px(u.x * 8 + w - 5, GO + u.y * 8 - 2, 4, 4, ok ? "#5cbf6a" : "#e0675a");
+        if (u.i === "chair") { const sid = u.w || (S?.seat?.seats || []).find((s) => s.c === k)?.w; if (sid) { const nm = pname(sid); tx(nm, u.x * 8 + 8 - (K.textWidth(nm) >> 1), GO + u.y * 8 + 17, u.w ? "#b9bcc2" : "#6b6f76"); } }
       });
     }
     sm.wait.forEach((id, i) => { const x = 20 + i * 24, y = VH - 8; person(id, x, y, t, false); const nm = pname(id); tx(nm, x - (K.textWidth(nm) >> 1), y - 26, "#e0675a"); });
@@ -457,7 +458,17 @@
   window.AO.mdn = mdn;
   const XP = ["#c77dba", "#6fa8dc", "#e39b6b", "#7fc8a9", "#b5a3e0", "#e0848f", "#8fb3c9", "#c9b37f"];
   let tkeys = "";
+  const deskbar = () => {
+    let bar = $("deskbar");
+    const wt = (S?.seat?.wait || []).map((id) => (S?.crew || []).find((w) => w.id === id)?.n).filter(Boolean);
+    if (!wt.length || document.body.classList.contains("ed")) { if (bar) bar.hidden = true; return; }
+    if (!bar) { bar = document.createElement("div"); bar.id = "deskbar"; bar.className = "deskbar"; $("stage").appendChild(bar); bar.onclick = (e) => { if (e.target.closest("button")) $("bCz").click(); }; }
+    bar.hidden = false;
+    const txt = `${wt.join(", ")} ${wt.length === 1 ? "needs" : "need"} a desk with a chair to work.`;
+    if (bar.dataset.t !== txt) { bar.dataset.t = txt; bar.innerHTML = `<span>${esc(txt)}</span><button type="button">Edit office</button>`; }
+  };
   const tiles = () => {
+    deskbar();
     const el = $("tiles");
     const po = window.AO.pord || [], xk = Object.keys(S.w).filter((k) => k.startsWith("x:")).sort((a, b) => (po.indexOf(a.slice(2)) + 99) % 99 - (po.indexOf(b.slice(2)) + 99) % 99);
     xk.forEach((k, i) => { const c = XP[i % XP.length]; SK[k] = { body: c, dark: c, light: c, tx: txc(c) }; NM[k] = S.w[k].nm || k.slice(2); });

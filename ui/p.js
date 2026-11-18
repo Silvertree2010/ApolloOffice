@@ -21,9 +21,14 @@
     clearTimeout(dto);
     dto = setTimeout(() => { dr.hidden = true; dr.classList.remove("out"); }, 170);
   };
-  $("drX").onclick = hide;
-  dr.onclick = (e) => { if (e.target === dr) hide(); };
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !dr.hidden) hide(); });
+  const tryHide = async () => {
+    if ($("drB").querySelector("form[data-dirty='1']") && A.confirm && !(await A.confirm("You have unsaved changes. Close and discard them?", "Discard"))) return;
+    hide();
+  };
+  A.tryHide = tryHide;
+  $("drX").onclick = tryHide;
+  dr.onclick = (e) => { if (e.target === dr) tryHide(); };
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !dr.hidden && !document.querySelector(".askd")) tryHide(); });
 
   const yes = (v) => v === 1 || v === true;
   const tg = (n, v, l) => `<label class="ck"><input type="checkbox" name="${n}" ${yes(v) ? "checked" : ""}> ${l}</label>`;
@@ -140,7 +145,7 @@
       <div class="sec"><h4>Your rules</h4><textarea name="rules" placeholder="optional, e.g. never touch the plugin API">${esc(r.rules)}</textarea></div>
       <div class="sbar"><button class="pri" data-op="set" disabled>All changes saved</button><button type="button" data-op="detect">Detect test command</button><span class="msg"></span><span class="sp"></span><button type="button" class="dng" data-op="del">Remove</button></div></form>`;
     const f = D.querySelector("form"), sb = f.querySelector('[data-op="set"]'), m = f.querySelector(".msg");
-    const dirty = () => { sb.disabled = false; sb.textContent = "Save changes"; m.className = "msg"; m.textContent = "Unsaved changes, press Enter or Save changes"; const w = f.querySelector(".warn"); if (w) w.hidden = !!f.ci.value.trim(); };
+    const dirty = () => { f.dataset.dirty = "1"; sb.disabled = false; sb.textContent = "Save changes"; m.className = "msg"; m.textContent = "Unsaved changes, press Enter or Save changes"; const w = f.querySelector(".warn"); if (w) w.hidden = !!f.ci.value.trim(); };
     f.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.tagName === "INPUT" && !sb.disabled) { e.preventDefault(); sb.click(); } });
     f.addEventListener("input", dirty);
     f.addEventListener("change", dirty);
@@ -168,6 +173,7 @@
       const r2 = await post({ op: "set", full, ...fv(f) }, "/api/repo");
       if (r2.error) { busy(b, false, "Save changes"); m.className = "msg bad2"; m.textContent = r2.error; return; }
       busy(b, true, "All changes saved");
+      f.dataset.dirty = "";
       m.className = "msg"; m.textContent = "";
       await repos();
       rdet(full);
@@ -518,7 +524,7 @@
     const dm = new Map(c.days.map((d) => [d.day, d])), d0 = [new Date().toISOString().slice(0, 10), c.days[0]?.day || ""].sort().pop(), dd = c.days.length ? Array.from({ length: 14 }, (_, i) => { const k = new Date(Date.parse(d0 + "T00:00:00Z") - (13 - i) * 864e5).toISOString().slice(0, 10); return dm.get(k) || { day: k, usd: 0, val: 0 }; }) : [], mx = Math.max(0.01, ...dd.map((d) => (d.usd || 0) + (d.val || 0)));
     const nil = `<div class="emp"><b>Nothing yet</b><span>Costs show up after the first jobs ran.</span></div>`;
     B.innerHTML = ph(`This week you paid ${usd(d7)} for API keys. API keys are billed per token, that is what you pay. Login value is what the same work would have cost with API keys while it ran on your Claude Code or Codex login, which costs nothing extra.${t.unk ? ` ${t.unk} calls today had no known price.` : ""}`)
-      + kpi([[usd(d7), "paid this week (API keys, 7 days)"], [usd(t.usd || 0), "paid today"], [usd(d14), "paid, 14 days"], [usd(c.days.slice(0, 7).reduce((s, d) => s + (d.val || 0), 0)), "login value this week, not billed", "t2"], [c.budday ? usd(c.budday) : "No limit", "daily budget"]])
+      + kpi([[usd(d7), "paid, last 7 days"], [usd(c.days.slice(0, 7).reduce((s, d) => s + (d.val || 0), 0)), "login value, last 7 days, not billed", "t2"], [usd(t.usd || 0), "paid today"], [c.budday ? usd(c.budday) : "No limit", "daily budget"]])
       + (c.hints.length ? `<section class="sec2"><h3>Cheaper models <span class="mut">${c.hints.length} ${c.hints.length === 1 ? "hint" : "hints"}</span></h3><div class="lst">${c.hints.slice(0, 3).map((h) => `<div class="hr2"><div><span class="t1">${esc(h)}</span></div></div>`).join("")}${c.hints.length > 3 ? `<details class="more"><summary>Show ${c.hints.length - 3} more</summary>${c.hints.slice(3).map((h) => `<div class="hr2"><div><span class="t1">${esc(h)}</span></div></div>`).join("")}</details>` : ""}</div></section>` : "")
       + `<section class="sec2"><h3>Last 14 days <span class="mut">${usd(d14)} API · ${usd(v14)} login value</span></h3>${dd.length ? `<div class="cch" role="img" aria-label="Daily cost, last 14 days: ${esc(dd.map((d) => `${d.day.slice(5)} ${usd(d.usd)} API, ${usd(d.val)} login`).join("; "))}">${dd.map((d) => `<div title="${esc(d.day)}: ${usd(d.usd)} API, ${usd(d.val)} login value"><i class="v" style="height:${((d.val || 0) / mx) * 100}%"></i><i class="u" style="height:${((d.usd || 0) / mx) * 100}%"></i><span>${esc(d.day.slice(8))}</span></div>`).join("")}</div><div class="lgd"><span><i class="u"></i>API</span><span><i class="v"></i>Login value</span></div>` : nil}</section>`
       + `<section class="sec2"><h3>Pipelines <span class="mut">30 days</span></h3>${(c.flows || []).length ? tb([["Pipeline"], ["Runs", "n"], ["API", "n"], ["Login value", "n"], ["Per run", "n"]], c.flows.map((f) => `<tr><td>${esc(f.n || f.flow)}</td><td class="n">${f.runs}</td><td class="n">${usd(f.usd)}</td><td class="n">${usd(f.val)}</td><td class="n">${f.runs ? usd(((f.usd || 0) + (f.val || 0)) / f.runs) : "–"}</td></tr>`)) : `<div class="emp"><b>No pipeline costs yet</b><span>Costs of pipeline steps show up here after their first runs.</span></div>`}</section>`
@@ -558,7 +564,7 @@
     const j = await get("/api/job?id=" + id);
     if (j.error) return;
     jid = id;
-    show(j.st === "approve" ? "Review pull request" : "Job " + id, "job");
+    show(j.st === "approve" ? "Review pull request" : j.title || "Job " + id, "job");
     const tag = (j.repo.split("/")[1] || j.repo) + (j.num ? "#" + j.num : "");
     const cs = j.cost && j.cost.n ? `<div class="msg">Cost: ${j.cost.usd != null ? usd(j.cost.usd) + " API" : ""}${j.cost.usd != null && j.cost.val != null ? " · " : ""}${j.cost.val != null ? usd(j.cost.val) + " login value" : ""}${j.cost.usd == null && j.cost.val == null ? "unknown" : ""} · ${Math.round((j.cost.ti || 0) / 1000)}k in, ${Math.round((j.cost.tou || 0) / 1000)}k out</div>` : "";
     const ev = (j.ev || []).map((e) => `<div><span class="tm">${new Date(e.t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</span><span>${esc(e.w)}</span><span>${esc(e.m)}</span></div>`).join("");
