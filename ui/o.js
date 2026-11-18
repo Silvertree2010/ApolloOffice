@@ -515,7 +515,7 @@
   };
 
   const RQN = { queued: "Queued", run: "Running", wait: "Waiting for you" };
-  const rrow = (r) => { const w = (S.crew || []).find((x) => x.id === r.w); return `<div class="row jr${r.st === "wait" ? " apr" : ""}"><div class="ti"><a class="a" href="#" data-run="${r.id}">${esc(r.st === "wait" && r.ask ? r.ask : r.n || r.flow)}</a><div class="w"><span class="stt rs-${esc(r.blk ? "fail" : r.st)}">${esc(r.blk ? "Needs a desk" : RQN[r.st] || r.st)}</span><span>${esc(r.blk ? r.blk : r.st === "wait" && r.ask ? r.n || r.flow : w ? (r.nt === "check" ? w.n + " checks" : w.n + " works") : "Pipeline")}</span><span>run ${r.id}</span></div></div><span class="rp">${r.st === "wait" ? `<button class="go" data-ry="${r.id}">Yes</button><button data-rn="${r.id}">No</button>` : ""}</span></div>`; };
+  const rrow = (r) => { const w = (S.crew || []).find((x) => x.id === r.w); if (r.blk && r.w && seats().ids.has(r.w)) r = { ...r, blk: null, st: "queued" }; return `<div class="row jr${r.st === "wait" ? " apr" : ""}"><div class="ti"><a class="a" href="#" data-run="${r.id}">${esc(r.st === "wait" && r.ask ? r.ask : r.n || r.flow)}</a><div class="w"><span class="stt rs-${esc(r.blk ? "fail" : r.st)}">${esc(r.blk ? "Needs a desk" : RQN[r.st] || r.st)}</span><span>${esc(r.blk ? r.blk : r.st === "wait" && r.ask ? r.n || r.flow : w ? (r.nt === "check" ? w.n + " checks" : w.n + " works") : "Pipeline")}</span><span>run ${r.id}</span></div></div><span class="rp">${r.st === "wait" ? `<button class="go" data-ry="${r.id}">Yes</button><button data-rn="${r.id}">No</button>` : r.blk ? `<button data-desk="1">Edit office</button>` : ""}</span></div>`; };
   const lists = () => {
     const q = S.q, rx = S.rn || [];
     $("qn").textContent = [q.length ? q.length + (q.length === 1 ? " job" : " jobs") : "", rx.length ? rx.length + (rx.length === 1 ? " run" : " runs") : ""].filter(Boolean).join(" · ");
@@ -594,6 +594,8 @@
     if (rq) { post({ a: "requeue", id: Number(rq.dataset.rq) }).then(apply); return; }
     const ry = e.target.closest("[data-ry],[data-rn]");
     if (ry && ry.closest("#queue")) { const id = ry.dataset.ry || ry.dataset.rn; fetch(`/api/v2/runs/${id}/answer`, { method: "POST", headers: { "content-type": "application/json", "x-ao": "1" }, body: JSON.stringify({ yes: !!ry.dataset.ry }) }).then(() => get("/api/state")).then(apply); return; }
+    const dk = e.target.closest("[data-desk]");
+    if (dk && dk.closest("#queue")) { $("bCz").click(); return; }
     const ru = e.target.closest("[data-run]");
     if (ru && ru.closest("#queue")) { e.preventDefault(); window.AO.runView && window.AO.runView(Number(ru.dataset.run)); return; }
     const jb = e.target.closest("[data-j]");
@@ -645,7 +647,7 @@
     const sit = seats().ids.has(h.p);
     const cs = S.ev.filter((e) => e.w === k).slice(0, 3);
     return `<div class="th"><b>${esc(w.n || h.p)}</b><span>${esc(w.r || "")}</span></div>`
-      + tr("model", esc(mdn(w.md || "")))
+      + tr("model", esc(mdn(w.md || "") || "default model"))
       + tr("status", !sit ? `<span class="bad2">needs a desk with a chair</span>` : rs.some((r) => r.st === "run" && !r.blk) ? "working" : S.o.man ? "paused" : "idle")
       + rs.map((r) => tr("run", `${esc(r.n || r.flow)} <span class="k">run ${r.id}</span>`)).join("")
       + (cs.length ? `<div class="tc">${cs.map((e) => `<div><span class="k">${ago(e.t)}</span><span>${esc(e.m)}</span></div>`).join("")}</div>` : "")

@@ -124,10 +124,21 @@ pub fn roles(a: &Ax) -> Vec<Value> {
 }
 
 pub fn get(a: &Ax) -> Value {
-    json!({"flows": if a.db.kg("flows").is_array() { a.db.kg("flows") } else { json!([]) }, "crew": if a.db.kg("crew").is_array() { a.db.kg("crew") } else { json!([]) }, "nt": NT, "tl": TL, "roles": roles(a), "xc": crate::xs::XC.iter().map(|x| json!({"t": x.0, "n": x.1, "p": x.2})).collect::<Vec<_>>()})
+    json!({"flows": if a.db.kg("flows").is_array() { a.db.kg("flows") } else { json!([]) }, "crew": if a.db.kg("crew").is_array() { a.db.kg("crew") } else { json!([]) }, "rev": a.db.kg("frev").as_i64().unwrap_or(0), "nt": NT, "tl": TL, "roles": roles(a), "xc": crate::xs::XC.iter().map(|x| json!({"t": x.0, "n": x.1, "p": x.2})).collect::<Vec<_>>()})
 }
 
 pub fn put(a: &Ax, b: &Value) -> Value {
+    static L: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _g = L.lock().unwrap_or_else(|e| e.into_inner());
+    let rev = a.db.kg("frev").as_i64().unwrap_or(0);
+    if b["rev"].as_i64().is_some_and(|r| r != rev) {
+        let mut v = get(a);
+        v["error"] = json!("conflict");
+        return v;
+    }
+    if b["crew"].is_array() || b["flows"].is_array() {
+        a.db.ks("frev", &json!(rev + 1));
+    }
     if b["crew"].is_array() {
         a.db.ks("crew", &json!(crew(&b["crew"])));
     }

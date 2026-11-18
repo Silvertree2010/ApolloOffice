@@ -94,8 +94,26 @@ fn pb() -> &'static Mutex<HashMap<String, i64>> {
     P.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+fn pw() -> &'static Mutex<HashMap<String, i64>> {
+    static P: OnceLock<Mutex<HashMap<String, i64>>> = OnceLock::new();
+    P.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
 pub fn pbusy(h: &str) -> i64 {
-    pb().lock().unwrap().get(h).copied().unwrap_or(0)
+    pb().lock().unwrap().get(h).copied().unwrap_or(0) + pw().lock().unwrap().get(h).copied().unwrap_or(0).min(1)
+}
+
+struct Want(Vec<String>);
+
+impl Drop for Want {
+    fn drop(&mut self) {
+        let mut m = pw().lock().unwrap();
+        for h in &self.0 {
+            if let Some(n) = m.get_mut(h) {
+                *n = (*n - 1).max(0);
+            }
+        }
+    }
 }
 
 struct Lane(String);
@@ -110,6 +128,7 @@ impl Drop for Lane {
 
 async fn claim(a: &Ax, id: i64, want: &str, who: &str) -> Result<Lane, String> {
     let mut said = false;
+    let mut _want: Option<Want> = None;
     loop {
         if load(a, id).map(|x| x.0) == Some("stop".into()) {
             return Err("stopped".into());
@@ -129,6 +148,14 @@ async fn claim(a: &Ax, id: i64, want: &str, who: &str) -> Result<Lane, String> {
             }
         }
         if !said {
+            let ids: Vec<String> = hs.iter().map(|h| h.id.clone()).collect();
+            {
+                let mut m = pw().lock().unwrap();
+                for h in &ids {
+                    *m.entry(h.clone()).or_insert(0) += 1;
+                }
+            }
+            _want = Some(Want(ids));
             a.say(who, &format!("waiting for a free lane{} (run {id})", if want.is_empty() { String::new() } else { format!(" on {want}") }), None);
             said = true;
         }
@@ -174,6 +201,7 @@ async fn step(a: &Ax, id: i64, d: &mut Value, n: &Value) -> Result<(Value, bool)
     }
     let mut o = Ask::new(key(wid), md, sys, user);
     o.run = Some(id);
+    o.repo = d["input"]["repo"].as_str().filter(|r| r.contains('/')).map(String::from);
     let mut _lane: Option<Lane> = None;
     o.ef = Some("medium");
     if !tl.iter().any(|t| *t == "shell" || *t == "files") && tl.contains(&"github") {
@@ -635,7 +663,7 @@ pub fn list(a: &Ax, fid: Option<&str>, st: Option<&str>, lim: i64) -> Vec<Value>
 pub fn get(a: &Ax, id: i64) -> Option<Value> {
     let r = a.db.one("select id, flow, st, t0, t1, d from runs where id=?", pa![id])?;
     let d = &r["d"];
-    Some(json!({"id": r["id"], "flow": r["flow"], "name": d["flow"]["n"], "st": r["st"], "t0": r["t0"], "t1": r["t1"], "input": d["input"], "steps": d["steps"], "wait": d["wait"], "err": d["err"]}))
+    Some(json!({"id": r["id"], "flow": r["flow"], "name": d["flow"]["n"], "st": r["st"], "t0": r["t0"], "t1": r["t1"], "input": d["input"], "steps": d["steps"], "wait": d["wait"], "err": d["err"], "blk": d["blk"], "ask": if r["st"] == "wait" { d["steps"].as_array().and_then(|s| s.last()).map(|s| s["out"]["ask"].clone()).unwrap_or(Value::Null) } else { Value::Null }}))
 }
 
 pub async fn runner(a: Ax) {

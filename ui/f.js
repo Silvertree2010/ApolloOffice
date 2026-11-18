@@ -41,7 +41,13 @@
   const outs = (n) => { const b = BK[n.t]; return typeof b.o === "function" ? b.o(n.c || {}) : b.o; };
   const fl = () => D.flows.find((f) => f.id === cur);
   const uid = (p, xs) => { let i = 1; while (xs.some((x) => x.id === p + i)) i++; return p + i; };
-  const save = () => { clearTimeout(tmo); tmo = setTimeout(() => post({ flows: D.flows, crew: D.crew }, "/api/flows").catch(() => {}), 400); };
+  const put = async () => {
+    const r = await post({ flows: D.flows, crew: D.crew, rev: D.rev }, "/api/flows");
+    if (r.error === "conflict") { D = { ...D, ...r }; if (!fl()) cur = D.flows[0]?.id || null; sel = null; esel = null; if (open) { side(); paint(); } alert("Pipelines were changed in another tab or by the API. The newest version is loaded now, your last change was not saved."); return r; }
+    if (r.rev != null) D.rev = r.rev;
+    return r;
+  };
+  const save = () => { clearTimeout(tmo); tmo = setTimeout(() => put().catch(() => {}), 400); };
   const snap = () => { hist.push(JSON.stringify(D)); if (hist.length > 80) hist.shift(); };
   const who = (id) => D.crew.find((w) => w.id === id);
   const up = (id) => A.S?.o?.net?.[id] !== false;
@@ -309,13 +315,13 @@
     const f = fl(), on = (id, ev, fn) => { const e = $(id); if (e) e[ev] = fn; };
     const n = f && sel ? f.nodes.find((m) => m.id === sel) : null;
     on("fRun", "onclick", async () => {
-      clearTimeout(tmo); await post({ flows: D.flows, crew: D.crew }, "/api/flows");
+      clearTimeout(tmo); await put();
       const r = await fetch(`/api/v2/flows/${encodeURIComponent(f.id)}/run`, { method: "POST", headers: { "content-type": "application/json", "x-ao": "1" }, body: "{}" }).then((x) => x.json());
       if (r.run) { tab = "runs"; sel = null; esel = null; side(); paint(); A.runView && A.runView(r.run); } else if (r.error) alert(r.error);
     });
     if (f) runs();
     const hop = async (op) => {
-      clearTimeout(tmo); await post({ flows: D.flows, crew: D.crew }, "/api/flows");
+      clearTimeout(tmo); await put();
       const r = await post({ op, flow: cur, node: sel }, "/api/flows/hook");
       if (r.error) return alert(r.error);
       D.hooks = r.hooks;
@@ -365,7 +371,7 @@
     else if ((e.key === "Delete" || e.key === "Backspace") && esel != null) { e.preventDefault(); const f = fl(); snap(); f.edges.splice(esel, 1); esel = null; save(); paint(); side(); }
     else if (e.key === "Escape") { e.stopPropagation(); if (menu || sel || esel != null || hireFor !== null) { hideMenu(); sel = null; esel = null; hireFor = null; side(); paint(); } else close(); }
   };
-  const close = () => { if (A.route && A.route() === "pipelines") { location.hash = "#/office"; return; } open = false; clearTimeout(tmo); post({ flows: D.flows, crew: D.crew }, "/api/flows").catch(() => {}); document.body.classList.remove("fed"); R.hidden = true; document.removeEventListener("keydown", key, true); window.removeEventListener("resize", lines); };
+  const close = () => { if (A.route && A.route() === "pipelines") { location.hash = "#/office"; return; } open = false; clearTimeout(tmo); put().catch(() => {}); document.body.classList.remove("fed"); R.hidden = true; document.removeEventListener("keydown", key, true); window.removeEventListener("resize", lines); };
   A.flowPick = (id) => { if (!open || !D.flows.some((x) => x.id === id)) return; cur = id; sel = null; esel = null; hideMenu(); side(); paint(); fit(); };
   A.flows = async () => {
     if (open) return close();
