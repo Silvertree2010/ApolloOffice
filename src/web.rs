@@ -272,7 +272,7 @@ fn sets(a: &Ax, b: &Value) {
     }
     if let Some(it) = b["office"]["items"].as_array() {
         let ok = ["desk", "chair", "plant", "rack", "sofa", "table", "shelf", "coffee", "cooler", "lamp", "rug"];
-        let v: Vec<Value> = it.iter().filter(|u| ok.contains(&u["i"].as_str().unwrap_or("")) && (0..80).contains(&u["x"].as_i64().unwrap_or(-1)) && (0..40).contains(&u["y"].as_i64().unwrap_or(-1))).take(400).map(|u| json!({"i": u["i"], "x": u["x"], "y": u["y"]})).collect();
+        let v: Vec<Value> = it.iter().filter(|u| ok.contains(&u["i"].as_str().unwrap_or("")) && (0..80).contains(&u["x"].as_i64().unwrap_or(-1)) && (0..40).contains(&u["y"].as_i64().unwrap_or(-1))).take(400).map(|u| { let mut o = json!({"i": u["i"], "x": u["x"], "y": u["y"]}); if let Some(w) = u["w"].as_str().filter(|w| u["i"] == "chair" && !w.is_empty() && w.len() <= 60) { o["w"] = json!(w); } o }).collect();
         s["office"]["items"] = json!(v);
     }
     if b["pipe"].is_object() {

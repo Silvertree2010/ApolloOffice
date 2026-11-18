@@ -89,14 +89,51 @@ pub fn port(d: &Value, n: &Value) -> String {
     }
 }
 
-fn host(a: &Ax, want: &str) -> Option<String> {
-    let net = a.lv.lock().unwrap().o.net.clone();
-    let ok = |id: &str| net.get(id).copied().unwrap_or(true);
-    let hs = crate::sh::hosts(a);
-    if !want.is_empty() {
-        return hs.iter().find(|h| h.id == want && ok(&h.id)).map(|h| h.id.clone());
+fn pb() -> &'static Mutex<HashMap<String, i64>> {
+    static P: OnceLock<Mutex<HashMap<String, i64>>> = OnceLock::new();
+    P.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+pub fn pbusy(h: &str) -> i64 {
+    pb().lock().unwrap().get(h).copied().unwrap_or(0)
+}
+
+struct Lane(String);
+
+impl Drop for Lane {
+    fn drop(&mut self) {
+        if let Some(n) = pb().lock().unwrap().get_mut(&self.0) {
+            *n = (*n - 1).max(0);
+        }
     }
-    a.db.all("select id from hs where on_=1 order by id='local' desc, id", pa![]).iter().filter_map(|x| x["id"].as_str().map(String::from)).find(|id| ok(id))
+}
+
+async fn claim(a: &Ax, id: i64, want: &str, who: &str) -> Result<Lane, String> {
+    let mut said = false;
+    loop {
+        if load(a, id).map(|x| x.0) == Some("stop".into()) {
+            return Err("stopped".into());
+        }
+        let net = a.lv.lock().unwrap().o.net.clone();
+        let hs: Vec<crate::sh::Ho> = crate::sh::hosts(a).into_iter().filter(|h| h.on && net.get(&h.id).copied().unwrap_or(true) && (want.is_empty() || h.id == want)).collect();
+        if hs.is_empty() {
+            return Err("no machine is online for this step".into());
+        }
+        let lv: Vec<String> = a.lv.lock().unwrap().ln.values().cloned().collect();
+        {
+            let mut p = pb().lock().unwrap();
+            let pick = hs.iter().map(|h| (h, lv.iter().filter(|k| k.split('#').next() == Some(h.id.as_str())).count() as i64 + p.get(&h.id).copied().unwrap_or(0))).filter(|(h, u)| *u < h.ln.max(1)).min_by_key(|(_, u)| *u).map(|(h, _)| h.id.clone());
+            if let Some(h) = pick {
+                *p.entry(h.clone()).or_insert(0) += 1;
+                return Ok(Lane(h));
+            }
+        }
+        if !said {
+            a.say(who, &format!("waiting for a free lane{} (run {id})", if want.is_empty() { String::new() } else { format!(" on {want}") }), None);
+            said = true;
+        }
+        crate::app::sl(5000).await;
+    }
 }
 
 async fn step(a: &Ax, id: i64, d: &mut Value, n: &Value) -> Result<(Value, bool), String> {
@@ -137,13 +174,16 @@ async fn step(a: &Ax, id: i64, d: &mut Value, n: &Value) -> Result<(Value, bool)
     }
     let mut o = Ask::new(key(wid), md, sys, user);
     o.run = Some(id);
+    let mut _lane: Option<Lane> = None;
     o.ef = Some("medium");
     if !tl.iter().any(|t| *t == "shell" || *t == "files") && tl.contains(&"github") {
         o.rn = Some(Rn { h: "local".into(), dir: String::new(), w: String::new(), md: String::new(), tl: Some(vec!["github".into()]), sec: vec![] });
         o.turns = 40;
         o.t = 20 * 60;
     } else if tl.iter().any(|t| *t == "shell" || *t == "files") {
-        let h = host(a, n["c"]["h"].as_str().unwrap_or("")).ok_or("no machine is online for this step")?;
+        let ln = claim(a, id, n["c"]["h"].as_str().unwrap_or(""), key(wid)).await?;
+        let h = ln.0.clone();
+        _lane = Some(ln);
         let dir = format!("{}/runs/r{id}", crate::sh::hbid(a, &h));
         let r = crate::sh::hx(a, &h, &format!("mkdir -p {}", crate::sh::q(&dir)), 60).await;
         if r.c != 0 {
@@ -519,21 +559,26 @@ pub fn stop(a: &Ax, id: i64) -> Result<(), String> {
 }
 
 pub fn staff(a: &Ax) -> Vec<String> {
+    let busy: HashSet<String> = a.db.all("select distinct flow from runs where st in ('queued','run','wait')", pa![]).iter().filter_map(|x| x["flow"].as_str().map(String::from)).collect();
     let fl = a.db.kg("flows");
-    let used: HashSet<String> = fl.as_array().map(|fs| fs.iter().flat_map(|f| f["nodes"].as_array().cloned().unwrap_or_default()).filter_map(|n| n["c"]["w"].as_str().map(String::from)).collect()).unwrap_or_default();
+    let used: HashSet<String> = fl
+        .as_array()
+        .map(|fs| fs.iter().filter(|f| f["on"].as_bool().unwrap_or(false) || f["id"].as_str().is_some_and(|i| busy.contains(i))).flat_map(|f| f["nodes"].as_array().cloned().unwrap_or_default()).filter_map(|n| n["c"]["w"].as_str().map(String::from)).collect())
+        .unwrap_or_default();
     a.db.kg("crew").as_array().map(|c| c.iter().filter_map(|w| w["id"].as_str().map(String::from)).filter(|id| used.contains(id)).collect()).unwrap_or_default()
 }
 
-pub fn places(it: &[Value]) -> usize {
+pub fn places(it: &[Value]) -> Vec<Option<String>> {
     let xy = |v: &Value| (v["x"].as_i64().unwrap_or(0), v["y"].as_i64().unwrap_or(0));
     let mut ds: Vec<(i64, i64)> = it.iter().filter(|x| x["i"] == "desk").map(xy).collect();
     ds.sort_by_key(|&(x, y)| (y, x));
-    let ch: Vec<(i64, i64)> = it.iter().filter(|x| x["i"] == "chair").map(xy).collect();
+    let ch: Vec<&Value> = it.iter().filter(|x| x["i"] == "chair").collect();
     let mut used = vec![false; ch.len()];
-    let mut n = 0;
+    let mut o = vec![];
     for (dx, dy) in ds {
         let mut best: Option<(usize, i64)> = None;
-        for (k, &(cx, cy)) in ch.iter().enumerate() {
+        for (k, c) in ch.iter().enumerate() {
+            let (cx, cy) = xy(c);
             if used[k] || cx + 2 <= dx || cx >= dx + 4 {
                 continue;
             }
@@ -545,18 +590,22 @@ pub fn places(it: &[Value]) -> usize {
         }
         if let Some((k, _)) = best {
             used[k] = true;
-            n += 1;
+            o.push(ch[k]["w"].as_str().map(String::from));
         }
     }
-    n
+    o
 }
 
-pub fn desks(a: &Ax) -> usize {
-    a.set()["office"]["items"].as_array().map(|it| places(it)).unwrap_or(0)
+pub fn seat_map(st: &[String], ps: &[Option<String>]) -> Vec<String> {
+    let mut sat: Vec<String> = ps.iter().flatten().filter(|w| st.contains(w)).cloned().collect();
+    let free = ps.iter().filter(|w| w.as_ref().is_none_or(|w| !st.contains(w))).count();
+    sat.extend(st.iter().filter(|w| !sat.contains(w)).take(free).cloned().collect::<Vec<_>>());
+    sat
 }
 
 pub fn seated(a: &Ax, wid: &str) -> bool {
-    staff(a).iter().position(|x| x == wid).is_some_and(|i| i < desks(a))
+    let it = a.set()["office"]["items"].as_array().cloned().unwrap_or_default();
+    seat_map(&staff(a), &places(&it)).iter().any(|w| w == wid)
 }
 
 pub fn active(a: &Ax) -> Vec<Value> {
@@ -595,7 +644,7 @@ pub async fn runner(a: Ax) {
         if a.lv.lock().unwrap().o.man {
             continue;
         }
-        let ids: Vec<i64> = a.db.all("select id from runs where st='queued' order by id limit 10", pa![]).iter().filter_map(|x| x["id"].as_i64()).collect();
+        let ids: Vec<i64> = a.db.all("select id from runs where st='queued' order by json_extract(d,'$.blk') is not null, id limit 10", pa![]).iter().filter_map(|x| x["id"].as_i64()).collect();
         for id in ids {
             {
                 let mut b = busy().lock().unwrap();
@@ -724,7 +773,10 @@ mod t {
     #[test]
     fn places_pair_desks_with_chairs() {
         let it: Vec<serde_json::Value> = serde_json::from_str(r#"[{"i":"desk","x":6,"y":4},{"i":"chair","x":7,"y":6},{"i":"desk","x":16,"y":4},{"i":"chair","x":17,"y":1},{"i":"desk","x":30,"y":4},{"i":"chair","x":40,"y":6}]"#).unwrap();
-        assert_eq!(super::places(&it), 2);
+        assert_eq!(super::places(&it).len(), 2);
+        let st = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        assert_eq!(super::seat_map(&st, &[Some("c".into()), None]), vec!["c".to_string(), "a".to_string()]);
+        assert_eq!(super::seat_map(&st, &[Some("gone".into()), None]), vec!["a".to_string(), "b".to_string()]);
     }
 
     use super::*;

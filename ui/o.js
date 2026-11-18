@@ -147,16 +147,18 @@
         const dd = dy * 4 + Math.abs(c.x + 1 - (d.x + 2));
         if (dy < 99 && dd < bd) { bd = dd; best = [c, k]; }
       }
-      if (best) { used.add(best[1]); ps.push({ k: best[1], back: best[0].y > d.y }); }
+      if (best) { used.add(best[1]); ps.push({ k: best[1], back: best[0].y > d.y, w: best[0].w || null }); }
     }
     return ps;
   };
   window.AO.places = places;
   const seats = () => {
     const st = (S?.staff || []).filter((id) => (S?.crew || []).some((w) => w.id === id)), ps = places();
-    const m = new Map();
-    st.forEach((id, i) => { if (ps[i]) m.set(ps[i].k, { id, back: ps[i].back }); });
-    return { m, wait: st.slice(ps.length), ids: new Set(st.slice(0, ps.length)) };
+    const m = new Map(), ids = new Set();
+    for (const p of ps) if (p.w && st.includes(p.w) && !ids.has(p.w)) { m.set(p.k, { id: p.w, back: p.back }); ids.add(p.w); }
+    const rest = st.filter((id) => !ids.has(id));
+    for (const p of ps) { if (m.has(p.k) || (p.w && st.includes(p.w))) continue; const id = rest.shift(); if (!id) break; m.set(p.k, { id, back: p.back }); ids.add(id); }
+    return { m, wait: st.filter((id) => !ids.has(id)), ids };
   };
   const pst = (id) => {
     const rs = (S?.rn || []).filter((r) => r.w === id);
@@ -225,9 +227,18 @@
   fab.className = "fab"; fab.hidden = true;
   fab.innerHTML = `<button type="button" data-a="dup" title="Duplicate (Ctrl+D)">Duplicate</button><button type="button" data-a="del" class="dng" title="Remove (Delete)">Remove</button>`;
   $("stage").appendChild(fab);
+  const BTN = fab.innerHTML;
   const fabpos = () => {
     const u = FU[fsel];
     if (!fedit || !u || fdrag) { fab.hidden = true; return; }
+    const fk = fsel + ":" + u.i + ":" + (u.w || "") + ":" + (S?.staff || []).join(",");
+    if (fab.dataset.k !== fk) {
+      fab.dataset.k = fk;
+      const st = (S?.crew || []).filter((w) => (S?.staff || []).includes(w.id));
+      fab.innerHTML = (u.i === "chair" && st.length ? `<select data-a="seat" aria-label="Who sits here"><option value="">Seat: anyone free</option>${st.map((w) => `<option value="${esc(w.id)}" ${u.w === w.id ? "selected" : ""}>Seat: ${esc(w.n)}</option>`).join("")}</select>` : "") + BTN;
+      const se = fab.querySelector("[data-a=seat]");
+      if (se) se.onchange = () => { const v = se.value; snap(); for (const x of FU) if (x.i === "chair" && v && x.w === v) delete x.w; if (v) FU[fsel].w = v; else delete FU[fsel].w; commit(); };
+    }
     const r = cv.getBoundingClientRect(), sr = $("stage").getBoundingClientRect(), k = r.width / VW, f = FC[u.i];
     fab.hidden = false;
     const x = r.left - sr.left + (u.x * 8 + f.w * 4) * k, yt = r.top - sr.top + (GO + u.y * 8 - 6) * k - 6;
@@ -297,7 +308,7 @@
     room: () => ({ w: GX, h: GY, min: ext() }),
     size: (w, h) => { const [mw, mh] = ext(); w = Math.max(30, mw, Math.min(80, w | 0)); h = Math.max(16, mh, Math.min(40, h | 0)); room(w, h); clearTimeout(rsave); rsave = setTimeout(() => post({ office: { size: { w, h } } }, "/api/set").catch(() => {}), 400); return { w, h }; },
     loadRoom: (z) => { const w = z?.w | 0, h = z?.h | 0; room(w >= 30 && w <= 80 ? w : 50, h >= 16 && h <= 40 ? h : 28); },
-    load: (a) => { FU = Array.isArray(a) ? a.filter((u) => FC[u?.i] && Number.isInteger(u.x) && Number.isInteger(u.y)).map((u) => ({ i: u.i, x: u.x, y: u.y })) : []; },
+    load: (a) => { FU = Array.isArray(a) ? a.filter((u) => FC[u?.i] && Number.isInteger(u.x) && Number.isInteger(u.y)).map((u) => (u.i === "chair" && typeof u.w === "string" && u.w ? { i: u.i, x: u.x, y: u.y, w: u.w } : { i: u.i, x: u.x, y: u.y })) : []; },
     on: (f) => { fcb = f; },
     tick: fabpos,
   };

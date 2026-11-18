@@ -1809,6 +1809,10 @@ async fn lane(a: Ax, h: String, k: i64) {
             sl(60_000).await;
             continue;
         }
+        if k > x.ln - crate::eng::pbusy(&h) {
+            sl(10_000).await;
+            continue;
+        }
         while !a.hold("hunter") && !a.drain.load(std::sync::atomic::Ordering::Relaxed) && mk_hunt(&a) {}
         let Some(id) = pick(&a, &h).await else {
             sl(20_000).await;
