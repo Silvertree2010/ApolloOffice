@@ -1,8 +1,8 @@
 <h1 align="center">ApolloOffice</h1>
 
 <p align="center">
-  A small office of AI workers that turns GitHub issues into verified pull
-  requests, on your own computer and with your own accounts.
+  A pixel office of AI workers that fixes bugs in your GitHub repositories and
+  runs pipelines you build yourself, on your own machines with your own accounts.
 </p>
 
 <p align="center">
@@ -11,60 +11,89 @@
   <a href="https://github.com/Silvertree2010/ApolloOffice/releases"><img src="https://img.shields.io/github/downloads/Silvertree2010/ApolloOffice/total" alt="Downloads"></a>
   <img src="https://img.shields.io/badge/Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-supported-2b2b2b" alt="Windows, macOS and Linux">
   <img src="https://img.shields.io/badge/status-beta-cc785c" alt="Status: beta">
-  <img src="https://img.shields.io/badge/Rust-single%20binary-B7410E?logo=rust&amp;logoColor=white" alt="Rust, single binary">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0"></a>
 </p>
 
-<p align="center"><a href="https://office.apollonet.dev">Website</a></p>
+<p align="center"><a href="https://office.apollonet.dev">Website</a> · <a href="docs/media/tour.mp4">Video tour</a> · <a href="https://github.com/Silvertree2010/ApolloOffice/releases/latest">Download</a></p>
 
-![The office: a pixel floor with one desk per worker, the queue, pull requests and the log on the right](docs/images/office.png)
+[![A 30 second tour: workers at their desks, building a pipeline, a run step by step, answering an approval](docs/images/tour.gif)](docs/media/tour.mp4)
 
-Add any GitHub repository. ApolloOffice picks up its bug reports (or hunts for
-bugs itself), reproduces them, writes a fix with a regression test, proves the
-test fails without the fix and passes with it, runs the project's tests,
-reviews the change and opens a pull request. Nothing goes through a server of
-ours.
+ApolloOffice is a single binary with a web interface. Add a repository and the
+built-in bug-fix team takes over: it finds or receives bug reports,
+reproduces them, writes a fix with a regression test, proves the test fails
+without the fix and passes with it, runs your tests and opens a pull request.
+Next to it you can hire your own workers and wire them into pipelines for
+anything else: release notes, triage, digests, research. Nothing runs on a
+server of ours.
 
 > [!WARNING]
-> ApolloOffice is in beta. Expect bugs, and please
-> [report them](https://github.com/Silvertree2010/ApolloOffice/issues).
+> ApolloOffice is in beta. Expect bugs and please [report them](https://github.com/Silvertree2010/ApolloOffice/issues).
 
-> [!NOTE]
-> Every pull request waits for your approval by default, with the diff, the
-> proof and an editable PR text. You can switch a repository to submit on its
-> own.
+## The office
 
-For optional free-model authors with Codex/Claude subscription review, see
+![The office: workers at their desks, the queue with an approval, pull requests and the log](docs/images/office.png)
+
+Every worker has a tile at the top and, if it belongs to a pipeline, a desk in
+the room. The queue lists bug-fix jobs and pipeline runs together; questions
+that wait for you have Yes and No right in the row. Pull requests and the log
+sit below. Windows can be moved and resized with **Arrange windows**.
+
+## Pipelines
+
+![The pipeline editor: a trigger, a writer, a reviewer check, an approval and the end](docs/images/pipeline.png)
+
+A pipeline starts with a trigger (by hand, on a schedule, on a new issue or
+pull request, or from a webhook) and continues with steps you click together:
+a worker does a task, a check sends it back with feedback, a choice branches,
+an approval asks you first. Steps that need a shell or files run on one of
+your machines, in Docker unless you turn it off, and share its lanes with the
+bug-fix team.
+
+![A finished run with the output of every step](docs/images/run.png)
+
+Every run keeps the output of each step. **Work → Pipeline runs** lists them;
+a run that waits for you or for a desk says so and offers the next action.
+
+## Team and desks
+
+![Hired workers and the built-in bug-fix team with their models](docs/images/team.png)
+
+Hire workers from a catalog of roles or describe your own, pick a model and
+what they may do (shell, files, GitHub, web), and give them secrets they may
+use. Each hired worker in an active pipeline needs a desk with a chair in the
+office. Place them in **Edit office**, where a green dot marks a desk and chair
+that belong together, and select a chair to choose who sits there.
+
+![Edit office: furniture palette, green dots on paired desks and chairs, choosing a seat](docs/images/office-edit.png)
+
+## Built-in bug-fix team
+
+- **Scout, Guard and Vet** pick suitable issues and block hidden instructions.
+  **Hunter** looks for bugs in the code itself.
+- **Repro, Fixer, CI and Reviewer** write a failing test, fix the bug, run your
+  test command and review the change. ApolloOffice itself checks that the
+  test is red without the fix and green with it.
+- **Submit** opens the pull request, **Watcher** follows it: merges, change
+  requests and merge conflicts, which it rebases on its own.
+- Every pull request waits for your approval by default, with diff, proof and
+  editable text. A repository can be switched to submit on its own.
+- **Feature mode** (off by default) lets the team build small, clearly
+  specified feature requests test-first.
+
+For free-model authors reviewed by a Codex or Claude subscription, see
 [the free-first guide](docs/free-first.md).
 
-## What's inside
+## Everything else
 
-- **A fixed pipeline** of small workers: Scout, Guard, Vet, Hunter, Repro,
-  Fixer, CI, Reviewer, Submit and Watcher, each at its own desk.
-- **Proof, not trust.** ApolloOffice itself checks that the test is red
-  without the fix and green with it, and that your test command passes.
-- **Any provider per worker.** Claude Code or Codex with your own login, or
-  Claude, OpenAI and Gemini with an API key, or a local model through Ollama.
-  Click the gear on a worker's card to change it.
-- **Docker isolation** on this computer or any machine you reach with `ssh`.
-  The GitHub token never leaves your computer.
-- **Watcher** follows your open PRs: merges, change requests from maintainers
-  and reviewers with write access, and merge conflicts, which it rebases on
-  its own.
-- **Feature mode** (per repository, off by default): Scout and Vet also pick
-  small, clearly specified feature requests. A Planner checks the feature is
-  still missing, Fixer builds it test-first, and the PR closes the issue.
-- **API** for bug reports from your own tools (error trackers, CI, scripts):
-  `POST /v1/report` with a token from Settings. Reports go through Guard and
-  Vet like issues.
-- **Error trackers and CI**: Sentry and GlitchTip alerts arrive through a
-  webhook link from Settings, and a failed GitHub Actions run can report itself
-  (see below). The same error lands in one report.
-- **Costs** per job, worker and repository, a daily budget in USD for API keys
-  (overall or per repository), and a table of which model gets merged how often
-  at what cost, with a hint when a cheaper one does as well.
-- **Sign in** with a one-time link or your Google account, notifications by
-  ntfy or Discord, and automatic updates.
+- **Any provider per worker:** Claude Code or Codex with your own login,
+  Claude, OpenAI or Gemini with an API key, or a local model through Ollama.
+- **Machines:** this computer or any machine you reach with `ssh`, isolated in
+  Docker. The GitHub token never leaves your computer.
+- **Costs:** per repository, pipeline and model, a daily budget for API keys,
+  and a hint when a cheaper model gets merged as often.
+- **Three styles:** Calm, Dense and Pixel, each in dark and light.
+
+![The office in the Calm, Dense and Pixel styles](docs/images/styles.png)
 
 ## Install
 
@@ -75,37 +104,41 @@ logged in, an API key, or Ollama. Docker is recommended.
 Download the binary for your system from the [latest release][rel] and run it:
 
 ```sh
-apollo-office
-```
-
-It prints a one-time login link. Open it and follow the setup: add a machine,
-add a repository, check its test command.
-
-```sh
+apollo-office                 # prints a one-time login link
 apollo-office login-link      # new login link (10 minutes)
 apollo-office autostart on    # start at login (Windows, macOS, Linux)
 apollo-office status
 ```
 
-Options: `--port` (default 47300), `--data <folder>`.
+Options: `--port` (default 47300), `--data <folder>`. The setup walks you
+through adding a machine, a repository and its test command.
 
-## Report failed CI runs
+## API, MCP and webhooks
 
-Add a workflow that sends failed runs of your CI on the default branch to the
-office. The office has to be reachable from GitHub, for example through a
-tunnel. Store its address and an API token as repository secrets.
+Create a token in **Settings → Integrations → API and MCP**, read-only or
+allowed to change things. `GET /v2/openapi.json` lists every endpoint.
+
+```sh
+curl http://127.0.0.1:47300/v2/status -H "Authorization: Bearer $TOKEN"
+claude mcp add apollo-office -e APOLLO_OFFICE_TOKEN=$TOKEN -- apollo-office mcp-server
+```
+
+MCP also works over HTTP at `http://127.0.0.1:47300/mcp`. A pipeline with a
+webhook block gets its own link: `POST /v1/run/<pipeline>/<block>` with the key
+in an `X-Hook-Key` header starts it with the request body as input. Bug
+reports from your own tools go to `POST /v1/report`, and Sentry or GlitchTip
+alerts arrive through a webhook link from Settings.
+
+Failed GitHub Actions runs can report themselves:
 
 ```yaml
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  workflow_run: { workflows: [CI], types: [completed] }
 jobs:
   report:
     if: github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
-    permissions:
-      actions: read
+    permissions: { actions: read }
     steps:
       - uses: Silvertree2010/ApolloOffice/report@main
         with:
@@ -113,29 +146,11 @@ jobs:
           token: ${{ secrets.APOLLO_OFFICE_TOKEN }}
 ```
 
-## API and MCP
-
-Create a token in **Settings → Integrations → API and MCP**. Tokens are either read-only or allowed to change things.
-
-```sh
-curl http://127.0.0.1:47300/v2/status -H "Authorization: Bearer $TOKEN"
-```
-
-`GET /v2/openapi.json` lists every endpoint: jobs, repositories, pull requests, workers, pipelines, team, costs, events, settings and the office layout.
-
-A pipeline with a webhook block gets its own link (create it in the editor); `POST /v1/run/<pipeline>/<block>` with the key in an `X-Hook-Key` header starts it with the request body as input, without an API token (senders that cannot set headers may use `?key=…`). Pipelines can be started with `POST /v2/flows/{id}/run`; `GET /v2/runs/{id}` shows the output of every step, and `POST /v2/runs/{id}/answer` answers an approval step.
-
-The same functions are available as MCP tools for Claude Code, Cursor and other agents, over HTTP at `http://127.0.0.1:47300/mcp` or over stdio:
-
-```sh
-claude mcp add apollo-office -e APOLLO_OFFICE_TOKEN=$TOKEN -- apollo-office mcp-server
-```
-
 ## AI disclosure
 
-Every commit carries `Co-Authored-By` trailers for the models that worked on
-it, and every PR text says it was generated with AI by ApolloOffice. This is
-always on: many projects require it, and hiding it can get you banned.
+Commits made by the bug-fix team carry `Co-Authored-By` trailers for the
+models that worked on them, and every PR text says it was generated with AI by
+ApolloOffice. This is always on: many projects require it.
 
 ## License
 
