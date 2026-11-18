@@ -95,6 +95,9 @@ async fn scout1(a: &Ax) -> R<()> {
             if a.db.n("select count(*) from jobs where repo=? and num=?", pa![r.clone(), n]) > 0 {
                 continue;
             }
+            if a.db.n("select count(*) from runs where st in ('queued','run','wait') and json_extract(d,'$.input.repo')=? and json_extract(d,'$.input.number')=? and json_extract(d,'$.input.kind')='issue'", pa![r.clone(), n]) > 0 {
+                continue;
+            }
             if a.db.one("select upd from seen where repo=? and num=?", pa![r.clone(), n]).map(|x| x["upd"].as_str() == Some(&up)).unwrap_or(false) {
                 continue;
             }

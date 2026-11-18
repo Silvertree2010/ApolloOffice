@@ -741,7 +741,7 @@ pub fn list(a: &Ax, fid: Option<&str>, st: Option<&str>, lim: i64) -> Vec<Value>
         .map(|r| {
             let d = &r["d"];
             let ask = if d["gate"] == true { d["steps"].as_array().and_then(|s| s.last()).map(|s| s["out"]["ask"].clone()) } else { d["wait"].as_str().and_then(|w| d["flow"]["nodes"].as_array().and_then(|ns| ns.iter().find(|n| n["id"] == w)).map(|n| n["c"]["ask"].clone())) };
-            json!({"id": r["id"], "flow": r["flow"], "name": d["flow"]["n"], "st": r["st"], "t0": r["t0"], "t1": r["t1"], "steps": d["steps"].as_array().map(|s| s.len()).unwrap_or(0), "err": d["err"], "ask": ask})
+            json!({"id": r["id"], "flow": r["flow"], "name": d["flow"]["n"], "st": r["st"], "t0": r["t0"], "t1": r["t1"], "steps": d["steps"].as_array().map(|s| s.len()).unwrap_or(0), "err": d["err"], "ask": ask, "blk": d["blk"]})
         })
         .collect()
 }
@@ -821,7 +821,8 @@ async fn poll(a: &Ax, fid: &str, n: &Value, pr: bool) {
         seen = json!({});
     }
     for r in repos {
-        let Ok(v) = crate::sh::ghj(&[if pr { "pr" } else { "issue" }, "list", "-R", &r, "--state", "open", "--limit", "20", "--json", "number,title,body,url,labels,createdAt,author"], 60).await else { continue };
+        let Ok(v) = crate::sh::ghj(&[if pr { "pr" } else { "issue" }, "list", "-R", &r, "--state", "open", "--limit", "20", "--json", "number,title,body,url,labels,createdAt,author,assignees"], 60).await else { continue };
+        let me = crate::gh::login(a).await;
         let mut have: Vec<i64> = seen[&r].as_array().map(|x| x.iter().filter_map(|n| n.as_i64()).collect()).unwrap_or_default();
         for it in v.as_array().cloned().unwrap_or_default() {
             let num = it["number"].as_i64().unwrap_or(0);
@@ -830,6 +831,12 @@ async fn poll(a: &Ax, fid: &str, n: &Value, pr: bool) {
             }
             have.push(num);
             if first {
+                continue;
+            }
+            if !pr && a.db.n("select count(*) from jobs where repo=? and num=? and st<>'drop'", pa![r.clone(), num]) > 0 {
+                continue;
+            }
+            if !pr && it["assignees"].as_array().is_some_and(|x| x.iter().any(|y| y["login"].as_str() != Some(&me))) {
                 continue;
             }
             if !lb.is_empty() && !it["labels"].as_array().is_some_and(|ls| ls.iter().any(|l| l["name"].as_str().map(|x| x.to_lowercase()) == Some(lb.clone()))) {

@@ -263,7 +263,8 @@
     fab.hidden = false;
     const x = r.left - sr.left + (u.x * 8 + f.w * 4) * k, yt = r.top - sr.top + (GO + u.y * 8 - 6) * k - 6;
     fab.style.left = Math.round(Math.min(sr.width - fab.offsetWidth / 2 - 6, Math.max(fab.offsetWidth / 2 + 6, x))) + "px";
-    fab.style.top = Math.round(yt < 40 ? r.top - sr.top + (GO + (u.y + f.h) * 8) * k + 8 : yt - fab.offsetHeight) + "px";
+    const yb = r.top - sr.top + (GO + (u.y + f.h) * 8) * k + 8;
+    fab.style.top = Math.round(yb + fab.offsetHeight > sr.height - 8 ? yt - fab.offsetHeight : yb) + "px";
   };
   const del = (k) => { if (k < 0 || !FU[k]) return; snap(); FU.splice(k, 1); fsel = -1; commit(); };
   const dup = () => { const u = FU[fsel]; if (!u) return; const p = near(u.i, u.x + FC[u.i].w, u.y); if (!p) return; snap(); FU.push({ i: u.i, x: p[0], y: p[1] }); fsel = FU.length - 1; commit(); };
@@ -275,8 +276,10 @@
     if (!p) return;
     if (ftool) {
       const g = ghost();
-      if (g && free(g.i, g.x, g.y, -1)) { snap(); FU.push({ i: g.i, x: g.x, y: g.y }); ftool = null; fsel = FU.length - 1; commit(); }
-      return;
+      if (g && free(g.i, g.x, g.y, -1)) { snap(); FU.push({ i: g.i, x: g.x, y: g.y }); ftool = null; fsel = FU.length - 1; commit(); return; }
+      const hit = pick(p);
+      if (hit < 0) return;
+      ftool = null;
     }
     const k = pick(p);
     fsel = k; fch();
@@ -543,13 +546,14 @@
   const rrow = (r) => { const w = (S.crew || []).find((x) => x.id === r.w); return `<div class="row jr${r.st === "wait" ? " apr" : ""}"><div class="ti"><a class="a" href="#" data-run="${r.id}">${esc(r.st === "wait" && r.ask ? r.ask : r.n || r.flow)}</a><div class="w"><span class="stt rs-${esc(r.blk ? "fail" : r.st)}">${esc(r.blk ? "Needs a desk" : RQN[r.st] || r.st)}</span><span>${esc(r.blk ? r.blk : r.st === "wait" && r.ask ? r.n || r.flow : w ? (r.nt === "check" ? w.n + " checks" : w.n + " works") : "Pipeline")}</span><span>${r.more ? `run ${r.id} and ${r.more} more` : `run ${r.id}`}${r.t0 ? ` · ${ago(r.t0)}` : ""}</span></div></div><span class="rp">${r.st === "wait" ? `<button data-run="${r.id}" title="See what the run did before you answer">Review</button><button class="go" data-ry="${r.id}">Yes</button><button data-rn="${r.id}">No</button>` : r.blk ? `<button data-desk="1">Edit office</button>` : ""}</span></div>`; };
   const lists = () => {
     const q = S.q, rx = S.rn || [];
-    $("qn").textContent = [q.length ? q.length + (q.length === 1 ? " job" : " jobs") : "", rx.length ? rx.length + (rx.length === 1 ? " run" : " runs") : ""].filter(Boolean).join(" · ");
+    $("qn").textContent = [q.length ? q.length + (q.length === 1 ? " open job" : " open jobs") : "", rx.length ? rx.length + (rx.length === 1 ? " run" : " runs") : ""].filter(Boolean).join(" · ");
     const aps = q.filter((j) => j.st === "approve").map((j) => j.id);
     for (const k of [...sel]) if (!aps.includes(k)) sel.delete(k);
     const bk = aps.length > 1 ? `<div class="bkb"><label class="ck"><input type="checkbox" id="bkA" ${sel.size === aps.length ? "checked" : ""}> all ${aps.length}</label><span class="sp"></span>${sel.size ? `<button class="go" id="bkS">submit ${sel.size}</button><button class="dng" id="bkD">drop ${sel.size}</button>` : `<span class="k">select pull requests to submit together</span>`}</div>` : "";
     const bw = new Set();
     const rs = [...rx].filter((r) => { if (!r.blk || !r.w) return true; if (bw.has(r.w)) return false; bw.add(r.w); return true; }).map((r) => r.blk && r.w ? { ...r, more: rx.filter((x) => x.blk && x.w === r.w).length - 1 } : r).sort((a, b) => (a.st === "wait" ? 0 : a.st === "run" ? 1 : 2) - (b.st === "wait" ? 0 : b.st === "run" ? 1 : 2));
-    $("queue").innerHTML = bk + rs.map(rrow).join("") + (q.length ? q.slice(0, 16).map((j) => jrow(j, true)).join("") : rs.length ? "" : `<div class="empty">Nothing waiting.</div>`) + (S.dn.length ? `<div class="sub">Recent</div>` + S.dn.slice(0, 12).map((j) => jrow(j, false)).join("") : "");
+    const nw = rs.filter((r) => r.st === "wait"), rest = rs.filter((r) => r.st !== "wait"), apj = q.filter((j) => j.st === "approve").length;
+    $("queue").innerHTML = (nw.length || apj ? `<div class="sub">Needs you</div>` : "") + bk + nw.map(rrow).join("") + q.filter((j) => j.st === "approve").map((j) => jrow(j, true)).join("") + (nw.length || apj ? `<div class="sub">Working and waiting</div>` : "") + rest.map(rrow).join("") + (q.length ? q.filter((j) => j.st !== "approve").slice(0, 16).map((j) => jrow(j, true)).join("") : rs.length ? "" : `<div class="empty">Nothing waiting.</div>`) + (S.dn.length ? `<div class="sub">Recent</div>` + S.dn.slice(0, 12).map((j) => jrow(j, false)).join("") : "");
     const op = S.pr.filter((p) => p.st === "open").length, mg = S.pr.filter((p) => p.st === "merged").length;
     $("prn").textContent = `${op} open · ${mg} merged`;
     $("prs").innerHTML = S.pr.length ? S.pr.slice(0, 16).map((p) => `<div class="row jr"><div class="ti"><a class="a" href="#" data-u="${esc(p.url)}">${esc(p.title)}</a><div class="w"><span class="stt pr-${esc(p.st)}">${esc(p.st[0].toUpperCase() + p.st.slice(1))}</span><span>${esc(rn({ repo: p.repo, num: p.num }))}</span></div></div></div>`).join("") : `<div class="empty">No pull requests yet.</div>`;
@@ -571,7 +575,7 @@
     $("cHo").innerHTML = (S.hs || []).filter((h) => h.on_).map((h) => `<b style="color:${o.net[h.id] === false ? "var(--bad)" : "var(--t1)"}">${esc(h.id)}</b>`).join(" ") || "no machine";
     const a = S.n, rx = S.rn || [], cn = (st) => rx.filter((r) => r.st === st).length;
     const wk = ["hunt", "repro", "fix", "ci", "review", "gate", "submit"].reduce((s, k) => s + (a[k] || 0), 0);
-    $("cQ").innerHTML = `running <b>${wk + cn("run")}</b> · <a href="#/jobs" class="wfy" title="Open what waits for your answer">waiting for you <b>${(a.approve || 0) + cn("wait")}</b></a> · queued <b>${(a.vet || 0) + (a.ready || 0) + cn("queued")}</b> · done <b>${a.done || 0}</b>`;
+    $("cQ").innerHTML = `running <b>${wk + cn("run")}</b> · <a href="#/jobs" class="wfy" title="Open what waits for your answer">waiting for you <b>${(a.approve || 0) + cn("wait")}</b></a> · waiting to start <b>${(a.vet || 0) + (a.ready || 0) + cn("queued")}</b> · done <b>${a.done || 0}</b>`;
     $("bPause").textContent = o.man ? "Resume office" : "Pause office";
     $("ban").hidden = !S.star;
     document.body.classList.toggle("sb", !!S.star);

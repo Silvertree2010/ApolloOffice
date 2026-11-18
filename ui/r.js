@@ -41,6 +41,18 @@
     M.onclick = (e) => { if (e.target === M) done(null); };
     M.onkeydown = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(null); } };
   });
+  A.confirm = (title, ok = "Continue") => new Promise((res) => {
+    const M = document.createElement("div");
+    M.className = "cmdk askd";
+    M.innerHTML = `<div class="kb ak" role="alertdialog" aria-label="${A.esc(title)}"><p>${A.esc(title)}</p><div class="acts"><span class="sp"></span><button type="button" data-x>Cancel</button><button type="button" class="go" data-ok>${A.esc(ok)}</button></div></div>`;
+    B.appendChild(M);
+    const done = (v) => { M.remove(); res(v); };
+    M.querySelector("[data-ok]").onclick = () => done(true);
+    M.querySelector("[data-x]").onclick = () => done(false);
+    M.onclick = (e) => { if (e.target === M) done(false); };
+    M.onkeydown = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(false); } if (e.key === "Enter") { e.preventDefault(); done(true); } };
+    M.querySelector("[data-ok]").focus();
+  });
   A.go = (r) => { if (location.hash === "#/" + r) go(); else location.hash = "#/" + r; };
   A.route = () => ((location.hash.match(/^#\/([a-z]+)/) || [])[1] || "office");
   window.addEventListener("hashchange", go);
