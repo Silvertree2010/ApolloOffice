@@ -45,6 +45,7 @@
     const r = await post({ flows: D.flows, crew: D.crew, rev: D.rev }, "/api/flows");
     if (r.error === "conflict") { D = { ...D, ...r }; if (!fl()) cur = D.flows[0]?.id || null; sel = null; esel = null; if (open) { side(); paint(); } alert("Pipelines were changed in another tab or by the API. The newest version is loaded now, your last change was not saved."); return r; }
     if (r.rev != null) D.rev = r.rev;
+    if (Array.isArray(r.flows) && JSON.stringify(r.flows) !== JSON.stringify(D.flows)) { D.flows = r.flows; if (open) { side(); paint(); } }
     return r;
   };
   const save = () => { clearTimeout(tmo); tmo = setTimeout(() => put().catch(() => {}), 400); };

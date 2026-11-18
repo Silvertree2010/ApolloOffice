@@ -482,7 +482,7 @@
         t.style.order = rs.length ? 0 : 1;
         t.querySelector(".md").textContent = mdn(cw.md || "");
         t.querySelector(".sy").textContent = rs.length ? rs[0].n : ev ? `${ago(ev.t)} · ${ev.m}` : "…";
-        t.querySelector(".stt").textContent = rs.length ? "Work" + (rs.length > 1 ? " ×" + rs.length : "") : "idle";
+        t.querySelector(".stt").textContent = rs.length ? "working" + (rs.length > 1 ? " ×" + rs.length : "") : "idle";
         t.querySelector(".ft").textContent = "";
         t.title = (cw.r ? cw.r + " · " : "") + "open Team";
         continue;
@@ -496,9 +496,9 @@
       t.querySelector(".sy").textContent = w.say || (ev ? `${ago(ev.t)} · ${ev.m}` : "…");
       t.className = "tile " + (wk ? "work" : "") + (w.hold ? " hold" : "");
       t.style.order = w.hold ? 2 : wk ? 0 : 1;
-      t.querySelector(".stt").textContent = w.hold ? "paused" : wk ? "work" + (cn > 1 ? " ×" + cn : "") : w.st === "sleep" ? "sleep" : "idle";
+      t.querySelector(".stt").textContent = w.hold ? "paused" : wk ? "working" + (cn > 1 ? " ×" + cn : "") : w.st === "sleep" ? "asleep" : "idle";
       t.querySelector(".ft").textContent = w.tk ? kt(w.tk) + " tok" : "";
-      t.title = (TD[n] ? TD[n] + " · " : "") + (w.hold ? "click to resume" : "click to pause");
+      t.title = (TD[n] ? TD[n] + " · built-in bug-fix team, works on the machines without a desk · " : "") + (w.hold ? "click to resume" : "click to pause");
     }
   };
 
@@ -540,7 +540,7 @@
   };
 
   const RQN = { queued: "Queued", run: "Running", wait: "Waiting for you" };
-  const rrow = (r) => { const w = (S.crew || []).find((x) => x.id === r.w); return `<div class="row jr${r.st === "wait" ? " apr" : ""}"><div class="ti"><a class="a" href="#" data-run="${r.id}">${esc(r.st === "wait" && r.ask ? r.ask : r.n || r.flow)}</a><div class="w"><span class="stt rs-${esc(r.blk ? "fail" : r.st)}">${esc(r.blk ? "Needs a desk" : RQN[r.st] || r.st)}</span><span>${esc(r.blk ? r.blk : r.st === "wait" && r.ask ? r.n || r.flow : w ? (r.nt === "check" ? w.n + " checks" : w.n + " works") : "Pipeline")}</span><span>${r.more ? `run ${r.id} and ${r.more} more` : `run ${r.id}`}</span></div></div><span class="rp">${r.st === "wait" ? `<button class="go" data-ry="${r.id}">Yes</button><button data-rn="${r.id}">No</button>` : r.blk ? `<button data-desk="1">Edit office</button>` : ""}</span></div>`; };
+  const rrow = (r) => { const w = (S.crew || []).find((x) => x.id === r.w); return `<div class="row jr${r.st === "wait" ? " apr" : ""}"><div class="ti"><a class="a" href="#" data-run="${r.id}">${esc(r.st === "wait" && r.ask ? r.ask : r.n || r.flow)}</a><div class="w"><span class="stt rs-${esc(r.blk ? "fail" : r.st)}">${esc(r.blk ? "Needs a desk" : RQN[r.st] || r.st)}</span><span>${esc(r.blk ? r.blk : r.st === "wait" && r.ask ? r.n || r.flow : w ? (r.nt === "check" ? w.n + " checks" : w.n + " works") : "Pipeline")}</span><span>${r.more ? `run ${r.id} and ${r.more} more` : `run ${r.id}`}${r.t0 ? ` · ${ago(r.t0)}` : ""}</span></div></div><span class="rp">${r.st === "wait" ? `<button data-run="${r.id}" title="See what the run did before you answer">Review</button><button class="go" data-ry="${r.id}">Yes</button><button data-rn="${r.id}">No</button>` : r.blk ? `<button data-desk="1">Edit office</button>` : ""}</span></div>`; };
   const lists = () => {
     const q = S.q, rx = S.rn || [];
     $("qn").textContent = [q.length ? q.length + (q.length === 1 ? " job" : " jobs") : "", rx.length ? rx.length + (rx.length === 1 ? " run" : " runs") : ""].filter(Boolean).join(" · ");

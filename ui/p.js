@@ -552,6 +552,8 @@
   };
   A.health = health;
 
+  const JSN = { vet: "Being checked", ready: "Ready to start", hunt: "Hunting for bugs", repro: "Reproducing the bug", fix: "Fixing", ci: "Running the tests", review: "Being reviewed", gate: "Final check", approve: "Waiting for your approval", submit: "Opening the pull request", done: "Done", drop: "Dropped", park: "Parked" };
+  const JNX = { vet: "Vet decides if this is one clear bug.", ready: "Starts when a machine lane is free.", repro: "Next: a fix for the failing test.", fix: "Next: the project's tests.", ci: "Next: a review of the change.", review: "Next: the final check.", gate: "Next: your approval or the pull request.", approve: "Look at the diff below, then submit or drop it.", submit: "The pull request opens on GitHub.", park: "Paused, it waits until you requeue it." };
   const job = async (id) => {
     const j = await get("/api/job?id=" + id);
     if (j.error) return;
@@ -565,7 +567,7 @@
       <div class="sec"><h4>Pull request</h4><input type="text" id="pt" value="${esc(j.pt || j.title)}"><textarea id="pb" style="min-height:220px;margin-top:8px">${esc(j.pb || "")}</textarea></div>
       ${j.proof ? `<div class="sec"><h4>Proof</h4><pre class="df">${esc((j.proof.a || "") + "\n\n" + (j.proof.b || ""))}</pre></div>` : ""}
       <div class="sec"><h4>Diff</h4>${dview(j.df)}</div>
-      <div class="acts"><button class="pri" id="ba">Submit pull request</button><button class="dng" id="bd">Drop</button></div><div class="msg" id="jm"></div>
+      <div class="acts"><button class="pri" id="ba">Submit pull request</button><button class="dng" id="bd" title="Do not open this pull request and take the job out of the queue">Drop</button></div><div class="msg" id="jm"></div>
       <div class="sec"><h4>Log</h4><div class="log">${ev}</div></div>`;
       $("ba").onclick = async () => {
         busy($("ba"), true, "Submitting…");
@@ -579,10 +581,10 @@
       };
       return;
     }
-    B.innerHTML = `<div class="sec"><div class="box"><div class="hd2"><b>${esc(j.title)}</b><span class="pill">${esc(j.st)}</span></div><div class="msg">${esc(j.repo)} ${esc(tag)} · ${esc(j.kind)}${j.h ? " · " + esc(j.h) : ""}\n${esc(j.why || "")}</div>${cs}
-      <div class="acts">${j.url ? `<button data-u="${esc(j.url)}">Open on GitHub</button>` : ""}${!["done", "drop"].includes(j.st) ? `<button class="dng" data-d="${id}">Drop</button>` : ""}${j.st === "drop" && j.kind === "fix" ? `<button data-rq="${id}">Try again</button>` : ""}</div></div></div>
+    B.innerHTML = `<div class="sec"><div class="box"><div class="hd2"><b>${esc(j.title)}</b></div><div class="jst"><span class="stt st-${esc(j.st)}">${esc(JSN[j.st] || j.st)}</span><span class="mut">${esc(JNX[j.st] || "")}</span></div><div class="msg">${esc(j.repo)} ${esc(tag)} · ${esc(j.kind)}${j.h ? " · on " + esc(j.h) : ""}${j.why ? "\n" + esc(j.why) : ""}</div>${cs}
+      <div class="acts">${j.url ? `<button data-u="${esc(j.url)}">Open on GitHub</button>` : ""}${!["done", "drop"].includes(j.st) ? `<button class="dng" data-d="${id}" title="Stop working on this job and take it out of the queue">Drop job</button>` : ""}${j.st === "drop" && j.kind === "fix" ? `<button data-rq="${id}">Try again</button>` : ""}</div></div></div>
       ${j.df ? `<div class="sec"><h4>Diff</h4>${dview(j.df)}</div>` : ""}
-      <div class="sec"><h4>Log</h4><div class="log">${ev || `<div class="empty">nothing yet</div>`}</div></div>`;
+      <details class="sec jlog"><summary>Full log</summary><div class="log">${ev || `<div class="empty">nothing yet</div>`}</div></details>`;
   };
   A.job = job;
 

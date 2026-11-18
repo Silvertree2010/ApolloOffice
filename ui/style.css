@@ -1207,3 +1207,13 @@ button.pri:disabled, button.go:disabled { background: transparent; border-color:
 .ak .acts { margin: 0; }
 .wfy { color: inherit; text-decoration: underline; text-decoration-color: var(--l); text-underline-offset: .25em; }
 .wfy:hover { text-decoration-color: var(--t1); }
+.tile.work .stt, [data-ty=pixel] .tile.work .stt { color: var(--t1); background: none; padding: 0; font-weight: 500; }
+.tiles { overflow: hidden !important; scrollbar-width: none; }
+.tiles::-webkit-scrollbar { display: none; }
+.jst { display: flex; flex-direction: column; gap: 4px; margin: 10px 0 0; }
+.jst .stt { font-size: var(--fs3); color: var(--t1); }
+.jlog summary { cursor: pointer; font: 600 var(--fs2)/1.2 var(--hf); margin: 0 0 10px; list-style: none; }
+.jlog summary::before { content: "▸ "; color: var(--t2); }
+.jlog[open] summary::before { content: "▾ "; }
+.row.jr.apr, .row.jr.apr:has(input.bk) { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }
+.row.jr.apr .rp { justify-content: flex-start; }

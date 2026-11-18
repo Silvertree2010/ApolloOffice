@@ -311,6 +311,14 @@ async fn exec(a: Ax, id: i64) {
     }
     let need: Vec<String> = d["flow"]["nodes"].as_array().map(|ns| ns.iter().filter(|n| n["t"] == "worker" || n["t"] == "check").filter_map(|n| n["c"]["w"].as_str().map(String::from)).collect()).unwrap_or_default();
     if d["steps"].as_array().is_none_or(|s| s.is_empty()) {
+        let known = |w: &str| d["crew"].as_array().is_some_and(|c| c.iter().any(|x| x["id"] == w));
+        let empty = d["flow"]["nodes"].as_array().is_some_and(|ns| ns.iter().any(|n| (n["t"] == "worker" || n["t"] == "check") && n["c"]["w"].as_str().is_none_or(|w| !known(w))));
+        if empty {
+            d["err"] = json!("A step has nobody assigned. Pick who does it in the pipeline editor.");
+            store(&a, id, "fail", &d);
+            a.say("pipe", &format!("{} stopped: a step has nobody assigned (run {id})", d["flow"]["n"].as_str().unwrap_or("")), None);
+            return;
+        }
         if let Some(w) = need.iter().find(|w| !seated(&a, w)) {
             let wn = d["crew"].as_array().and_then(|c| c.iter().find(|x| x["id"] == w.as_str()).and_then(|x| x["n"].as_str().map(String::from))).unwrap_or_else(|| "A worker".into());
             let msg = format!("{wn} needs a desk with a chair. Place them in Edit office.");

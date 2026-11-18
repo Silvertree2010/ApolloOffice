@@ -148,6 +148,24 @@ pub fn put(a: &Ax, b: &Value) -> Value {
         a.db.ks("flows", &json!(v));
         crate::eng::hook_prune(a);
     }
+    if b["crew"].is_array() || b["flows"].is_array() {
+        let ids: std::collections::HashSet<String> = a.db.kg("crew").as_array().map(|c| c.iter().filter_map(|w| w["id"].as_str().map(String::from)).collect()).unwrap_or_default();
+        let mut fl = a.db.kg("flows");
+        let mut ch = false;
+        for f in fl.as_array_mut().into_iter().flatten() {
+            for n in f["nodes"].as_array_mut().into_iter().flatten() {
+                if n["c"]["w"].as_str().is_some_and(|w| !ids.contains(w)) {
+                    if let Some(c) = n["c"].as_object_mut() {
+                        c.remove("w");
+                        ch = true;
+                    }
+                }
+            }
+        }
+        if ch {
+            a.db.ks("flows", &fl);
+        }
+    }
     get(a)
 }
 
