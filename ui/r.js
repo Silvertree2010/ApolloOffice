@@ -15,6 +15,7 @@
     try {
       const n = (location.hash.match(/^#\/([a-z]+)/) || [])[1] || "office", r = T[n] ? n : "office";
       await leave(r);
+      if (!$("dr").hidden) $("drX").click();
       const pg = r !== "office" && r !== "pipelines";
       B.classList.toggle("vof", r === "office");
       B.classList.toggle("pgm", pg);
