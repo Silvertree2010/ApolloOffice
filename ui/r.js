@@ -45,7 +45,7 @@
   let K = null, ki = 0, kl = [];
   const cmds = () => [
     ...Object.entries(T).filter(([k]) => k !== "health").map(([k, t]) => ({ t, d: "Go to page", run: () => A.go(k) })),
-    { t: B.classList.contains("led") ? "Close layout editor" : "Edit layout", d: "Office", run: () => { A.go("office"); setTimeout(() => $("bLay").click(), 80); } },
+    { t: B.classList.contains("led") ? "Close window arranging" : "Arrange windows", d: "Office", run: () => { A.go("office"); setTimeout(() => $("bLay").click(), 80); } },
     { t: B.classList.contains("ed") ? "Close office editor" : "Edit office", d: "Office", run: () => { A.go("office"); setTimeout(() => $("bCz").click(), 80); } },
     { t: A.S?.o?.man ? "Resume office" : "Pause office", d: "Action", run: () => $("bPause").click() },
     { t: "Switch light or dark", d: "Action", run: () => $("bTh").click() },

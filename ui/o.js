@@ -29,6 +29,7 @@
     watcher: { body: "#4fb3e0", dark: "#2f86b0", light: "#8fd2f0" },
     pipe: { body: "#9c7ae0", dark: "#7a58c0", light: "#c4b0f0" },
   };
+  const TD = { scout: "Finds new issues worth fixing", guard: "Blocks hidden instructions in issues", vet: "Checks an issue is one clear bug", watcher: "Keeps open pull requests up to date", hunter: "Looks for bugs in the code itself", repro: "Writes a test that shows the bug", fixer: "Fixes the bug", ci: "Runs the repository's tests", reviewer: "Reviews the fix", submit: "Opens the pull request" };
   const NM = { pipe: "Pipelines", hunter: "Hunter", scout: "Scout", guard: "Guard", vet: "Vet", repro: "Repro", fixer: "Fixer", ci: "CI", reviewer: "Reviewer", submit: "Submit", watcher: "Watcher" };
   window.AO.NM = NM;
   const ORD = ["scout", "guard", "vet", "watcher", "hunter", "repro", "fixer", "ci", "reviewer", "submit"];
@@ -478,7 +479,7 @@
       t.style.order = w.hold ? 2 : wk ? 0 : 1;
       t.querySelector(".stt").textContent = w.hold ? "paused" : wk ? "work" + (cn > 1 ? " ×" + cn : "") : w.st === "sleep" ? "sleep" : "idle";
       t.querySelector(".ft").textContent = w.tk ? kt(w.tk) + " tok" : "";
-      t.title = w.hold ? "click to resume" : "click to pause";
+      t.title = (TD[n] ? TD[n] + " · " : "") + (w.hold ? "click to resume" : "click to pause");
     }
   };
 

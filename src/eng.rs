@@ -352,6 +352,16 @@ async fn exec(a: Ax, id: i64) {
                 q.push_front(nid.clone());
                 d["q"] = json!(q.iter().collect::<Vec<_>>());
                 let msg = format!("{wn} needs a desk with a chair. Place them in Edit office.");
+                let bt = d["blkt"].as_i64().unwrap_or_else(now);
+                if now() - bt > 24 * 3_600_000 {
+                    d["err"] = json!(format!("{wn} waited 24 hours for a desk with a chair."));
+                    d["q"] = json!(Vec::<String>::new());
+                    d["blk"] = Value::Null;
+                    store(&a, id, "fail", &d);
+                    a.say("pipe", &format!("{} stopped: {wn} had no desk for 24 hours (run {id})", d["flow"]["n"].as_str().unwrap_or("")), None);
+                    return;
+                }
+                d["blkt"] = json!(bt);
                 if d["blk"] != msg {
                     a.say("pipe", &format!("{}: {msg} (run {id})", d["flow"]["n"].as_str().unwrap_or("")), None);
                 }
@@ -363,6 +373,7 @@ async fn exec(a: Ax, id: i64) {
             "worker" | "check" => {
                 d["blk"] = Value::Null;
                 d["blkw"] = Value::Null;
+                d["blkt"] = Value::Null;
                 let wn = d["crew"].as_array().and_then(|c| c.iter().find(|x| x["id"] == n["c"]["w"]).and_then(|x| x["n"].as_str().map(String::from))).unwrap_or_default();
                 let wk = key(n["c"]["w"].as_str().unwrap_or(""));
                 let fname = d["flow"]["n"].as_str().unwrap_or("").to_string();
