@@ -263,6 +263,12 @@
     const r = cv.getBoundingClientRect(), sr = $("stage").getBoundingClientRect(), k = r.width / VW, f = FC[u.i];
     fab.hidden = false;
     const x = r.left - sr.left + (u.x * 8 + f.w * 4) * k, yt = r.top - sr.top + (GO + u.y * 8 - 6) * k - 6;
+    if (u.i === "desk") {
+      const xr = r.left - sr.left + (u.x * 8 + f.w * 8) * k + 10 + fab.offsetWidth / 2;
+      fab.style.left = Math.round(Math.min(sr.width - fab.offsetWidth / 2 - 6, xr)) + "px";
+      fab.style.top = Math.round(r.top - sr.top + (GO + u.y * 8 + f.h * 4) * k - fab.offsetHeight / 2) + "px";
+      return;
+    }
     fab.style.left = Math.round(Math.min(sr.width - fab.offsetWidth / 2 - 6, Math.max(fab.offsetWidth / 2 + 6, x))) + "px";
     const yb = r.top - sr.top + (GO + (u.y + f.h) * 8) * k + 8;
     fab.style.top = Math.round(yb + fab.offsetHeight > sr.height - 8 ? yt - fab.offsetHeight : yb) + "px";

@@ -1228,3 +1228,10 @@ button.pri:disabled, button.go:disabled { background: transparent; border-color:
 .ext { color: var(--t2); font-weight: 400; }
 [data-ty=dense] .tile:not(.work):not(.nodesk) { min-width: 64px; }
 .tile.nodesk .sy { display: none; }
+.tb2:not(.ro) tbody tr td:last-child { position: relative; padding-right: 30px; }
+.tb2:not(.ro) tbody tr td:last-child::after { content: "›"; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--t2); font-size: 16px; transition: transform .12s ease-out, color .12s ease-out; }
+.tb2:not(.ro) tbody tr:hover td:last-child::after { color: var(--t1); transform: translate(2px, -50%); }
+.st-drop::before { background: var(--t2); }
+.tiles { mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+.hint.warnl { color: var(--t1); padding: 8px 10px; border-radius: var(--ri); background: color-mix(in oklch, var(--bad) 8%, var(--f)); border: 1px solid color-mix(in oklch, var(--bad) 35%, transparent); }
+.hint.warnl .lnk { font-size: inherit; }

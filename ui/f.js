@@ -27,7 +27,7 @@
     "t.hook": { g: "t", ic: "hook", n: "When another app calls", o: ["out"] },
     worker: { g: "w", ic: "person", n: "Do something", i: 1, o: ["out"], f: [["w", "Who does it", "crew"], ["task", "What should they do", "area", "e.g. Write release notes from the merged pull requests"], ["h", "Where does it run", "host"]] },
     check: { g: "c", ic: "check", n: "Check the work", i: 1, o: ["ok", "back"], f: [["w", "Who checks", "crew"], ["task", "What should they look for", "area", "e.g. Is it correct, complete and easy to read?"], ["h", "Where does it run", "host"]] },
-    approve: { g: "x", ic: "hand", n: "Ask me first", i: 1, o: ["yes", "no"], f: [["ask", "Question", "text", "e.g. Shall I post this?"]] },
+    approve: { g: "x", ic: "hand", n: "Ask me first", i: 1, o: ["yes", "no"], f: [["ask", "Question (say what Yes does)", "text", "e.g. Post these release notes on GitHub?"]] },
     end: { g: "x", ic: "flag", n: "Done", i: 1, o: [] },
     branch: { g: "l", ic: "fork", n: "Choose a way", i: 1, o: (c) => [...String(c.cases || "yes,no").split(",").map((x) => x.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "")).filter(Boolean).slice(0, 6), "else"], f: [["field", "Decide by", "text", "e.g. kind"], ["cases", "Ways", "text", "e.g. bug,feature"]] },
     parallel: { g: "l", ic: "par", n: "Do at the same time", i: 1, o: ["out"] },
@@ -89,7 +89,7 @@
     const f = fl(), C = $("fC");
     if (!f || !f.nodes.length) { view = { x: 0, y: 0, k: 1 }; tf(); return lines(); }
     const xs = f.nodes.map((n) => n.x), ys = f.nodes.map((n) => n.y), x0 = Math.min(...xs) - 60, y0 = Math.min(...ys) - 60, x1 = Math.max(...xs) + W + 120, y1 = Math.max(...ys) + H + 120;
-    const k = Math.min(1.1, Math.max(0.85, Math.min(C.clientWidth / (x1 - x0), C.clientHeight / (y1 - y0))));
+    const k = Math.min(1.1, Math.max(0.7, Math.min(C.clientWidth / (x1 - x0), C.clientHeight / (y1 - y0))));
     const wx = (x1 - x0) * k, wy = (y1 - y0) * k;
     view = { k, x: wx > C.clientWidth ? 20 - x0 * k : (C.clientWidth - wx) / 2 - x0 * k, y: wy > C.clientHeight ? 20 - y0 * k : (C.clientHeight - wy) / 2 - y0 * k };
     tf(); lines();
@@ -226,7 +226,7 @@
 
   const field = (n, [k, l, ty, ph]) => {
     const v = n.c[k] ?? "";
-    if (ty === "crew") return `<label>${l}</label><div class="pk">${D.crew.map((w) => `<button type="button" class="pkb ${w.id === v ? "on" : ""}" data-pick="${w.id}">${esc(w.n)}${w.r && w.r !== w.n ? `<small>${esc(w.r)}</small>` : ""}</button>`).join("")}<button type="button" class="pkb add" data-newfor="${n.id}">${ic("plus")}Hire someone new</button></div>`;
+    if (ty === "crew") return `<label>${l}</label><div class="pk">${D.crew.map((w) => `<button type="button" class="pkb ${w.id === v ? "on" : ""}" data-pick="${w.id}">${esc(w.n)}${w.r && w.r !== w.n ? `<small>${esc(w.r)}</small>` : ""}</button>`).join("")}<button type="button" class="pkb add" data-newfor="${n.id}">${ic("plus")}Hire someone new</button></div>${v && A.unseated && A.unseated([v]).length ? `<div class="hint warnl">${esc((who(v) || {}).n || "This worker")} has no desk with a chair yet, so this step will wait. <button type="button" class="lnk" data-deskgo>Edit office</button></div>` : ""}`;
     if (ty === "host") { const hs = (cfg?.hosts || []).filter((h) => h.on_); return `<label>${l}</label><div class="pk"><button type="button" class="pkb ${!v ? "on" : ""}" data-host="">Any free machine</button>${hs.map((h) => `<button type="button" class="pkb ${h.id === v ? "on" : ""}" data-host="${esc(h.id)}">${esc(h.id)}<small>${up(h.id) ? "online" : "offline"}</small></button>`).join("")}</div>`; }
     if (ty === "cron") return `<label>${l}</label><div class="pk">${CR.map(([c, t]) => `<button type="button" class="pkb ${c === v ? "on" : ""}" data-cron="${c}">${t}</button>`).join("")}</div>`;
     if (ty === "repo") return `<label>${l}</label><select data-k="${k}"><option value="">Any repository</option>${(cfg?.repos || []).map((r) => `<option ${r.full === v ? "selected" : ""}>${esc(r.full)}</option>`).join("")}</select>`;
@@ -236,7 +236,7 @@
   const GN = [["team", "Bug-fix team"], ["check", "Checks"], ["code", "Code"], ["text", "Writing"], ["data", "Data and research"], ["ops", "Operations"], ["lead", "Planning"]];
   let custom = false, q = "";
   const hireForm = () => {
-    const rs = (D.roles || []).filter((r) => !q || (r.n + " " + r.d).toLowerCase().includes(q.toLowerCase()));
+    const rs = (D.roles || []).filter((r) => !q || (r.n + " " + r.d + " " + (r.p || "")).toLowerCase().includes(q.toLowerCase()));
     return `<div class="fsec fi"><h5><span>Hire someone</span><button type="button" class="ic" id="fHx" aria-label="Cancel">${ic("x")}</button></h5>
     ${custom ? `<form id="fHf" class="ff"><label>Name</label><input type="text" name="n" maxlength="40" required placeholder="e.g. Ada">
       <label>What is their job?</label><textarea name="p" rows="5" maxlength="8000" placeholder="e.g. You write short, friendly release notes."></textarea>
@@ -294,10 +294,11 @@
     } else if (esel != null) {
       mid = `<div class="fsec fi"><h5><span>Line</span></h5><div class="ac"><span class="sp"></span><button type="button" class="dng" id="fEdel">Remove line</button></div></div>`;
     }
-    if (hireFor !== null) tab = "team";
+    if (hireFor === "") tab = "team";
+    else if (hireFor !== null) tab = "set";
     else if (n || esel != null) tab = "set";
     const hs = (cfg?.hosts || []).filter((h) => h.on_), upn = hs.filter((h) => up(h.id)).length;
-    const team = hireFor !== null ? mid : `<div class="fsec">${D.crew.length ? `<div class="fcl">${D.crew.map((w) => `<div class="cw"><span class="mic" style="--g:${GR.w}">${ic("person")}</span><b>${esc(w.n)}</b><span>${esc(w.r && w.r !== w.n ? w.r : "")}</span><button type="button" class="dng" data-fire="${w.id}">Remove</button></div>`).join("")}</div>` : `<p class="hint">Nobody here yet. Steps need someone who does the work.</p>`}<button type="button" id="fHire">${ic("plus")}Hire someone</button></div>`;
+    const team = hireFor === "" ? mid : `<div class="fsec">${D.crew.length ? `<div class="fcl">${D.crew.map((w) => `<div class="cw"><span class="mic" style="--g:${GR.w}">${ic("person")}</span><b>${esc(w.n)}</b><span>${esc(w.r && w.r !== w.n ? w.r : "")}</span><button type="button" class="dng" data-fire="${w.id}">Remove</button></div>`).join("")}</div>` : `<p class="hint">Nobody here yet. Steps need someone who does the work.</p>`}<button type="button" id="fHire">${ic("plus")}Hire someone</button></div>`;
     const set = f ? (mid || `<div class="fsec"><p class="hint">Click a step to change it. A + on a free dot adds the next step, dragging from a dot connects two steps.</p></div>`) + `<div class="fsec fbot">${(() => { const used = new Set(D.flows.filter((x) => x.on || x.id === cur).flatMap((x) => x.nodes.map((m) => m.c?.w).filter(Boolean))), st = D.crew.filter((w) => used.has(w.id)).length, dk = A.places ? A.places().length : 0, hasF = !!fl()?.on; return st ? `<div class="fmh"><span><i class="dot2 ${dk >= st ? "up" : "dn"}"></i>${dk >= st ? `${st} of ${st} workers have a desk and chair` : `${st - dk} of ${st} workers need a desk and chair`}${hasF ? "" : " (counting this pipeline)"}</span><button type="button" class="lnk" id="fDesk">Edit office</button></div>` : ""; })()}<div class="fmh"><span><i class="dot2 ${upn ? "up" : "dn"}"></i>${upn} of ${hs.length} machines online</span><button type="button" class="lnk" id="fMgr">Manage</button></div><div class="ac"><button type="button" id="fUndo" ${hist.length ? "" : "disabled"}>Undo</button><span class="sp"></span><button type="button" class="dng" id="fRm">Delete pipeline</button></div></div>` : "";
     $("fB").innerHTML = `<select id="fSel" aria-label="Pipeline">${D.flows.map((x) => `<option value="${x.id}" ${x.id === cur ? "selected" : ""}>${esc(x.n)}</option>`).join("")}</select><button type="button" id="fNew">${ic("plus")}New</button>
       ${f ? `${ren ? `<input type="text" id="fName" value="${esc(f.n)}" maxlength="60" aria-label="Pipeline name">` : `<button type="button" id="fRen" title="Rename this pipeline">Rename</button>`}<span class="sp"></span><button type="button" class="sw ${f.on ? "on" : ""}" id="fOn" role="switch" aria-checked="${f.on}" title="Active: schedules, GitHub and webhooks start this pipeline by themselves, and its workers take a desk. Run now works either way."><i></i>${f.on ? "Active" : "Inactive"}</button><button type="button" class="go fRun" id="fRun" ${f.nodes.some((n) => n.t.startsWith("t.")) ? "" : "disabled"}>${ic("play")}Run now</button>` : ""}`;
@@ -367,6 +368,7 @@
     for (const b of $("fS").querySelectorAll("[data-pick]")) b.onclick = () => { snap(); n.c.w = b.dataset.pick; save(); paint(); side(); };
     for (const b of $("fS").querySelectorAll("[data-host]")) b.onclick = () => { snap(); if (b.dataset.host) n.c.h = b.dataset.host; else delete n.c.h; save(); paint(); side(); };
     on("fMgr", "onclick", () => A.go && A.go("machines"));
+    for (const b of $("fS").querySelectorAll("[data-deskgo]")) b.onclick = () => { A.go && A.go("office"); setTimeout(() => $("bCz").click(), 250); };
     on("fDesk", "onclick", () => { A.go && A.go("office"); setTimeout(() => $("bCz").click(), 200); });
     for (const b of $("fS").querySelectorAll("[data-ft]")) b.onclick = () => { tab = b.dataset.ft; sel = null; esel = null; hireFor = null; custom = false; hideMenu(); side(); paint(); };
     for (const b of $("fS").querySelectorAll("[data-cron]")) b.onclick = () => { snap(); n.c.cron = b.dataset.cron; save(); paint(); side(); };

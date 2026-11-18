@@ -339,7 +339,10 @@ async fn exec(a: Ax, id: i64) {
                 return;
             }
             if d["blk"] != msg {
-                a.say("pipe", &format!("{}: {msg} The run starts once everyone has a place. (run {id})", d["flow"]["n"].as_str().unwrap_or("")), None);
+                let fname = d["flow"]["n"].as_str().unwrap_or("").to_string();
+                a.say("pipe", &format!("{fname}: {msg} The run starts once everyone has a place. (run {id})"), None);
+                let (a2, m2) = (a.clone(), format!("{fname} (run {id}) waits: {msg}"));
+                tokio::spawn(async move { crate::ntf::send(&a2, "A pipeline waits for a desk", &m2, 3).await });
             }
             d["blk"] = json!(msg);
             d["blkw"] = json!(w);
@@ -394,7 +397,10 @@ async fn exec(a: Ax, id: i64) {
                 }
                 d["blkt"] = json!(bt);
                 if d["blk"] != msg {
-                    a.say("pipe", &format!("{}: {msg} (run {id})", d["flow"]["n"].as_str().unwrap_or("")), None);
+                    let fname = d["flow"]["n"].as_str().unwrap_or("").to_string();
+                    a.say("pipe", &format!("{fname}: {msg} (run {id})"), None);
+                    let (a2, m2) = (a.clone(), format!("{fname} (run {id}) waits: {msg}"));
+                    tokio::spawn(async move { crate::ntf::send(&a2, "A pipeline waits for a desk", &m2, 3).await });
                 }
                 d["blk"] = json!(msg);
                 d["blkw"] = n["c"]["w"].clone();
