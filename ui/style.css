@@ -1235,3 +1235,8 @@ button.pri:disabled, button.go:disabled { background: transparent; border-color:
 .tiles { mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
 .hint.warnl { color: var(--t1); padding: 8px 10px; border-radius: var(--ri); background: color-mix(in oklch, var(--bad) 8%, var(--f)); border: 1px solid color-mix(in oklch, var(--bad) 35%, transparent); }
 .hint.warnl .lnk { font-size: inherit; }
+.tile.nodesk:not(.work) .stt { display: block !important; color: var(--bad); }
+.ohint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 4; width: min(520px, calc(100% - 24px)); display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: var(--f2); border: 1px solid var(--l); border-radius: var(--rc); box-shadow: var(--hl); font-size: var(--fs3); }
+.ohint b { font: 600 var(--fs2)/1.2 var(--hf); }
+.ohint span { color: var(--t2); line-height: 1.45; }
+.ohint button { align-self: flex-end; height: var(--chs); padding: 0 12px; font-size: var(--fs4); }
