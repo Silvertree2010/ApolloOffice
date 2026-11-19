@@ -1268,3 +1268,6 @@ button.pri:disabled, button.go:disabled { background: transparent; border-color:
 .flg i.bk { border-top: 2px dashed var(--bad); }
 .fblk { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 3; display: flex; align-items: center; gap: 12px; max-width: calc(100% - 24px); padding: 6px 6px 6px 14px; font-size: var(--fs3); background: var(--f2); border: 1px solid color-mix(in oklch, var(--bad) 45%, transparent); border-radius: var(--ri); }
 .fblk button { height: var(--chs); padding: 0 10px; font-size: var(--fs4); flex: none; }
+.ohint .acts { display: flex; gap: 8px; justify-content: flex-end; margin: 0; }
+.ohint .acts button { align-self: auto; }
+.tiles { flex-wrap: wrap !important; max-height: none !important; overflow: visible !important; mask-image: none; row-gap: 6px; }

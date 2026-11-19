@@ -126,7 +126,7 @@
       if (!h) return;
       px(X + 6, Y - 20, 4, 3, down ? (Math.floor(t * 2) % 2 ? "#e0675a" : "#4a1f1b") : ci ? (Math.floor(t * 2) % 2 ? "#4fb3e0" : "#2f86b0") : busy ? "#d97757" : "#3d4045");
       if (jbs.length > 1) tx(String(jbs.length), X + 12, Y - 22, "#b9bcc2");
-      tx(hh[1], X + 8 - (K.textWidth(hh[1]) >> 1), Y + 17, down ? "#e0675a" : busy ? "#b9bcc2" : "#4a4d54");
+      tx(hh[1], X + 8 - (K.textWidth(hh[1]) >> 1), Y + 17, down ? "#e0675a" : busy ? (lt() ? "#15171b" : "#d4d6da") : lt() ? "#4a4e56" : "#7d828a");
     } },
     board: { n: "Board", w: 8, h: 2, d: (X, Y, t) => {
       px(X, Y - 8, 64, 22, "#0a0b0d"); px(X, Y - 8, 64, 1, "#24272d");
@@ -598,7 +598,7 @@
   const ohint = () => {
     let h = $("ohint"); let seen = "1"; try { seen = localStorage.getItem("ao.oh") || ""; } catch {}
     if (seen || document.body.classList.contains("ed") || !(S?.crew || []).length) { if (h) h.hidden = true; return; }
-    if (!h) { h = document.createElement("div"); h.id = "ohint"; h.className = "ohint"; h.innerHTML = `<b>How the office works</b><span>Every worker needs a desk with a chair to work; without a free one they wait. For more desks, open Edit office, pick Workplace (a desk with a chair) and click a free spot. The server racks are your machines, where tests run.</span><button type="button">Got it</button>`; $("stage").appendChild(h); h.querySelector("button").onclick = () => { try { localStorage.setItem("ao.oh", "1"); } catch {} h.hidden = true; }; }
+    if (!h) { h = document.createElement("div"); h.id = "ohint"; h.className = "ohint"; h.innerHTML = `<b>How the office works</b><span>Every worker needs a desk with a chair to work; without a free one they wait. For more desks, open Edit office (top right), pick Workplace and click a free spot. The server racks are your machines, where tests run.</span><div class="acts"><button type="button" data-oe>Open Edit office</button><button type="button" data-ok>Got it</button></div>`; $("stage").appendChild(h); h.querySelector("[data-ok]").onclick = () => { try { localStorage.setItem("ao.oh", "1"); } catch {} h.hidden = true; }; h.querySelector("[data-oe]").onclick = () => { try { localStorage.setItem("ao.oh", "1"); } catch {} h.hidden = true; $("bCz").click(); }; }
     h.hidden = false;
   };
   const deskbar = () => {
@@ -665,7 +665,7 @@
   const sel = new Set();
   const QN = { vet: "Checking", ready: "Ready", hunt: "Hunting", repro: "Reproducing", fix: "Fixing", ci: "Testing", review: "Reviewing", gate: "Final check", approve: "Waiting for you", submit: "Submitting", done: "Done", drop: "Dropped", park: "Parked" };
   const KN = { hunt: "Hunt", rebase: "Rebase", review: "Review changes", feat: "Feature" };
-  const jrow = (j, x) => `<div class="row jr${j.st === "approve" ? " apr" : ""}">${j.st === "approve" && x ? `<input type="checkbox" class="bk" data-k="${j.id}" ${sel.has(j.id) ? "checked" : ""} aria-label="select">` : ""}<div class="ti"><a class="a" href="#" data-j="${j.id}">${esc(j.title)}</a><div class="w"><span class="stt st-${esc(j.st)}">${esc((j.kind !== "fix" ? (KN[j.kind] || j.kind) + " · " : "") + (QN[j.st] || j.st))}</span><span>${esc(rn(j))}</span>${(j.st === "ci" && S.cil[j.id]) || j.why ? `<span class="wy">${esc(j.st === "ci" && S.cil[j.id] ? S.cil[j.id] : j.why)}</span>` : ""}</div></div><span class="rp">${j.st === "approve" ? `<button class="go" data-j="${j.id}">Review</button>` : ""}${x && j.st !== "approve" ? `<button class="x" data-d="${j.id}" title="Drop" aria-label="Drop"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : ""}${!x && j.st === "drop" && j.kind === "fix" ? `<button class="x" data-rq="${j.id}" title="Try again" aria-label="Try again"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6M4 4v4.6h4.6"/></svg></button>` : ""}</span></div>`;
+  const jrow = (j, x) => `<div class="row jr${j.st === "approve" ? " apr" : ""}">${j.st === "approve" && x ? `<input type="checkbox" class="bk" data-k="${j.id}" ${sel.has(j.id) ? "checked" : ""} aria-label="select">` : ""}<div class="ti"><a class="a" href="#" data-j="${j.id}">${esc(j.title)}</a><div class="w"><span class="stt st-${esc(j.st)}">${esc((j.kind !== "fix" ? (KN[j.kind] || j.kind) + " · " : "") + (QN[j.st] || j.st))}</span><span>${esc(rn(j))}</span>${(j.st === "ci" && S.cil[j.id]) || j.why ? `<span class="wy">${esc(j.st === "ci" && S.cil[j.id] ? S.cil[j.id] : j.why)}</span>` : ""}</div></div><span class="rp">${j.st === "approve" ? `<button class="go" data-j="${j.id}">Review</button>` : ""}${x && j.st !== "approve" ? `<button class="x" data-d="${j.id}" title="Drop this job (you can undo it)" aria-label="Drop this job"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : ""}${!x && j.st === "drop" && j.kind === "fix" ? `<button class="x" data-rq="${j.id}" title="Try again" aria-label="Try again"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6M4 4v4.6h4.6"/></svg></button>` : ""}</span></div>`;
 
   let lW = "", lQ = "", lWrap = false, lastLog = "";
   try { lWrap = localStorage.getItem("ao.lw") === "1"; } catch {}
@@ -818,7 +818,8 @@
     el.hidden = false;
     el.className = "chip hc" + (bad.length ? " bad" : "");
     el.innerHTML = HK.map(([k, l]) => `<i class="${H[k]?.ok ? "" : "no"}" title="${l}"></i>`).join("") + (bad.length ? " " + bad.map(([, l]) => l).join(", ") : "");
-    el.title = bad.length ? "problems: " + bad.map(([, l]) => l).join(", ") : "everything ok";
+    el.title = bad.length ? "Health: problem with " + bad.map(([, l]) => l).join(", ") + ". Click for details." : "Health: GitHub, AI, Docker and machines are all fine. Click for details.";
+    el.setAttribute("aria-label", el.title);
     window.AO.H = H;
     return H;
   };
