@@ -146,13 +146,61 @@ pub fn dd0() -> PathBuf {
 }
 
 pub fn office_default() -> Value {
-    let mut it = vec![json!({"i": "plant", "x": 1, "y": 1}), json!({"i": "plant", "x": 47, "y": 1}), json!({"i": "coffee", "x": 47, "y": 24})];
-    for k in 0..18 {
-        let (x, y) = (3 + (k % 6) * 8, 2 + (k / 6) * 9);
-        it.push(json!({"i": "chair", "x": x + 1, "y": y}));
-        it.push(json!({"i": "desk", "x": x, "y": y + 2}));
-    }
-    json!(it)
+    json!([
+        {"i": "chair", "x": 3, "y": 3},
+        {"i": "desk", "x": 2, "y": 5},
+        {"i": "chair", "x": 9, "y": 3},
+        {"i": "desk", "x": 8, "y": 5},
+        {"i": "chair", "x": 15, "y": 3},
+        {"i": "desk", "x": 14, "y": 5},
+        {"i": "chair", "x": 23, "y": 3},
+        {"i": "desk", "x": 22, "y": 5},
+        {"i": "chair", "x": 29, "y": 3},
+        {"i": "desk", "x": 28, "y": 5},
+        {"i": "chair", "x": 35, "y": 3},
+        {"i": "desk", "x": 34, "y": 5},
+        {"i": "chair", "x": 3, "y": 10},
+        {"i": "desk", "x": 2, "y": 12},
+        {"i": "chair", "x": 9, "y": 10},
+        {"i": "desk", "x": 8, "y": 12},
+        {"i": "chair", "x": 15, "y": 10},
+        {"i": "desk", "x": 14, "y": 12},
+        {"i": "chair", "x": 23, "y": 10},
+        {"i": "desk", "x": 22, "y": 12},
+        {"i": "chair", "x": 29, "y": 10},
+        {"i": "desk", "x": 28, "y": 12},
+        {"i": "chair", "x": 35, "y": 10},
+        {"i": "desk", "x": 34, "y": 12},
+        {"i": "chair", "x": 3, "y": 17},
+        {"i": "desk", "x": 2, "y": 19},
+        {"i": "chair", "x": 9, "y": 17},
+        {"i": "desk", "x": 8, "y": 19},
+        {"i": "chair", "x": 15, "y": 17},
+        {"i": "desk", "x": 14, "y": 19},
+        {"i": "plant", "x": 1, "y": 1},
+        {"i": "plant", "x": 48, "y": 1},
+        {"i": "plant", "x": 19, "y": 6},
+        {"i": "plant", "x": 19, "y": 13},
+        {"i": "plant", "x": 48, "y": 9},
+        {"i": "plant", "x": 1, "y": 26},
+        {"i": "plant", "x": 48, "y": 26},
+        {"i": "plant", "x": 38, "y": 24},
+        {"i": "board", "x": 24, "y": 0},
+        {"i": "shelf", "x": 41, "y": 1},
+        {"i": "coffee", "x": 44, "y": 3},
+        {"i": "cooler", "x": 47, "y": 3},
+        {"i": "sofa", "x": 41, "y": 9},
+        {"i": "lamp", "x": 46, "y": 9},
+        {"i": "rug", "x": 41, "y": 11},
+        {"i": "table", "x": 42, "y": 12},
+        {"i": "radio", "x": 45, "y": 17},
+        {"i": "rack", "x": 41, "y": 23},
+        {"i": "rack", "x": 43, "y": 23},
+        {"i": "rack", "x": 45, "y": 23},
+        {"i": "rug", "x": 25, "y": 21},
+        {"i": "table", "x": 26, "y": 22},
+        {"i": "lamp", "x": 20, "y": 24}
+    ])
 }
 
 pub fn dset() -> Value {
@@ -429,7 +477,7 @@ mod provider_limit_tests {
         assert!(a.lv.lock().unwrap().o.pause.is_empty());
         assert!(a.provider_limit("cc:sonnet").is_some());assert!(a.provider_limit("codex:").is_none());
         assert!(a.provider_limit("opencode:opencode/beam-free").is_none());
-        assert_eq!(crate::eng::places_at(office_default().as_array().unwrap()).len(), 18);
+        assert_eq!(crate::eng::places_at(office_default().as_array().unwrap()).len(), 15);
         assert!(!a.hold("fixer"));
         a.db.ks("set",&json!({"free_first":true,"tokday":0,"office":{"items":[]}}));
         assert!(a.hold("fixer"), "the bug-fix team waits without a workplace");
@@ -440,5 +488,29 @@ mod provider_limit_tests {
         assert!(a.lv.lock().unwrap().o.pause.contains("daily token limit"));
         a.db.ks("set",&json!({"free_first":false,"tokday":0}));a.tick();
         assert!(a.lv.lock().unwrap().o.pause.contains("Claude usage limit"));
+    }
+}
+
+#[cfg(test)]
+mod seat_tests {
+    use super::*;
+    #[test]
+    fn workers_keep_their_chair_when_someone_joins() {
+        let db = Db::mem();
+        db.ks("set", &json!({}));
+        let a: Ax = Arc::new(App::new(db, std::env::temp_dir(), 1, "x".into()));
+        let mine = |a: &Ax| -> Vec<(i64, String)> { crate::eng::seat_view(a)["seats"].as_array().unwrap().iter().filter_map(|s| s["w"].as_str().map(|w| (s["c"].as_i64().unwrap(), w.to_string()))).collect() };
+        let v1 = mine(&a);
+        assert_eq!(v1.len(), 9);
+        a.db.ks("crew", &json!([{"id": "bob", "n": "Bob"}]));
+        a.db.ks("flows", &json!([{"id": "f", "on": true, "nodes": [{"c": {"w": "bob"}}]}]));
+        let v2 = mine(&a);
+        assert_eq!(v2.len(), 10);
+        for x in &v1 {
+            assert!(v2.contains(x), "{x:?} moved");
+        }
+        a.db.ks("flows", &json!([]));
+        let v3 = mine(&a);
+        assert_eq!(v3, v1);
     }
 }

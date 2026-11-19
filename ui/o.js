@@ -161,7 +161,7 @@
     workplace: { n: "Workplace", w: 4, h: 4, d: (X, Y, tt) => { FC.chair.d(X + 8, Y, tt); FC.desk.d(X, Y + 16, tt); } },
     rug: { n: "Rug", w: 6, h: 4, l: 0, d: (X, Y) => { px(X, Y, 48, 32, "#5a2f3a"); px(X + 2, Y + 2, 44, 28, "#7a3f4f"); px(X + 6, Y + 6, 36, 20, "#5a2f3a"); px(X + 8, Y + 8, 32, 16, "#8a4a5c"); } },
   };
-  let FU = [], ftool = null, fsel = -1, fedit = false, fhov = null, fdrag = null, fsave = 0, fhis = [], ffut = [], fbad = false;
+  let WK = null, WT = null, FU = [], ftool = null, fsel = -1, fedit = false, fhov = null, fdrag = null, fsave = 0, fhis = [], ffut = [], fbad = false;
   const fl = (i) => FC[i].l ?? 1;
   const free = (it, x, y, skip) => {
     const f = FC[it];
@@ -236,11 +236,12 @@
     if (S?.o?.man) return "sleep";
     return "idle";
   };
-  const person = (id, x, y, t, sit, back) => {
-    const s0 = skOf(id), st = sit ? pst(id) : "wait", sd = id.length * 1.7 + id.charCodeAt(0) * 0.13;
+  const person = (id, x, y, t, sit, back, wk) => {
+    const s0 = skOf(id), st = wk ? "walk" : sit ? pst(id) : "wait", sd = id.length * 1.7 + id.charCodeAt(0) * 0.13;
     const w = core(id) ? S?.w?.[id] || {} : null, mood = w && nowS() - (w.t || 0) < 6000 ? w.mood : "", pt = sit && party();
     const p = K.pose();
     p.legs = sit ? "sit" : "stand";
+    if (wk) { const q = Math.floor(t * 8) % 2; p.lift = [q * 2, (1 - q) * 2, q * 2, (1 - q) * 2]; p.dy = q ? -1 : 0; p.mirror = wk < 0; }
     const bl = Math.floor((t + sd) * 10) % 47 === 0;
     if (pt) {
       p.armL = "top"; p.armR = "top"; p.eyes = "glad"; p.mouth = "wide";
@@ -281,16 +282,45 @@
     const ord = FU.map((u, k) => [u, k]).sort((a, b) => fl(a[0].i) - fl(b[0].i) || a[0].y + FC[a[0].i].h - (b[0].y + FC[b[0].i].h));
     const hk = fedit && !fdrag && !ftool ? pick(fhov) : -1;
     const sm = fedit ? { m: new Map(), wait: [] } : seats();
+    const dt = Math.min(0.1, Math.max(0, t - (WT ?? t))); WT = t;
+    if (!fedit) {
+      const tg = new Map();
+      for (const [k, { id }] of sm.m) { const u = FU[k]; if (u) tg.set(id, { x: u.x * 8 + 8, y: GO + u.y * 8 + 14 }); }
+      if (!WK && tg.size) { WK = {}; for (const [id, g] of tg) WK[id] = { x: g.x, y: g.y, tx: g.x, ty: g.y, s: 1, wp: [] }; }
+      if (WK) {
+        for (const [id, g] of tg) if (!WK[id]) WK[id] = { x: -12, y: g.y - 22, wp: [] };
+        for (const id of Object.keys(WK)) {
+          const q = WK[id], g = tg.get(id) || { x: -12, y: q.y, out: 1 };
+          if (q.tx !== g.x || q.ty !== g.y) {
+            q.tx = g.x; q.ty = g.y;
+            const y0 = q.s ? q.y - 22 : q.y;
+            q.wp = g.out ? [[q.x, y0], [-12, y0]] : [[q.x, y0], [g.x + 24, y0], [g.x + 24, g.y - 22], [g.x, g.y - 22], [g.x, g.y]];
+            q.s = 0;
+          }
+          let d = 46 * dt;
+          while (d > 0 && q.wp.length) {
+            const [wx, wy] = q.wp[0], ax = wx - q.x, ay = wy - q.y, L = Math.abs(ax) + Math.abs(ay);
+            if (L <= d) { q.x = wx; q.y = wy; d -= L; q.wp.shift(); continue; }
+            if (Math.abs(ax) > 0) { const s = Math.sign(ax) * Math.min(d, Math.abs(ax)); q.x += s; q.f = Math.sign(ax); d -= Math.abs(s); }
+            if (d > 0 && Math.abs(ay) > 0) { q.y += Math.sign(ay) * Math.min(d, Math.abs(ay)); d = 0; }
+          }
+          q.m = q.wp.length > 0;
+          if (!q.m) { q.s = 1; if (g.out) delete WK[id]; }
+        }
+      }
+    }
+    const mv = (id) => !fedit && WK?.[id]?.m;
     RH.clear(); { const rk = RK(); FU.filter((u) => u.i === "rack").sort((a, b) => a.y - b.y || a.x - b.x).forEach((u, i) => { if (rk[i]) RH.set(u, rk[i]); }); }
     for (const [u, k] of ord) {
       if (fdrag && fdrag.k === k) continue;
       FU[k] && FC[u.i].d(u.x * 8, GO + u.y * 8, t, u);
-      if (sm.m.has(k)) person(sm.m.get(k).id, u.x * 8 + 8, GO + u.y * 8 + 14, t, true, sm.m.get(k).back);
+      if (sm.m.has(k) && !mv(sm.m.get(k).id)) person(sm.m.get(k).id, u.x * 8 + 8, GO + u.y * 8 + 14, t, true, sm.m.get(k).back);
 
       if (fedit && k === fsel) box(u, "#4fb3e0", 0.95);
       else if (k === hk) box(u, lt() ? "#000" : "#fff", 0.35);
     }
-    for (const [k, { id, back }] of sm.m) { const u = FU[k]; if (!u || (fdrag && fdrag.k === k)) continue; const nm = pname(id), on = pst(id) === "work"; tx(nm, u.x * 8 + 8 - (K.textWidth(nm) >> 1), GO + u.y * 8 + (back ? 18 : -6), on ? hlOf(id) : "#6b6f76"); }
+    if (!fedit) for (const id of Object.keys(WK || {})) { const q = WK[id]; if (!q.m) continue; person(id, Math.round(q.x), Math.round(q.y), t, false, false, q.f || 1); const nm = pname(id); tx(nm, Math.round(q.x) - (K.textWidth(nm) >> 1), Math.round(q.y) - 36, "#6b6f76"); }
+    for (const [k, { id, back }] of sm.m) { const u = FU[k]; if (!u || (fdrag && fdrag.k === k) || mv(id)) continue; const nm = pname(id), on = pst(id) === "work"; tx(nm, u.x * 8 + 8 - (K.textWidth(nm) >> 1), GO + u.y * 8 + (back ? 18 : -6), on ? hlOf(id) : "#6b6f76"); }
     if (!fedit) {
       const dk = new Map(places().map((q) => [q.k, q.dk])), SP = {};
       for (const [k, { id, back }] of sm.m) {

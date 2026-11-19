@@ -699,6 +699,12 @@ pub fn seated(a: &crate::app::App, wid: &str) -> bool {
     seat_map(&staff(a), &ps).iter().any(|w| w == wid)
 }
 
+fn fo(pa: &[(usize, Option<String>)], st: &[String]) -> Vec<usize> {
+    let mut v: Vec<usize> = (0..pa.len()).filter(|&i| pa[i].1.is_none()).collect();
+    v.extend((0..pa.len()).filter(|&i| pa[i].1.as_ref().is_some_and(|w| !st.contains(w))));
+    v
+}
+
 fn pin(a: &Ax, wid: &str) {
     let it = a.set()["office"]["items"].as_array().cloned().unwrap_or_default();
     let st = staff(a);
@@ -708,9 +714,12 @@ fn pin(a: &Ax, wid: &str) {
     }
     let fixed: Vec<String> = pa.iter().filter_map(|x| x.1.clone()).filter(|w| st.contains(w)).collect();
     let Some(j) = st.iter().filter(|w| !fixed.contains(w)).position(|w| w == wid) else { return };
-    if let Some(&(ix, _)) = pa.iter().filter(|(_, w)| w.as_ref().is_none_or(|w| !st.contains(w))).nth(j) {
+    if let Some(&i) = fo(&pa, &st).get(j) {
         let mut s = a.db.kg("set");
-        if let Some(c) = s["office"]["items"].get_mut(ix) {
+        if !s["office"]["items"].is_array() {
+            s["office"]["items"] = json!(it);
+        }
+        if let Some(c) = s["office"]["items"].get_mut(pa[i].0) {
             c["w"] = json!(wid);
             a.db.ks("set", &s);
         }
@@ -721,21 +730,31 @@ pub fn seat_view(a: &Ax) -> Value {
     let it = a.set()["office"]["items"].as_array().cloned().unwrap_or_default();
     let st = staff(a);
     let pa = places_at(&it);
-    let ps: Vec<Option<String>> = pa.iter().map(|x| x.1.clone()).collect();
-    let sat = seat_map(&st, &ps);
-    let fixed: Vec<String> = ps.iter().flatten().filter(|w| st.contains(w)).cloned().collect();
-    let mut auto = sat.iter().filter(|w| !fixed.contains(w)).cloned();
-    let seats: Vec<Value> = pa
-        .iter()
-        .map(|(ix, w)| {
-            let who = match w {
-                Some(w) if st.contains(w) => Some(w.clone()),
-                _ => auto.next(),
-            };
-            json!({"c": ix, "w": who})
-        })
-        .collect();
-    json!({"seats": seats, "wait": st.iter().filter(|w| !sat.contains(w)).collect::<Vec<_>>()})
+    let fixed: Vec<String> = pa.iter().filter_map(|x| x.1.clone()).filter(|w| st.contains(w)).collect();
+    let mut who: Vec<Option<String>> = pa.iter().map(|(_, w)| w.clone().filter(|w| st.contains(w))).collect();
+    let mut nw = vec![];
+    let mut fr = fo(&pa, &st).into_iter();
+    for w in st.iter().filter(|w| !fixed.contains(w)) {
+        let Some(i) = fr.next() else { break };
+        if pa[i].1.is_none() {
+            nw.push((pa[i].0, w.clone()));
+        }
+        who[i] = Some(w.clone());
+    }
+    if !nw.is_empty() {
+        let mut s = a.db.kg("set");
+        if !s["office"]["items"].is_array() {
+            s["office"]["items"] = json!(it);
+        }
+        for (ix, w) in &nw {
+            if let Some(c) = s["office"]["items"].get_mut(*ix) {
+                c["w"] = json!(w);
+            }
+        }
+        a.db.ks("set", &s);
+    }
+    let seats: Vec<Value> = pa.iter().zip(&who).map(|((ix, _), w)| json!({"c": ix, "w": w})).collect();
+    json!({"seats": seats, "wait": st.iter().filter(|w| !who.contains(&Some((*w).clone()))).collect::<Vec<_>>()})
 }
 
 pub fn active(a: &Ax) -> Vec<Value> {
