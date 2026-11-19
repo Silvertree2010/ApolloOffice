@@ -733,7 +733,7 @@
   document.addEventListener("click", async (e) => {
     if (e.target.id === "bkS" || e.target.id === "bkD") {
       const b = e.target, dr = b.id === "bkD";
-      if (dr && b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "click again to drop " + sel.size; return; }
+      if (dr && !(await window.AO.danger({ title: `Drop ${sel.size} finished ${sel.size === 1 ? "fix" : "fixes"}?`, items: ["Their fixes and proofs are discarded; no pull requests are opened."], ok: `Drop ${sel.size}` }))) return;
       b.disabled = true;
       const ids = [...sel];
       let r = null;
@@ -745,7 +745,21 @@
     const a = e.target.closest("[data-u]");
     if (a) { e.preventDefault(); open(a.dataset.u); return; }
     const d = e.target.closest("[data-d]");
-    if (d) { post({ a: "drop", id: Number(d.dataset.d) }).then(apply); return; }
+    if (d) {
+      const id = Number(d.dataset.d), j = (S.q || []).find((x) => x.id === id), A = window.AO;
+      (async () => {
+        if (j && j.kind === "fix" && j.st !== "approve") {
+          apply(await post({ a: "drop", id }));
+          A.tryHide && A.tryHide();
+          A.undo(`Job #${id} dropped`, async () => apply(await post({ a: "requeue", id })));
+          return;
+        }
+        if (!(await A.danger({ title: `Drop job #${id}?`, items: [j && j.st === "approve" ? "The finished fix and its proof are discarded; no pull request is opened." : "The work on it stops and it leaves the queue.", "It stays in the history as dropped."], ok: "Drop job" }))) return;
+        apply(await post({ a: "drop", id }));
+        A.tryHide && A.tryHide();
+      })();
+      return;
+    }
     const rq = e.target.closest("[data-rq]");
     if (rq) { post({ a: "requeue", id: Number(rq.dataset.rq) }).then(apply); return; }
     const wf = e.target.closest(".wfy");

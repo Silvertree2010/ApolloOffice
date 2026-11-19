@@ -158,7 +158,8 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
 .row.apr .a { color: var(--ok); }
 button.pri { color: #0b0c0e; background: var(--t1); border-color: var(--t1); }
 button.pri:hover { background: #fff; }
-button.dng { color: var(--bad); }
+button.dng { color: var(--t2); }
+button.dng:hover, .dz button.dng { color: var(--bad); }
 #dr { position: fixed; inset: 0; z-index: 20; display: flex; justify-content: flex-end; background: rgba(0,0,0,.45); }
 #dr .pn { width: min(760px, 100%); height: 100%; background: var(--p); border-left: 1px solid var(--l); display: flex; flex-direction: column; }
 #dr .ph { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--l); }
@@ -1240,3 +1241,15 @@ button.pri:disabled, button.go:disabled { background: transparent; border-color:
 .ohint b { font: 600 var(--fs2)/1.2 var(--hf); }
 .ohint span { color: var(--t2); line-height: 1.45; }
 .ohint button { align-self: flex-end; height: var(--chs); padding: 0 12px; font-size: var(--fs4); }
+
+.dgr ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; color: var(--t2); font-size: var(--fs3); line-height: 1.45; }
+.dtp { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs3); color: var(--t2); }
+.dtp code { font: 500 0.95em var(--m); color: var(--t1); }
+.dgr button.solid { background: var(--bad); border-color: transparent; color: #fff; }
+.dgr button.solid:hover:not(:disabled) { background: color-mix(in oklch, var(--bad) 86%, black); }
+.dgr button.solid:disabled { opacity: 0.45; cursor: not-allowed; }
+.undob { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 14px; padding: 8px 8px 8px 14px; background: var(--p); border: 1px solid var(--l); border-radius: 10px; box-shadow: 0 8px 24px oklch(0 0 0 / 0.25); font-size: var(--fs3); animation: ubIn 180ms ease-out; transform-origin: 50% 100%; }
+.undob[hidden] { display: none; }
+.undob button { height: 28px; padding: 0 12px; border-radius: 6px; }
+@keyframes ubIn { from { opacity: 0; transform: translate(-50%, 6px); } }
+@media (prefers-reduced-motion: reduce) { .undob { animation: none; } }

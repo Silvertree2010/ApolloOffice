@@ -38,7 +38,7 @@
       for (const f of P().querySelectorAll("form[data-f]")) {
         const w = F.crew.find((x) => x.id === f.dataset.f);
         f.onsubmit = (e) => { e.preventDefault(); Object.assign(w, { n: f.n.value.trim() || w.n, r: f.r.value.trim(), md: f.md.value.trim(), p: f.p.value, tl: [...f.querySelectorAll("[name=tl]:checked")].map((x) => x.value) }); save(); };
-        f.querySelector("[data-fire]").onclick = () => { if (!confirm(`Remove ${w.n} from the team?`)) return; F.crew = F.crew.filter((x) => x !== w); open = null; save(); };
+        f.querySelector("[data-fire]").onclick = async () => { const uses = (F.flows || []).reduce((s, x) => s + x.nodes.filter((m) => m.c?.w === w.id).length, 0); if (!(await A.danger({ title: `Remove ${w.n} from the team?`, items: [uses ? `${w.n} is taken off ${uses} pipeline ${uses === 1 ? "step" : "steps"}; those steps need someone new.` : `${w.n} is not used in any pipeline.`, "Their instructions, model and permissions are deleted.", "Their chair becomes free."], ok: `Remove ${w.n}` }))) return; F.crew = F.crew.filter((x) => x !== w); open = null; save(); };
       }
       for (const b of P().querySelectorAll("[data-role]")) b.onclick = () => A.role && A.role(b.dataset.role);
       $("sNew").onclick = () => { snew = !snew; sedit = null; draw(); };
@@ -47,7 +47,7 @@
       for (const b of P().querySelectorAll("[data-se]")) b.onclick = () => { sedit = sedit === b.dataset.se ? null : b.dataset.se; draw(); };
       for (const f of P().querySelectorAll("form[data-sf]")) {
         f.onsubmit = async (e) => { e.preventDefault(); if (await sop({ op: "set", n: f.dataset.sf, v: f.v.value, d: f.d.value, who: [...f.querySelectorAll("[name=who]:checked")].map((x) => x.value) })) { sedit = null; draw(); } };
-        f.querySelector("[data-sd]").onclick = async (e) => { if (e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again to delete"; return; } if (await sop({ op: "del", n: f.dataset.sf })) { sedit = null; draw(); } };
+        f.querySelector("[data-sd]").onclick = async () => { if (!(await A.danger({ title: `Delete the secret ${f.dataset.sf}?`, items: ["The stored value is deleted and cannot be shown or restored.", "Workers that use it lose access on their next step."], ok: "Delete secret" }))) return; if (await sop({ op: "del", n: f.dataset.sf })) { sedit = null; draw(); } };
       }
     };
     draw();
@@ -172,7 +172,7 @@
       $("wAp").innerHTML = ap.length || crw.length ? crw.map((r) => `<div class="wr"><div class="wt"><b>${esc(r.ask || "Continue?")}</b><span>${esc(r.name || r.flow)} · run ${r.id}</span></div><button type="button" class="go" data-ry="${r.id}">Yes</button><button type="button" data-rn="${r.id}">No</button></div>`).join("") + ap.map((j) => `<div class="wr"><div class="wt"><b>${esc(j.title)}</b><span>${esc(j.repo)}${j.num ? "#" + j.num : ""}</span></div><button type="button" class="go" data-ap="${j.id}">Approve</button><button type="button" data-dr="${j.id}">Drop</button></div>`).join("") : `<div class="wmut">Nothing waits for you.</div>`;
       for (const b of $("wAp").querySelectorAll("[data-ry],[data-rn]")) b.onclick = async () => { const id = b.dataset.ry || b.dataset.rn; await v2("POST", `/runs/${id}/answer`, { yes: !!b.dataset.ry }); crt = 0; A.wdg(S); };
       for (const b of $("wAp").querySelectorAll("[data-ap]")) b.onclick = () => post({ a: "approve", id: +b.dataset.ap }).then(A.apply);
-      for (const b of $("wAp").querySelectorAll("[data-dr]")) b.onclick = () => post({ a: "drop", id: +b.dataset.dr }).then(A.apply);
+      for (const b of $("wAp").querySelectorAll("[data-dr]")) b.onclick = async () => { if (!(await A.danger({ title: `Drop the fix for job #${b.dataset.dr}?`, items: ["The fix and its proof are discarded; no pull request is opened."], ok: "Drop fix" }))) return; A.apply(await post({ a: "drop", id: +b.dataset.dr })); };
     }
     if (vis("costs") && cc) {
       const t = cc.today || {}, d = (cc.days || []).slice(0, 14).reverse();

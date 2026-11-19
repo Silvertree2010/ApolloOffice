@@ -51,9 +51,32 @@
     M.querySelector("[data-x]").onclick = () => done(false);
     const al = M.querySelector("[data-alt]"); if (al) al.onclick = () => done("alt");
     M.onclick = (e) => { if (e.target === M) done(false); };
-    M.onkeydown = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(false); } if (e.key === "Enter") { e.preventDefault(); done(true); } };
-    M.querySelector("[data-ok]").focus();
+    M.onkeydown = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(false); } };
+    M.querySelector("[data-x]").focus();
   });
+  A.danger = ({ title, items = [], ok = "Delete", type = "" }) => new Promise((res) => {
+    const M = document.createElement("div");
+    M.className = "cmdk askd";
+    M.innerHTML = `<div class="kb ak dgr" role="alertdialog" aria-label="${A.esc(title)}"><b>${A.esc(title)}</b>${items.length ? `<ul>${items.map((x) => `<li>${A.esc(x)}</li>`).join("")}</ul>` : ""}${type ? `<label class="dtp"><span>Type <code>${A.esc(type)}</code> to confirm</span><input type="text" autocomplete="off" spellcheck="false"></label>` : ""}<div class="acts"><span class="sp"></span><button type="button" data-x>Cancel</button><button type="button" class="dng solid" data-ok ${type ? "disabled" : ""}>${A.esc(ok)}</button></div></div>`;
+    B.appendChild(M);
+    const okb = M.querySelector("[data-ok]"), inp = M.querySelector(".dtp input"), done = (v) => { M.remove(); res(v); };
+    if (inp) inp.oninput = () => { okb.disabled = inp.value.trim() !== type; };
+    okb.onclick = () => { if (!okb.disabled) done(true); };
+    M.querySelector("[data-x]").onclick = () => done(false);
+    M.onclick = (e) => { if (e.target === M) done(false); };
+    M.onkeydown = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(false); } if (e.key === "Enter" && inp && document.activeElement === inp && !okb.disabled) { e.preventDefault(); done(true); } };
+    (inp || M.querySelector("[data-x]")).focus();
+  });
+  let UT = 0;
+  A.undo = (msg, fn, ms = 7000) => {
+    let u = $("undoBar");
+    if (!u) { u = document.createElement("div"); u.id = "undoBar"; u.className = "undob"; u.setAttribute("role", "status"); B.appendChild(u); }
+    clearTimeout(UT);
+    u.innerHTML = `<span>${A.esc(msg)}</span><button type="button">Undo</button>`;
+    u.hidden = false;
+    u.querySelector("button").onclick = () => { clearTimeout(UT); u.hidden = true; fn && fn(); };
+    UT = setTimeout(() => { u.hidden = true; }, ms);
+  };
   A.go = (r) => { if (location.hash === "#/" + r) go(); else location.hash = "#/" + r; };
   A.route = () => ((location.hash.match(/^#\/([a-z]+)/) || [])[1] || "office");
   window.addEventListener("hashchange", go);

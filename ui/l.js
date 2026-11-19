@@ -125,7 +125,7 @@
     const n = $("lN"); if (n) n.onchange = () => { snap(); s.n = n.value.trim() || "Scene"; save(); dock(); };
     $("lAdd").onclick = () => { snap(); const id = uid("s"); L.scenes.push(fresh(id, "Scene " + (L.scenes.length + 1))); L.cur = id; save(); apply(); dock(); };
     $("lDup").onclick = () => { snap(); const id = uid("s"); L.scenes.push({ ...JSON.parse(JSON.stringify(s)), id, n: s.n + " copy" }); L.cur = id; save(); apply(); dock(); };
-    $("lDel").onclick = () => { if (!confirm(`Delete ${s.n}?`)) return; snap(); L.scenes = L.scenes.filter((x) => x !== s); L.cur = L.scenes[0]?.id || "classic"; save(); apply(); dock(); };
+    $("lDel").onclick = () => { const nm = s.n; snap(); L.scenes = L.scenes.filter((x) => x !== s); L.cur = L.scenes[0]?.id || "classic"; save(); apply(); dock(); A.undo && A.undo(`Scene ${nm} deleted`, () => $("lUndo")?.click()); };
     for (const r of D.querySelectorAll("[data-src]")) {
       const k = r.dataset.src, v = s.items[k];
       r.onclick = (e) => {

@@ -328,8 +328,8 @@
       side();
       if (r.key) { const u = `${location.origin}/v1/run/${encodeURIComponent(cur)}/${encodeURIComponent(sel)}`; $("hkV").hidden = false; $("hkU").value = u; $("hkK").value = r.key; $("hkK").select(); $("hkC").textContent = `curl -X POST '${u}' \\\n  -H "X-Hook-Key: $KEY" \\\n  -H 'Content-Type: application/json' \\\n  -d '{"text": "hello"}'`; }
     };
-    on("hkN", "onclick", (e) => { if (e.target.textContent.startsWith("Replace") && e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again, the old link stops working"; return; } hop("new"); });
-    on("hkD", "onclick", (e) => { if (e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again to revoke"; return; } hop("del"); });
+    on("hkN", "onclick", async (e) => { if (e.target.textContent.startsWith("Replace") && !(await A.danger({ title: "Replace the link for this webhook?", items: ["The current link and key stop working right away.", "Apps that call the old link get refused until you give them the new one."], ok: "Replace link" }))) return; hop("new"); });
+    on("hkD", "onclick", async () => { if (!(await A.danger({ title: "Revoke the link for this webhook?", items: ["The link and key stop working right away.", "You can create a new link later; apps need the new one."], ok: "Revoke link" }))) return; hop("del"); });
     on("fSel", "onchange", (e) => { cur = e.target.value; sel = null; esel = null; hideMenu(); side(); paint(); fit(); });
     on("fNew", "onclick", () => newFlow(true));
     on("fName", "onchange", (e) => { f.n = e.target.value.trim() || "Untitled"; ren = false; save(); side(); });
@@ -337,7 +337,7 @@
     on("fName", "onblur", () => { if (ren) { ren = false; side(); } });
     on("fRen", "onclick", () => { ren = true; side(); const i = $("fName"); i.focus(); i.select(); });
     on("fOn", "onclick", () => { f.on = !f.on; save(); side(); });
-    on("fRm", "onclick", () => { if (!confirm(`Delete ${f.n}?`)) return; snap(); D.flows = D.flows.filter((x) => x !== f); if (!D.flows.length) newFlow(); cur = D.flows[0].id; sel = null; save(); side(); paint(); fit(); });
+    on("fRm", "onclick", () => { const nm = f.n; snap(); D.flows = D.flows.filter((x) => x !== f); if (!D.flows.length) newFlow(); cur = D.flows[0].id; sel = null; save(); side(); paint(); fit(); A.undo && A.undo(`Pipeline ${nm} deleted`, undo); });
     on("fUndo", "onclick", undo);
     on("fDel", "onclick", () => del(sel));
     on("fNext", "onclick", () => { const o = outs(n), p = o.find((x) => !f.edges.some((e) => e.a === n.id && e.p === x)) || o[0], b = $("fN").querySelector(`.pt[data-out="${n.id}"][data-p="${p}"]`); showMenu(n.id, p, b); });
@@ -360,7 +360,7 @@
     for (const b of $("fS").querySelectorAll("[data-ft]")) b.onclick = () => { tab = b.dataset.ft; sel = null; esel = null; hireFor = null; custom = false; hideMenu(); side(); paint(); };
     for (const b of $("fS").querySelectorAll("[data-cron]")) b.onclick = () => { snap(); n.c.cron = b.dataset.cron; save(); paint(); side(); };
     for (const b of $("fS").querySelectorAll("[data-newfor]")) b.onclick = () => { hireFor = b.dataset.newfor; side(); $("fHf")?.n.focus(); };
-    for (const b of $("fS").querySelectorAll("[data-fire]")) b.onclick = () => { const w = who(b.dataset.fire); if (!confirm(`Remove ${w.n} from the team?`)) return; snap(); D.crew = D.crew.filter((x) => x !== w); save(); side(); paint(); };
+    for (const b of $("fS").querySelectorAll("[data-fire]")) b.onclick = async () => { const w = who(b.dataset.fire), uses = D.flows.reduce((s, x) => s + x.nodes.filter((m) => m.c?.w === w.id).length, 0); if (!(await A.danger({ title: `Remove ${w.n} from the team?`, items: [uses ? `${w.n} is taken off ${uses} pipeline ${uses === 1 ? "step" : "steps"}; those steps need someone new.` : `${w.n} is not used in any pipeline.`, "Their instructions, model and permissions are deleted.", "Their chair becomes free."], ok: `Remove ${w.n}` }))) return; snap(); D.crew = D.crew.filter((x) => x !== w); save(); side(); paint(); };
     const F = $("fHf");
     if (F) F.onsubmit = (e) => {
       e.preventDefault(); const nm = F.n.value.trim(); if (!nm) return; snap();

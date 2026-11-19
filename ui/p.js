@@ -158,7 +158,7 @@
       e.preventDefault();
       const op = b.dataset.op;
       if (op === "del") {
-        if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Click again to remove"; return; }
+        if (!(await A.danger({ title: `Remove ${full} from the office?`, items: ["Its settings, test command, limits and rules are deleted.", "Open jobs for it are dropped. Pull requests on GitHub stay open.", "You can add it again later, but you set it up again from scratch."], ok: "Remove repository" }))) return;
         await post({ op: "del", full }, "/api/repo");
         hide();
         return repos();
@@ -237,7 +237,7 @@
         let id = f.dataset.h;
         if (!id) id = (v.ssh || "").replace(/^.*@/, "").replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 40);
         if (b.dataset.op === "del") {
-          if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Click again to remove"; return; }
+          if (!(await A.danger({ title: `Remove the machine ${id}?`, items: ["The office stops using it for jobs and pipeline steps.", "Its settings are deleted. Files and containers on the machine stay where they are.", "You can add it again later."], ok: "Remove machine" }))) return;
           await post({ op: "del", id }, "/api/host");
           hide();
           return hosts();
@@ -406,7 +406,7 @@
         <div class="dzr"><div><b>Sign out everywhere</b><div class="hint">Ends every session, including this one. You need a new link from <code>apollo-office login-link</code>.</div></div><button type="button" class="dng" data-dz="logout">Sign out everywhere</button></div>
         <div class="dzr"><div><b>Clear job history</b><div class="hint">Deletes finished and dropped jobs and their log. Pull requests and costs stay.</div></div><button type="button" class="dng" data-dz="history">Clear history</button></div>
         <div class="dzr"><div><b>Reset settings</b><div class="hint">Models, limits, budgets, notifications and paused workers go back to defaults. Keys, repositories and machines stay.</div></div><button type="button" class="dng" data-dz="reset">Reset settings</button></div>
-        <div class="dzr"><div><b>Delete all data</b><div class="hint">Deletes repositories, machines, jobs, pull request history, costs, settings and stored API keys. Nothing on GitHub changes. Type <code>delete</code> to confirm.</div><input type="text" id="dzw" placeholder="delete" autocomplete="off" style="max-width:160px"></div><button type="button" class="dng" data-dz="wipe">Delete everything</button></div>
+        <div class="dzr"><div><b>Delete all data</b><div class="hint">Deletes repositories, machines, jobs, pull request history, costs, settings and stored API keys. Nothing on GitHub changes.</div></div><button type="button" class="dng" data-dz="wipe">Delete everything</button></div>
         <div class="msg" id="dzm"></div></div></div>`;
     const stab = (k) => {
       tb = k;
@@ -458,8 +458,8 @@
     };
     for (const b of B.querySelectorAll("[data-dz]")) b.onclick = async () => {
       const op = b.dataset.dz, m = $("dzm");
-      if (op === "wipe" && $("dzw").value.trim() !== "delete") { m.className = "msg bad2"; m.textContent = "Type delete into the field first."; return; }
-      if (b.dataset.sure !== "1") { b.dataset.sure = "1"; b.textContent = "Click again to confirm"; return; }
+      const DZ = { logout: ["Sign out everywhere?", ["Every session ends, this one too.", "You need a new link from apollo-office login-link to sign in again."], "Sign out everywhere"], history: ["Clear the job history?", ["Finished and dropped jobs and their log are deleted for good.", "Pull requests and costs stay."], "Clear history"], reset: ["Reset all settings?", ["Models, limits, budgets, notifications and paused workers go back to defaults.", "Keys, repositories and machines stay."], "Reset settings"], wipe: ["Delete all office data?", ["Repositories, machines, jobs, pull request history, costs, settings and stored API keys are deleted for good.", "Nothing on GitHub changes."], "Delete everything"] }[op];
+      if (!(await A.danger({ title: DZ[0], items: DZ[1], ok: DZ[2], type: op === "wipe" ? "delete everything" : "" }))) return;
       busy(b, true, "Working…");
       const r = await post({ op, sure: op === "wipe" ? "delete" : undefined }, "/api/danger");
       if (r.error) { busy(b, false, "Try again"); b.dataset.sure = ""; m.className = "msg bad2"; m.textContent = r.error; return; }
@@ -486,9 +486,9 @@
     for (const b of B.querySelectorAll("[data-role]")) b.onclick = () => role(b.dataset.role);
     $("bt").onclick = () => send(true);
     if ($("gl")) $("gl").onclick = async () => { const r = await post({ op: "link" }, "/api/google"); if (r.url) location.href = r.url; };
-    if ($("gu")) $("gu").onclick = async (e) => { if (e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again to disconnect"; return; } await post({ op: "unlink" }, "/api/google"); settings(); };
+    if ($("gu")) $("gu").onclick = async () => { if (!(await A.danger({ title: "Disconnect the Google account?", items: [`${cfg.google} can no longer sign in.`, "Sign in with a one-time link from apollo-office login-link instead."], ok: "Disconnect Google" }))) return; await post({ op: "unlink" }, "/api/google"); settings(); };
     $("an").onclick = async (e) => {
-      if (cfg.api.on && e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again, the old token stops working"; return; }
+      if (cfg.api.on && !(await A.danger({ title: "Replace the report token?", items: ["The current token stops working right away.", "Tools that send bug reports need the new token."], ok: "Replace token" }))) return;
       const r = await post({ op: "new" }, "/api/apitok");
       if (!r.tok) return;
       await settings();
@@ -498,19 +498,19 @@
       const d = r || await get("/api/toks");
       $("tkl").innerHTML = (d.toks || []).length ? `<div class="tw"><table class="tb2 ro"><thead><tr><th>Name</th><th>Access</th><th>Created</th><th>Last used</th><th></th></tr></thead><tbody>${d.toks.map((t) => `<tr><td>${esc(t.n)}</td><td>${t.sc === "read" ? "read only" : "can change"}</td><td>${new Date(t.t0).toLocaleDateString()}</td><td>${t.last ? new Date(t.last).toLocaleString() : "never"}</td><td class="n"><button type="button" class="dng sm2" data-tkd="${esc(t.id)}">Revoke</button></td></tr>`).join("")}</tbody></table></div>` : `<div class="hint">No tokens yet.</div>`;
       if (d.mcp) $("tkm").textContent = `claude mcp add apollo-office -e APOLLO_OFFICE_TOKEN=$TOKEN -- ${d.mcp.replace(" --token <token>", "")}\n\nor over HTTP: http://127.0.0.1:${cfg.api.port}/mcp with header Authorization: Bearer $TOKEN`;
-      for (const b of $("tkl").querySelectorAll("[data-tkd]")) b.onclick = async (e) => { if (e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again"; return; } tk(await post({ op: "del", id: b.dataset.tkd }, "/api/toks")); };
+      for (const b of $("tkl").querySelectorAll("[data-tkd]")) b.onclick = async () => { const tn = (d.toks || []).find((x) => x.id === b.dataset.tkd)?.n || "this token"; if (!(await A.danger({ title: `Revoke ${tn}?`, items: ["Apps and agents using it lose access right away.", "This cannot be undone; create a new token if you need one."], ok: "Revoke token" }))) return; tk(await post({ op: "del", id: b.dataset.tkd }, "/api/toks")); };
     };
     tk();
     $("tkc").onclick = async () => { const r = await post({ op: "new", n: $("tkn").value, sc: $("tks").value }, "/api/toks"); if (!r.token) return; $("tkn").value = ""; $("tkv").hidden = false; $("tkt").value = r.token; $("tkt").select(); tk(r); };
     $("hn").onclick = async (e) => {
-      if (cfg.hook.on && e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again, the old link stops working"; return; }
+      if (cfg.hook.on && !(await A.danger({ title: "Replace the error tracker link?", items: ["The current link stops working right away.", "Sentry or GlitchTip need the new link."], ok: "Replace link" }))) return;
       const r = await post({ op: "new" }, "/api/hooktok");
       if (!r.tok) return;
       await settings();
       $("htk").hidden = false; $("htv").value = `http://127.0.0.1:${cfg.api.port}/v1/hook?repo=owner/name&key=${r.tok}`; $("htv").select();
     };
-    if ($("ho")) $("ho").onclick = async (e) => { if (e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again to revoke"; return; } await post({ op: "off" }, "/api/hooktok"); settings(); };
-    if ($("ao")) $("ao").onclick = async (e) => { if (e.target.dataset.sure !== "1") { e.target.dataset.sure = "1"; e.target.textContent = "Click again to revoke"; return; } await post({ op: "off" }, "/api/apitok"); settings(); };
+    if ($("ho")) $("ho").onclick = async () => { if (!(await A.danger({ title: "Revoke the error tracker link?", items: ["Sentry or GlitchTip alerts stop arriving.", "You can create a new link later."], ok: "Revoke link" }))) return; await post({ op: "off" }, "/api/hooktok"); settings(); };
+    if ($("ao")) $("ao").onclick = async () => { if (!(await A.danger({ title: "Revoke the report token?", items: ["Tools that send bug reports lose access right away.", "You can create a new token later."], ok: "Revoke token" }))) return; await post({ op: "off" }, "/api/apitok"); settings(); };
     $("uc").onclick = async (e) => { busy(e.target, true, "Checking…"); const r = await post({ op: "check" }, "/api/update"); await settings(); $("um").textContent = r.ok ? (r.r.new ? `Update ${r.r.latest} downloaded.` : `Up to date (latest ${r.r.latest}).`) : r.m; };
     if ($("ua")) $("ua").onclick = async (e) => { busy(e.target, true, "Restarting…"); await post({ op: "apply" }, "/api/update"); setTimeout(() => location.reload(), 6000); };
   };
@@ -584,7 +584,7 @@
         A.apply(r); hide();
       };
       $("bd").onclick = async () => {
-        if ($("bd").dataset.sure !== "1") { $("bd").dataset.sure = "1"; $("bd").textContent = "Click again to drop"; return; }
+        if (!(await A.danger({ title: "Drop this fix?", items: ["No pull request is opened.", "The fix and its proof are discarded; Try again starts the work from the beginning."], ok: "Drop fix" }))) return;
         A.apply(await post({ a: "drop", id })); hide();
       };
       return;
