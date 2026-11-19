@@ -1260,3 +1260,11 @@ button.pri:disabled, button.go:disabled { background: transparent; border-color:
 .tile.work { flex: 1 1 170px; min-width: 170px; }
 .tiles { overflow-x: auto !important; overflow-y: hidden !important; }
 .tile.work:not(.hold) .stt { display: none; }
+.chl { color: var(--t3); font-weight: 400; margin-right: 2px; }
+.ohint { top: 14px; bottom: auto; }
+.flg { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 14px; padding: 6px 10px; font-size: var(--fs4); color: var(--t2); background: var(--p); border: 1px solid var(--l); border-radius: var(--ri); pointer-events: none; z-index: 2; }
+.flg span { display: inline-flex; align-items: center; gap: 6px; }
+.flg i { width: 18px; height: 0; border-top: 2px solid var(--t3); }
+.flg i.bk { border-top: 2px dashed var(--bad); }
+.fblk { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 3; display: flex; align-items: center; gap: 12px; max-width: calc(100% - 24px); padding: 6px 6px 6px 14px; font-size: var(--fs3); background: var(--f2); border: 1px solid color-mix(in oklch, var(--bad) 45%, transparent); border-radius: var(--ri); }
+.fblk button { height: var(--chs); padding: 0 10px; font-size: var(--fs4); flex: none; }

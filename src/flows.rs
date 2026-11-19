@@ -198,6 +198,12 @@ pub fn put(a: &Ax, b: &Value) -> Value {
         let v: Vec<Value> = fs.iter().filter(|f| f["id"] != CORE && f["core"] != true).filter_map(flow).filter(|f| seen.insert(f["id"].as_str().unwrap_or("").to_string())).take(32).collect();
         a.db.ks("flows", &json!(v));
         crate::eng::hook_prune(a);
+        let ids: std::collections::HashSet<&str> = v.iter().filter_map(|f| f["id"].as_str()).collect();
+        for r in a.db.all("select id,flow from runs where st in ('queued','run','wait')", vec![]) {
+            if r["flow"].as_str().is_some_and(|f| f != CORE && !ids.contains(f)) {
+                let _ = crate::eng::stop(a, r["id"].as_i64().unwrap_or(0));
+            }
+        }
     }
     if b["crew"].is_array() || b["flows"].is_array() {
         let ids: std::collections::HashSet<String> = a.db.kg("crew").as_array().map(|c| c.iter().filter_map(|w| w["id"].as_str().map(String::from)).collect()).unwrap_or_default();

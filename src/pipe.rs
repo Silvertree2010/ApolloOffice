@@ -1790,7 +1790,7 @@ fn mk_hunt(a: &Ax) -> bool {
     let sc = |r: &str| (cnt(r) as f64 + 1.0) / hy(a, r);
     c.sort_by(|x, y| sc(x).partial_cmp(&sc(y)).unwrap_or(std::cmp::Ordering::Equal));
     let Some(r) = c.first() else { return false };
-    a.db.jnew(r, 0, "hunt", &format!("Hunt for bugs in {r}"), &format!("https://github.com/{r}"), "ready", "hunter slot", json!({}), None, 99.0);
+    a.db.jnew(r, 0, "hunt", &format!("Hunt for bugs in {r}"), &format!("https://github.com/{r}"), "ready", "Hunter reads the code for bugs when a machine lane is free", json!({}), None, 99.0);
     a.say("hunter", &format!("starting a hunt in {r}"), None);
     true
 }

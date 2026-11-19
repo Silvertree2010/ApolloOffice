@@ -319,8 +319,8 @@
       if (fedit && k === fsel) box(u, "#4fb3e0", 0.95);
       else if (k === hk) box(u, lt() ? "#000" : "#fff", 0.35);
     }
-    if (!fedit) for (const id of Object.keys(WK || {})) { const q = WK[id]; if (!q.m) continue; person(id, Math.round(q.x), Math.round(q.y), t, false, false, q.f || 1); const nm = pname(id); tx(nm, Math.round(q.x) - (K.textWidth(nm) >> 1), Math.round(q.y) - 36, "#6b6f76"); }
-    for (const [k, { id, back }] of sm.m) { const u = FU[k]; if (!u || (fdrag && fdrag.k === k) || mv(id)) continue; const nm = pname(id), on = pst(id) === "work"; tx(nm, u.x * 8 + 8 - (K.textWidth(nm) >> 1), GO + u.y * 8 + (back ? 18 : -6), on ? hlOf(id) : "#6b6f76"); }
+    if (!fedit) for (const id of Object.keys(WK || {})) { const q = WK[id]; if (!q.m) continue; person(id, Math.round(q.x), Math.round(q.y), t, false, false, q.f || 1); const nm = pname(id); tx(nm, Math.round(q.x) - (K.textWidth(nm) >> 1), Math.round(q.y) - 38, lt() ? "#4a4e56" : "#7d828a"); }
+    for (const [k, { id, back }] of sm.m) { const u = FU[k]; if (!u || (fdrag && fdrag.k === k) || mv(id)) continue; const nm = pname(id), on = pst(id) === "work"; tx(nm, u.x * 8 + 8 - (K.textWidth(nm) >> 1), GO + u.y * 8 + (back ? 18 : 34), on ? hlOf(id) : lt() ? "#4a4e56" : "#7d828a"); }
     if (!fedit) {
       const dk = new Map(places().map((q) => [q.k, q.dk])), SP = {};
       for (const [k, { id, back }] of sm.m) {
@@ -366,6 +366,7 @@
       fbad = !ok;
       c.globalAlpha = 0.22; px(g.x * 8, GO + g.y * 8, f.w * 8, f.h * 8, ok ? "#5cbf6a" : "#e0675a");
       c.globalAlpha = ok ? 0.85 : 0.5; f.d(g.x * 8, GO + g.y * 8, t); c.globalAlpha = 1;
+      if (!ok) { const m = g.x < 0 || g.y < 0 || g.x + f.w > GX || g.y + f.h > GY ? "OUTSIDE THE ROOM" : "SPOT TAKEN", mw = K.textWidth(m); px(g.x * 8 + f.w * 4 - (mw >> 1) - 2, GO + g.y * 8 - 11, mw + 4, 9, "#0b0c0e"); tx(m, g.x * 8 + f.w * 4 - (mw >> 1), GO + g.y * 8 - 10, "#e0675a"); }
     } else if (fdrag && !fhov) fbad = true;
   };
   const cell = (e) => {
@@ -597,7 +598,7 @@
   const ohint = () => {
     let h = $("ohint"); let seen = "1"; try { seen = localStorage.getItem("ao.oh") || ""; } catch {}
     if (seen || document.body.classList.contains("ed") || !(S?.crew || []).length) { if (h) h.hidden = true; return; }
-    if (!h) { h = document.createElement("div"); h.id = "ohint"; h.className = "ohint"; h.innerHTML = `<b>How the office works</b><span>Every worker needs a desk with a chair to work. Without a free one, they wait. To add more, click Edit office and drag in a Workplace. The racks are your machines, where tests run.</span><button type="button">Got it</button>`; $("stage").appendChild(h); h.querySelector("button").onclick = () => { try { localStorage.setItem("ao.oh", "1"); } catch {} h.hidden = true; }; }
+    if (!h) { h = document.createElement("div"); h.id = "ohint"; h.className = "ohint"; h.innerHTML = `<b>How the office works</b><span>Every worker needs a desk with a chair to work; without a free one they wait. For more desks, open Edit office, pick Workplace (a desk with a chair) and click a free spot. The server racks are your machines, where tests run.</span><button type="button">Got it</button>`; $("stage").appendChild(h); h.querySelector("button").onclick = () => { try { localStorage.setItem("ao.oh", "1"); } catch {} h.hidden = true; }; }
     h.hidden = false;
   };
   const deskbar = () => {
@@ -727,11 +728,11 @@
     else if (o.pause) { n.className = "chip bad"; n.textContent = o.pause; }
     else if (o.warn) { n.className = "chip bad"; n.textContent = "Claude usage near its limit"; }
     else { n.className = "chip ok"; n.textContent = "online"; }
-    $("cHo").title = "Machines: white is online, red is offline";
-    $("cHo").innerHTML = (S.hs || []).filter((h) => h.on_).map((h) => `<b style="color:${o.net[h.id] === false ? "var(--bad)" : "var(--t1)"}">${esc(h.id)}</b>`).join(" ") || "no machine";
+    $("cHo").title = "Your machines: white is online, red is offline. Manage them under Machines.";
+    $("cHo").innerHTML = `<span class="chl">Machines</span> ` + ((S.hs || []).filter((h) => h.on_).map((h) => `<b style="color:${o.net[h.id] === false ? "var(--bad)" : "var(--t1)"}">${esc(h.id)}</b>`).join(" ") || "none");
     const a = S.n, rx = S.rn || [], cn = (st) => rx.filter((r) => r.st === st).length;
     const wk = ["hunt", "repro", "fix", "ci", "review", "gate", "submit"].reduce((s, k) => s + (a[k] || 0), 0);
-    $("cQ").innerHTML = `running <b>${wk + cn("run")}</b> · <a href="#/jobs" class="wfy" title="Open what waits for your answer">waiting for you <b>${(a.approve || 0) + cn("wait")}</b></a> · waiting to start <b>${(a.vet || 0) + (a.ready || 0) + cn("queued")}</b> · done <b>${a.done || 0}</b>`;
+    $("cQ").innerHTML = `running <b>${wk + cn("run")}</b> · <a href="#/jobs" class="wfy" title="Open what waits for your answer">waiting for you <b>${(a.approve || 0) + cn("wait")}</b></a> · queued <b>${(a.vet || 0) + (a.ready || 0) + cn("queued")}</b> · done <b>${a.done || 0}</b>`;
     $("bPause").textContent = o.man ? "Resume office" : "Pause office";
     $("ban").hidden = !S.star;
     document.body.classList.toggle("sb", !!S.star);

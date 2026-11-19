@@ -653,7 +653,8 @@ pub fn staff(a: &crate::app::App) -> Vec<String> {
         .as_array()
         .map(|fs| fs.iter().filter(|f| f["on"].as_bool().unwrap_or(false) || f["id"].as_str().is_some_and(|i| busy.contains(i))).flat_map(|f| f["nodes"].as_array().cloned().unwrap_or_default()).filter_map(|n| n["c"]["w"].as_str().map(String::from)).collect())
         .unwrap_or_default();
-    let mut v: Vec<String> = crate::flows::ROLES.iter().filter(|r| r.g == "team" && r.t != "ci").map(|r| r.t.to_string()).collect();
+    let rp = !a.db.all("select 1 from rp limit 1", pa![]).is_empty();
+    let mut v: Vec<String> = if rp { crate::flows::ROLES.iter().filter(|r| r.g == "team" && r.t != "ci").map(|r| r.t.to_string()).collect() } else { vec![] };
     v.extend(a.db.kg("crew").as_array().map(|c| c.iter().filter_map(|w| w["id"].as_str().map(String::from)).filter(|id| used.contains(id)).collect::<Vec<_>>()).unwrap_or_default());
     v
 }

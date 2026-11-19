@@ -478,6 +478,7 @@ mod provider_limit_tests {
         assert!(a.provider_limit("cc:sonnet").is_some());assert!(a.provider_limit("codex:").is_none());
         assert!(a.provider_limit("opencode:opencode/beam-free").is_none());
         assert_eq!(crate::eng::places_at(office_default().as_array().unwrap()).len(), 15);
+        a.db.run("insert into rp(full) values('o/r')", vec![]);
         assert!(!a.hold("fixer"));
         a.db.ks("set",&json!({"free_first":true,"tokday":0,"office":{"items":[]}}));
         assert!(a.hold("fixer"), "the bug-fix team waits without a workplace");
@@ -500,6 +501,8 @@ mod seat_tests {
         db.ks("set", &json!({}));
         let a: Ax = Arc::new(App::new(db, std::env::temp_dir(), 1, "x".into()));
         let mine = |a: &Ax| -> Vec<(i64, String)> { crate::eng::seat_view(a)["seats"].as_array().unwrap().iter().filter_map(|s| s["w"].as_str().map(|w| (s["c"].as_i64().unwrap(), w.to_string()))).collect() };
+        assert!(mine(&a).is_empty(), "no repository, no bug-fix team at desks");
+        a.db.run("insert into rp(full) values('o/r')", vec![]);
         let v1 = mine(&a);
         assert_eq!(v1.len(), 9);
         a.db.ks("crew", &json!([{"id": "bob", "n": "Bob"}]));
