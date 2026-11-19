@@ -590,7 +590,7 @@
       return;
     }
     B.innerHTML = `<div class="sec"><div class="box"><div class="hd2"><b>${esc(j.title)}</b></div><div class="jst"><span class="stt st-${esc(j.st)}">${esc(JSN[j.st] || j.st)}</span><span class="mut">${esc(JNX[j.st] || "")}</span></div><div class="msg">${esc(j.repo)} ${esc(tag)} · ${esc(j.kind)}${j.h ? " · on " + esc(j.h) : ""}${j.why ? "\n" + esc(j.why) : ""}</div>${cs}
-      <div class="acts">${j.url ? `<button data-u="${esc(j.url)}">Open on GitHub</button>` : ""}${!["done", "drop"].includes(j.st) ? `<button class="dng" data-d="${id}" title="Stop working on this job and take it out of the queue">Drop job</button>` : ""}${j.st === "drop" && j.kind === "fix" ? `<button data-rq="${id}">Try again</button>` : ""}</div></div></div>
+      <div class="acts">${j.url ? `<button data-u="${esc(j.url)}">Open on GitHub</button>` : ""}${!["done", "drop"].includes(j.st) ? `<button class="dng" data-d="${id}" data-dk="${esc(j.kind || "")}" data-ds="${esc(j.st || "")}" title="Stop working on this job and take it out of the queue">Drop job</button>` : ""}${j.st === "drop" && j.kind === "fix" ? `<button data-rq="${id}">Try again</button>` : ""}</div></div></div>
       ${j.df ? `<div class="sec"><h4>Diff</h4>${dview(j.df)}</div>` : ""}
       <details class="sec jlog"><summary>Full log</summary><div class="log">${ev || `<div class="empty">nothing yet</div>`}</div></details>`;
   };

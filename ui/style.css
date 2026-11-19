@@ -1271,3 +1271,5 @@ button.pri:disabled, button.go:disabled { background: transparent; border-color:
 .ohint .acts { display: flex; gap: 8px; justify-content: flex-end; margin: 0; }
 .ohint .acts button { align-self: auto; }
 .tiles { flex-wrap: wrap !important; max-height: none !important; overflow: visible !important; mask-image: none; row-gap: 6px; }
+.ndk.np { color: var(--t2); border-color: var(--l); }
+.ndk.np:hover { color: var(--t1); background: var(--f); }

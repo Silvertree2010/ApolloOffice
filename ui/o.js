@@ -136,7 +136,7 @@
       if (S.o?.off) { if (Math.floor(t * 2) % 2) tx("OFFLINE", X + 4, Y + 4, "#e0675a"); }
       else if (party()) { if (Math.floor(t * 3) % 2) tx("MERGED!", X + 4, Y + 4, "#5cbf6a"); }
       else if (ap) tx(`APPROVE ${ap}`, X + 4, Y + 4, Math.floor(t * 1.5) % 2 ? "#94dd9e" : "#5cbf6a");
-      else tx(`Q ${q} PR ${op}`, X + 4, Y + 4, "#5c5f66");
+      else tx(Math.floor(t / 4) % 2 ? `${op} PRS` : `${q} JOBS`, X + 4, Y + 4, "#8a8d94");
       const live = !S.o?.off && !S.o?.pause && !S.o?.man;
       px(X + 58, Y - 5, 3, 3, live ? (Math.floor(t * 1.5) % 2 ? "#5cbf6a" : "#3d9149") : S.o?.off ? "#e0675a" : "#8d9199");
       const d = new Date(), hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -642,7 +642,7 @@
         t.querySelector(".sy").textContent = rs.length ? rs[0].n : ev ? `${ago(ev.t)} · ${ev.m}` : "…";
         t.querySelector(".stt").textContent = rs.length ? "working" + (rs.length > 1 ? " ×" + rs.length : "") : "idle";
         t.querySelector(".ft").textContent = "";
-        t.title = (cw.r ? cw.r + " · " : "") + "open Team";
+        t.title = `${NM[n]}: ${rs.length ? "working" : "idle (grey dot)"}. ` + (cw.r ? cw.r + " · " : "") + "Click to open Team.";
         continue;
       }
       if ((S.seat?.wait || []).includes(n)) { t.className = "tile nodesk"; t.style.order = 0; t.querySelector(".md").textContent = ""; t.querySelector(".sy").textContent = ""; t.querySelector(".stt").textContent = "No desk"; t.querySelector(".ft").textContent = ""; t.title = "Needs a workplace (desk with a chair) to work"; continue; }
@@ -657,7 +657,7 @@
       t.style.order = w.hold ? 2 : wk ? 0 : 1;
       t.querySelector(".stt").textContent = w.hold ? "paused" : wk ? "working" + (cn > 1 ? " ×" + cn : "") : w.st === "sleep" ? "asleep" : "idle";
       t.querySelector(".ft").textContent = w.tk ? kt(w.tk) + " tok" : "";
-      t.title = (TD[n] ? TD[n] + " · Bug-fix team · " : "") + (w.hold ? "click to resume" : "click to pause");
+      t.title = `${NM[n]}: ${w.hold ? "paused" : wk ? "working (bright dot)" : "idle (grey dot)"}. ` + (TD[n] ? TD[n] + " · Bug-fix team. " : "") + (w.hold ? "Click to resume." : "Click to pause.");
     }
   };
 
@@ -777,7 +777,7 @@
     if (a) { e.preventDefault(); open(a.dataset.u); return; }
     const d = e.target.closest("[data-d]");
     if (d) {
-      const id = Number(d.dataset.d), j = (S.q || []).find((x) => x.id === id), A = window.AO;
+      const id = Number(d.dataset.d), j = (S.q || []).find((x) => x.id === id) || (d.dataset.dk ? { kind: d.dataset.dk, st: d.dataset.ds } : null), A = window.AO;
       (async () => {
         if (j && j.kind === "fix" && j.st !== "approve") {
           apply(await post({ a: "drop", id }));

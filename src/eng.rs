@@ -481,7 +481,9 @@ async fn exec(a: Ax, id: i64) {
             "approve" => {
                 d["wait"] = json!(nid);
                 d["q"] = json!(q.iter().collect::<Vec<_>>());
-                rec(&mut d, &n, "", json!({"ask": n["c"]["ask"].as_str().unwrap_or("Continue?")}), true, t0, None);
+                let fq = format!("Continue {} with the next step?", d["flow"]["n"].as_str().unwrap_or("this pipeline"));
+                let ask = n["c"]["ask"].as_str().map(str::trim).filter(|x| !x.is_empty()).map(String::from).unwrap_or(fq);
+                rec(&mut d, &n, "", json!({"ask": ask}), true, t0, None);
                 store(&a, id, "wait", &d);
                 a.say("pipe", &format!("{} waits for your answer (run {id})", d["flow"]["n"].as_str().unwrap_or("")), None);
                 return;
@@ -766,7 +768,7 @@ pub fn active(a: &Ax) -> Vec<Value> {
             let nid = d["cur"].as_str().or(d["wait"].as_str()).unwrap_or("");
             let n = d["flow"]["nodes"].as_array().and_then(|ns| ns.iter().find(|x| x["id"] == nid).cloned()).unwrap_or(Value::Null);
             let ask = d["steps"].as_array().and_then(|s| s.last()).map(|s| s["out"]["ask"].clone()).unwrap_or(Value::Null);
-            json!({"id": r["id"], "flow": r["flow"], "n": d["flow"]["n"], "st": r["st"], "t0": r["t0"], "w": if n.is_null() { d["blkw"].clone() } else { n["c"]["w"].clone() }, "nt": n["t"], "blk": d["blk"], "skip": d["skip"], "ask": if r["st"] == "wait" { ask } else { Value::Null }})
+            json!({"id": r["id"], "flow": r["flow"], "n": d["flow"]["n"], "st": r["st"], "t0": r["t0"], "w": if n.is_null() { d["blkw"].clone() } else { n["c"]["w"].clone() }, "nt": n["t"], "blk": if d["blkw"].as_str().is_some_and(|w| !seated(a, w)) { d["blk"].clone() } else { Value::Null }, "skip": d["skip"], "ask": if r["st"] == "wait" { ask } else { Value::Null }})
         })
         .collect()
 }
@@ -795,10 +797,11 @@ pub async fn runner(a: Ax) {
             continue;
         }
         let ids: Vec<i64> = a.db.all("select id from runs where st='queued' order by json_extract(d,'$.blk') is not null, id limit 10", pa![]).iter().filter_map(|x| x["id"].as_i64()).collect();
+        let cap = (crate::sh::hosts(&a).iter().filter(|h| h.on && a.net(&h.id)).map(|h| h.ln).sum::<i64>() as usize).clamp(3, 16);
         for id in ids {
             {
                 let mut b = busy().lock().unwrap();
-                if b.len() >= 3 || !b.insert(id) {
+                if b.len() >= cap || !b.insert(id) {
                     continue;
                 }
             }
