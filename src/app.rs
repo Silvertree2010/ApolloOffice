@@ -145,6 +145,16 @@ pub fn dd0() -> PathBuf {
     }
 }
 
+pub fn office_default() -> Value {
+    let mut it = vec![json!({"i": "plant", "x": 1, "y": 1}), json!({"i": "plant", "x": 47, "y": 1}), json!({"i": "coffee", "x": 44, "y": 1})];
+    for k in 0..10 {
+        let (x, y) = (3 + (k % 5) * 9, 4 + (k / 5) * 10);
+        it.push(json!({"i": "desk", "x": x, "y": y}));
+        it.push(json!({"i": "chair", "x": x + 1, "y": y + 2}));
+    }
+    json!(it)
+}
+
 pub fn dset() -> Value {
     json!({
         "md": {
@@ -212,6 +222,9 @@ impl App {
                     d[k] = v.clone();
                 }
             }
+        }
+        if !d["office"]["items"].is_array() {
+            d["office"]["items"] = office_default();
         }
         d
     }
@@ -285,8 +298,11 @@ impl App {
     }
 
     pub fn hold(&self, w: &str) -> bool {
-        let l = self.lv.lock().unwrap();
-        l.w.get(w).map(|x| x.hold).unwrap_or(false) || l.o.man || !l.o.pause.is_empty()
+        let h = {
+            let l = self.lv.lock().unwrap();
+            l.w.get(w).map(|x| x.hold).unwrap_or(false) || l.o.man || !l.o.pause.is_empty()
+        };
+        h || (crate::flows::is_core(w) && w != "ci" && !crate::eng::seated(self, w))
     }
 
     pub async fn held(&self, w: &str) {
@@ -413,6 +429,10 @@ mod provider_limit_tests {
         assert!(a.lv.lock().unwrap().o.pause.is_empty());
         assert!(a.provider_limit("cc:sonnet").is_some());assert!(a.provider_limit("codex:").is_none());
         assert!(a.provider_limit("opencode:opencode/beam-free").is_none());
+        assert!(!a.hold("fixer"));
+        a.db.ks("set",&json!({"free_first":true,"tokday":0,"office":{"items":[]}}));
+        assert!(a.hold("fixer"), "the bug-fix team waits without a workplace");
+        a.db.ks("set",&json!({"free_first":true,"tokday":0}));
         assert!(!a.hold("fixer"));
         a.lv.lock().unwrap().o.man=true;assert!(a.hold("fixer"));a.lv.lock().unwrap().o.man=false;
         a.db.ks("set",&json!({"free_first":true,"tokday":1}));a.tok("fixture",1,0);a.tick();

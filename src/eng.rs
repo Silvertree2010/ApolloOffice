@@ -646,15 +646,15 @@ pub fn stop(a: &Ax, id: i64) -> Result<(), String> {
     Ok(())
 }
 
-pub fn staff(a: &Ax) -> Vec<String> {
+pub fn staff(a: &crate::app::App) -> Vec<String> {
     let busy: HashSet<String> = a.db.all("select distinct flow from runs where st in ('queued','run','wait')", pa![]).iter().filter_map(|x| x["flow"].as_str().map(String::from)).collect();
     let fl = a.db.kg("flows");
     let used: HashSet<String> = fl
         .as_array()
         .map(|fs| fs.iter().filter(|f| f["on"].as_bool().unwrap_or(false) || f["id"].as_str().is_some_and(|i| busy.contains(i))).flat_map(|f| f["nodes"].as_array().cloned().unwrap_or_default()).filter_map(|n| n["c"]["w"].as_str().map(String::from)).collect())
         .unwrap_or_default();
-    let mut v: Vec<String> = a.db.kg("crew").as_array().map(|c| c.iter().filter_map(|w| w["id"].as_str().map(String::from)).filter(|id| used.contains(id)).collect()).unwrap_or_default();
-    v.extend(crate::flows::ROLES.iter().filter(|r| r.g == "team" && r.t != "ci").map(|r| r.t.to_string()));
+    let mut v: Vec<String> = crate::flows::ROLES.iter().filter(|r| r.g == "team" && r.t != "ci").map(|r| r.t.to_string()).collect();
+    v.extend(a.db.kg("crew").as_array().map(|c| c.iter().filter_map(|w| w["id"].as_str().map(String::from)).filter(|id| used.contains(id)).collect::<Vec<_>>()).unwrap_or_default());
     v
 }
 
@@ -693,7 +693,7 @@ pub fn seat_map(st: &[String], ps: &[Option<String>]) -> Vec<String> {
     sat
 }
 
-pub fn seated(a: &Ax, wid: &str) -> bool {
+pub fn seated(a: &crate::app::App, wid: &str) -> bool {
     let it = a.set()["office"]["items"].as_array().cloned().unwrap_or_default();
     let ps: Vec<Option<String>> = places_at(&it).into_iter().map(|x| x.1).collect();
     seat_map(&staff(a), &ps).iter().any(|w| w == wid)
@@ -735,7 +735,7 @@ pub fn seat_view(a: &Ax) -> Value {
             json!({"c": ix, "w": who})
         })
         .collect();
-    json!({"seats": seats, "wait": st.iter().filter(|w| !sat.contains(w) && !crate::flows::is_core(w)).collect::<Vec<_>>()})
+    json!({"seats": seats, "wait": st.iter().filter(|w| !sat.contains(w)).collect::<Vec<_>>()})
 }
 
 pub fn active(a: &Ax) -> Vec<Value> {

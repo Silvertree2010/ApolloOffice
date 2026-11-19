@@ -614,6 +614,7 @@
         t.title = (cw.r ? cw.r + " · " : "") + "open Team";
         continue;
       }
+      if ((S.seat?.wait || []).includes(n)) { t.className = "tile nodesk"; t.style.order = 0; t.querySelector(".md").textContent = ""; t.querySelector(".sy").textContent = ""; t.querySelector(".stt").textContent = "No desk"; t.querySelector(".ft").textContent = ""; t.title = "Needs a workplace (desk with a chair) to work"; continue; }
       const w = S.w[n] || { st: "idle", say: "", md: "", tk: 0 };
       const cn = STG[n] ? S.q.filter((q) => STG[n].includes(q.st)).length : n === "vet" ? S.o.vn || 0 : 0;
       const wk = cn > 0 || w.st === "work";
