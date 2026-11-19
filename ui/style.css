@@ -1253,3 +1253,10 @@ button.pri:disabled, button.go:disabled { background: transparent; border-color:
 .undob button { height: 28px; padding: 0 12px; border-radius: 6px; }
 @keyframes ubIn { from { opacity: 0; transform: translate(-50%, 6px); } }
 @media (prefers-reduced-motion: reduce) { .undob { animation: none; } }
+.ndk { margin-left: 8px; height: 20px; padding: 0 7px; font: 500 var(--fs4)/1 var(--s); color: var(--bad); background: none; border: 1px solid color-mix(in oklch, var(--bad) 45%, transparent); border-radius: 5px; vertical-align: 1px; }
+.ndk:hover { background: color-mix(in oklch, var(--bad) 12%, transparent); }
+.tile:not(.work):not(.nodesk) { flex: none; min-width: max-content; }
+.tile:not(.work):not(.nodesk) .hd { overflow: visible; text-overflow: clip; }
+.tile.work { flex: 1 1 170px; min-width: 170px; }
+.tiles { overflow-x: auto !important; overflow-y: hidden !important; }
+.tile.work:not(.hold) .stt { display: none; }

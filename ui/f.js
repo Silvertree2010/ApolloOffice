@@ -265,7 +265,7 @@
     if (hireFor !== null) mid = hireForm();
     else if (n && f.core) {
       const w = who(n.c.w), b = BK[n.t];
-      mid = `<div class="fsec fi"><h5><span class="mic" style="--g:${GR[b.g]}">${ic(b.ic)}</span><span>${esc(title(n))}</span></h5><div class="ff"><p class="hint">${esc(n.c.task || "")}</p>${w?.d ? `<p class="hint">${esc(w.d)}</p>` : ""}${w && w.md ? `<label>Model</label><p class="mono">${esc(w.md)}</p>` : ""}</div>
+      mid = `<div class="fsec fi"><h5><span class="mic" style="--g:${GR[b.g]}">${ic(b.ic)}</span><span>${esc(title(n))}</span></h5><div class="ff"><p class="hint">${esc(n.c.task || "")}</p>${w?.d ? `<p class="hint">${esc(w.d)}</p>` : ""}${w && w.md ? `<label>Model</label><p title="${esc(w.md)}">${esc(window.AO.mdn ? window.AO.mdn(w.md) : w.md)}</p>` : ""}</div>
         <div class="ac">${w && w.id !== "submit" && A.role ? `<button type="button" id="fRole" data-role="${esc(w.id)}">Model and provider</button>` : ""}${n.c.m ? `<button type="button" id="fMgr2">Machines</button>` : n.c.x ? `<button type="button" id="fXc">Edit checks</button>` : ""}</div></div>`;
     } else if (n) {
       const b = BK[n.t];

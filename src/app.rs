@@ -146,11 +146,11 @@ pub fn dd0() -> PathBuf {
 }
 
 pub fn office_default() -> Value {
-    let mut it = vec![json!({"i": "plant", "x": 1, "y": 1}), json!({"i": "plant", "x": 47, "y": 1}), json!({"i": "coffee", "x": 44, "y": 1})];
-    for k in 0..10 {
-        let (x, y) = (3 + (k % 5) * 9, 4 + (k / 5) * 10);
-        it.push(json!({"i": "desk", "x": x, "y": y}));
-        it.push(json!({"i": "chair", "x": x + 1, "y": y + 2}));
+    let mut it = vec![json!({"i": "plant", "x": 1, "y": 1}), json!({"i": "plant", "x": 47, "y": 1}), json!({"i": "coffee", "x": 47, "y": 24})];
+    for k in 0..18 {
+        let (x, y) = (3 + (k % 6) * 8, 2 + (k / 6) * 9);
+        it.push(json!({"i": "chair", "x": x + 1, "y": y}));
+        it.push(json!({"i": "desk", "x": x, "y": y + 2}));
     }
     json!(it)
 }
@@ -429,6 +429,7 @@ mod provider_limit_tests {
         assert!(a.lv.lock().unwrap().o.pause.is_empty());
         assert!(a.provider_limit("cc:sonnet").is_some());assert!(a.provider_limit("codex:").is_none());
         assert!(a.provider_limit("opencode:opencode/beam-free").is_none());
+        assert_eq!(crate::eng::places_at(office_default().as_array().unwrap()).len(), 18);
         assert!(!a.hold("fixer"));
         a.db.ks("set",&json!({"free_first":true,"tokday":0,"office":{"items":[]}}));
         assert!(a.hold("fixer"), "the bug-fix team waits without a workplace");

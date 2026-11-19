@@ -158,7 +158,7 @@
     coffee: { n: "Coffee", w: 2, h: 1, d: (X, Y, t) => { px(X, Y - 2, 16, 10, "#2a2c32"); px(X + 3, Y - 12, 10, 10, "#62666d"); px(X + 4, Y - 11, 8, 3, "#1c1e22"); px(X + 6, Y - 6, 4, 4, "#e9eef3"); if (Math.floor(t * 1.5) % 3 === 0) px(X + 7, Y - 15, 1, 2, "#8d9199"); } },
     cooler: { n: "Water", w: 1, h: 1, d: (X, Y) => { px(X + 1, Y - 2, 6, 10, "#b9bcc2"); px(X + 2, Y - 10, 4, 8, "#4fb3e0"); px(X + 2, Y - 10, 4, 1, "#8fd2f0"); } },
     lamp: { n: "Lamp", w: 1, h: 1, d: (X, Y) => { px(X + 3, Y - 10, 2, 17, "#3d4045"); px(X + 1, Y - 14, 6, 4, "#e4e9ef"); px(X + 1, Y + 6, 6, 2, "#2a2c32"); } },
-    workplace: { n: "Workplace", w: 4, h: 4, d: (X, Y, tt) => { FC.desk.d(X, Y, tt); FC.chair.d(X + 8, Y + 16, tt); } },
+    workplace: { n: "Workplace", w: 4, h: 4, d: (X, Y, tt) => { FC.chair.d(X + 8, Y, tt); FC.desk.d(X, Y + 16, tt); } },
     rug: { n: "Rug", w: 6, h: 4, l: 0, d: (X, Y) => { px(X, Y, 48, 32, "#5a2f3a"); px(X + 2, Y + 2, 44, 28, "#7a3f4f"); px(X + 6, Y + 6, 36, 20, "#5a2f3a"); px(X + 8, Y + 8, 32, 16, "#8a4a5c"); } },
   };
   let FU = [], ftool = null, fsel = -1, fedit = false, fhov = null, fdrag = null, fsave = 0, fhis = [], ffut = [], fbad = false;
@@ -383,7 +383,7 @@
     if (!p) return;
     if (ftool) {
       const g = ghost();
-      if (g && free(g.i, g.x, g.y, -1)) { snap(); if (g.i === "workplace") { FU.push({ i: "desk", x: g.x, y: g.y }, { i: "chair", x: g.x + 1, y: g.y + 2 }); } else FU.push({ i: g.i, x: g.x, y: g.y }); ftool = null; fsel = FU.length - 1; commit(); return; }
+      if (g && free(g.i, g.x, g.y, -1)) { snap(); if (g.i === "workplace") { FU.push({ i: "desk", x: g.x, y: g.y + 2 }, { i: "chair", x: g.x + 1, y: g.y }); } else FU.push({ i: g.i, x: g.x, y: g.y }); ftool = null; fsel = FU.length - 1; commit(); return; }
       const hit = pick(p);
       if (hit < 0) return;
       ftool = null;
@@ -403,7 +403,7 @@
     fhov = cell(e);
     if (d.n) {
       const g = fhov && { x: fhov.x - d.dx, y: fhov.y - d.dy };
-      if (g && free(d.n, g.x, g.y, -1)) { snap(); if (d.n === "workplace") FU.push({ i: "desk", x: g.x, y: g.y }, { i: "chair", x: g.x + 1, y: g.y + 2 }); else FU.push({ i: d.n, x: g.x, y: g.y }); fsel = FU.length - 1; commit(); }
+      if (g && free(d.n, g.x, g.y, -1)) { snap(); if (d.n === "workplace") FU.push({ i: "desk", x: g.x, y: g.y + 2 }, { i: "chair", x: g.x + 1, y: g.y }); else FU.push({ i: d.n, x: g.x, y: g.y }); fsel = FU.length - 1; commit(); }
       document.body.classList.remove("fdg");
       return;
     }
@@ -567,7 +567,7 @@
   const ohint = () => {
     let h = $("ohint"); let seen = "1"; try { seen = localStorage.getItem("ao.oh") || ""; } catch {}
     if (seen || document.body.classList.contains("ed") || !(S?.crew || []).length) { if (h) h.hidden = true; return; }
-    if (!h) { h = document.createElement("div"); h.id = "ohint"; h.className = "ohint"; h.innerHTML = `<b>How the office works</b><span>Everyone on your team needs a workplace, a desk with a chair, while one of their pipelines is active. Add one with Edit office → Workplace. Tests run on your machines, shown as the server racks.</span><button type="button">Got it</button>`; $("stage").appendChild(h); h.querySelector("button").onclick = () => { try { localStorage.setItem("ao.oh", "1"); } catch {} h.hidden = true; }; }
+    if (!h) { h = document.createElement("div"); h.id = "ohint"; h.className = "ohint"; h.innerHTML = `<b>How the office works</b><span>Every worker needs a desk with a chair to work. Without a free one, they wait. To add more, click Edit office and drag in a Workplace. The racks are your machines, where tests run.</span><button type="button">Got it</button>`; $("stage").appendChild(h); h.querySelector("button").onclick = () => { try { localStorage.setItem("ao.oh", "1"); } catch {} h.hidden = true; }; }
     h.hidden = false;
   };
   const deskbar = () => {
